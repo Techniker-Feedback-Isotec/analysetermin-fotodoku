@@ -312,14 +312,128 @@ export async function buildPdf(
       return { page, y }
     }
 
-    const lines = wrapText(toWinAnsi(inputs.assessment), regular, textSize, W - 2 * margin)
+    // ----- Gegliederte Darstellung -----
+    // "Ueberschrift:"            -> fette Zwischenueberschrift
+    // "* Punkt" / "- Punkt"      -> Aufzaehlung mit haengendem Einzug
+    // "Label: Text"              -> fettes Label, normaler Text
+    // Leerzeile                  -> Absatzabstand
+    const maxW = W - 2 * margin
+    const bulletTextIndent = 14
+
+    interface Word {
+      text: string
+      font: PDFFont
+    }
+    const wrapWords = (segs: Word[], size: number, availW: number): Word[][] => {
+      const words: Word[] = []
+      for (const seg of segs) {
+        for (const token of seg.text.split(/\s+/)) {
+          if (token) words.push({ text: token, font: seg.font })
+        }
+      }
+      const wrapped: Word[][] = []
+      let line: Word[] = []
+      let width = 0
+      const spaceW = regular.widthOfTextAtSize(' ', size)
+      for (const word of words) {
+        const wWidth = word.font.widthOfTextAtSize(word.text, size)
+        if (line.length > 0 && width + spaceW + wWidth > availW) {
+          wrapped.push(line)
+          line = []
+          width = 0
+        }
+        width += (line.length > 0 ? spaceW : 0) + wWidth
+        line.push(word)
+      }
+      if (line.length > 0) wrapped.push(line)
+      return wrapped.length > 0 ? wrapped : [[]]
+    }
+
+    interface FlowLine {
+      words: Word[]
+      x: number
+      size: number
+      gapBefore: number
+      bullet?: boolean
+    }
+    const flow: FlowLine[] = []
+    let pendingGap = 0
+    const addBlock = (
+      segs: Word[],
+      size: number,
+      indent: number,
+      opts: { gapBefore?: number; bullet?: boolean } = {},
+    ) => {
+      const wrapped = wrapWords(segs, size, maxW - indent)
+      wrapped.forEach((words, i) => {
+        flow.push({
+          words,
+          x: margin + indent,
+          size,
+          gapBefore: i === 0 ? Math.max(pendingGap, opts.gapBefore ?? 0) : 0,
+          bullet: i === 0 && opts.bullet,
+        })
+      })
+      pendingGap = 0
+    }
+    const splitLabel = (line: string): [string, string] | null => {
+      const m = line.match(/^([^:]{2,60}):\s+(\S.*)$/)
+      return m ? [m[1], m[2]] : null
+    }
+
+    for (const raw of toWinAnsi(inputs.assessment).split('\n')) {
+      const line = raw.trim()
+      if (line === '') {
+        pendingGap = Math.max(pendingGap, 6)
+        continue
+      }
+      const bulletMatch = line.match(/^[-*•]\s+(.*)$/)
+      if (bulletMatch) {
+        const content = bulletMatch[1]
+        const lab = splitLabel(content)
+        const segs: Word[] = lab
+          ? [
+              { text: `${lab[0]}:`, font: bold },
+              { text: lab[1], font: regular },
+            ]
+          : [{ text: content, font: regular }]
+        addBlock(segs, textSize, bulletTextIndent, { gapBefore: 3, bullet: true })
+        continue
+      }
+      if (line.endsWith(':') && line.length <= 90) {
+        addBlock([{ text: line, font: bold }], 12, 0, { gapBefore: 14 })
+        continue
+      }
+      const lab = splitLabel(line)
+      if (lab) {
+        addBlock(
+          [
+            { text: `${lab[0]}:`, font: bold },
+            { text: lab[1], font: regular },
+          ],
+          textSize,
+          0,
+          { gapBefore: 4 },
+        )
+        continue
+      }
+      addBlock([{ text: line, font: regular }], textSize, 0)
+    }
+
     let { page, y } = newAssessmentPage(true)
-    for (const line of lines) {
-      if (y < bottomLimit) {
+    for (const flowLine of flow) {
+      y -= flowLine.gapBefore
+      if (y - lineHeight < bottomLimit) {
         ;({ page, y } = newAssessmentPage(false))
       }
-      if (line !== '') {
-        page.drawText(line, { x: margin, y, size: textSize, font: regular, color: BROWN })
+      if (flowLine.bullet) {
+        page.drawText('•', { x: margin + 3, y, size: flowLine.size, font: regular, color: BROWN })
+      }
+      let x = flowLine.x
+      const spaceW = regular.widthOfTextAtSize(' ', flowLine.size)
+      for (const word of flowLine.words) {
+        page.drawText(word.text, { x, y, size: flowLine.size, font: word.font, color: BROWN })
+        x += word.font.widthOfTextAtSize(word.text, flowLine.size) + spaceW
       }
       y -= lineHeight
     }
