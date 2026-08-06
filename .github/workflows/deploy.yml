@@ -1,23 +1,24 @@
 name: Deploy to GitHub Pages
 
+# Deploy-Weg: dist/ wird in den Branch "gh-pages" gepusht, GitHub Pages ist auf
+# diesen Branch konfiguriert (Settings -> Pages -> Source: Deploy from a branch).
+# Der fruehere Weg ueber actions/deploy-pages blieb wiederholt in der
+# Pages-Warteschlange haengen ("deployment_queued" -> Timeout).
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# Deploys nicht gegenseitig abbrechen: neue Laeufe warten, bis der laufende fertig ist.
-# (Die Pages-Warteschlange kann langsam sein; cancel-in-progress hat Deploys gekillt.)
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,20 +36,15 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
-        with:
-          # Geduldiger warten, wenn die Pages-Warteschlange langsam ist
-          timeout: 1800000
-          error_count: 30
+      - name: Push dist to gh-pages
+        run: |
+          touch dist/.nojekyll
+          cd dist
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy ${GITHUB_SHA:0:7}"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
