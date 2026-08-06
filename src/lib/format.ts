@@ -18,6 +18,32 @@ export function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('de-DE', { dateStyle: 'long' }).format(date)
 }
 
+/** z. B. "Mittwoch, 6. August 2026" */
+export function formatDateWeekday(ms: number): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(ms))
+}
+
+/** z. B. "06.08.2026" */
+export function formatDateShort(ms: number): string {
+  return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format(new Date(ms))
+}
+
+/** true, wenn beide Zeitpunkte am selben Kalendertag liegen */
+export function isSameDay(a: number, b: number): boolean {
+  const da = new Date(a)
+  const db = new Date(b)
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  )
+}
+
 export function isoDate(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')

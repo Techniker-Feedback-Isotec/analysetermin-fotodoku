@@ -12,8 +12,8 @@ const outFile = path.join(outDir, 'salespeople.generated.ts')
 
 const entries = existsSync(photoDir)
   ? readdirSync(photoDir)
-      .filter((f) => /\.jpe?g$/i.test(f))
-      .map((f) => ({ name: f.replace(/\.jpe?g$/i, ''), file: f }))
+      .filter((f) => /\.(jpe?g|png)$/i.test(f))
+      .map((f) => ({ name: f.replace(/\.(jpe?g|png)$/i, ''), file: f }))
       .sort((a, b) => a.name.localeCompare(b.name, 'de'))
   : []
 
@@ -21,7 +21,7 @@ mkdirSync(outDir, { recursive: true })
 
 const banner =
   '// AUTOMATISCH GENERIERT von scripts/generate-salespeople.mjs - nicht von Hand bearbeiten.\n' +
-  '// Quelle: public/vertriebler/*.jpg ("Vorname Nachname.jpg")\n\n'
+  '// Quelle: public/vertriebler/ ("Vorname Nachname.jpg" oder ".png")\n\n'
 
 const body =
   'export interface Salesperson {\n' +

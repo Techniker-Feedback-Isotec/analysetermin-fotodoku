@@ -1,13 +1,13 @@
-import { PDFDocument, PDFImage, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf-lib'
 import type { OptimizedImage } from './image'
-import { formatDate, formatDateTime, initialsOf } from './format'
+import { formatDateShort, formatDateTime, initialsOf } from './format'
 
 // ISOTEC-Farben (Corporate Design Handbuch 2.0)
 const RED = rgb(213 / 255, 19 / 255, 23 / 255) // #D51317
 const BROWN = rgb(86 / 255, 74 / 255, 68 / 255) // #564A44
 const GREY = rgb(224 / 255, 224 / 255, 224 / 255) // #E0E0E0
 const LIGHT = rgb(244 / 255, 244 / 255, 244 / 255) // #F4F4F4
-const WHITE = rgb(1, 1, 1)
+const MUTED = rgb(138 / 255, 127 / 255, 120 / 255) // abgeschwaechtes Braun fuer Untertitel
 
 const A4: [number, number] = [595.28, 841.89]
 
@@ -20,11 +20,17 @@ export interface PdfPhoto {
 
 export interface PdfInputs {
   salespersonName: string
-  /** Quadratisch zugeschnittenes Vertrieblerfoto, oder null fuer Initialen-Platzhalter */
+  /** Rund zugeschnittenes Vertrieblerfoto (PNG mit Alpha), oder null fuer Initialen */
   salespersonImage: OptimizedImage | null
   objectImage: OptimizedImage
   photos: PdfPhoto[]
   createdAt: Date
+  /** Termindatum aus den Foto-Aufnahmedaten, z. B. "Mittwoch, 6. August 2026" */
+  terminLabel: string
+  /** Teamfoto (JPEG) fuer den Hero-Bereich des Deckblatts */
+  heroJpg: Uint8Array
+  /** ISOTEC-Logo (PNG) */
+  logoPng: Uint8Array
 }
 
 function embed(doc: PDFDocument, img: OptimizedImage): Promise<PDFImage> {
@@ -36,8 +42,26 @@ function fitInto(imgW: number, imgH: number, boxW: number, boxH: number) {
   return { w: imgW * scale, h: imgH * scale }
 }
 
+/** Text mit Buchstaben-Sperrung (pdf-lib kennt kein letter-spacing). */
+function drawTracked(
+  page: PDFPage,
+  text: string,
+  x: number,
+  y: number,
+  font: PDFFont,
+  size: number,
+  color: ReturnType<typeof rgb>,
+  tracking: number,
+) {
+  let cx = x
+  for (const ch of text) {
+    page.drawText(ch, { x: cx, y, size, font, color })
+    cx += font.widthOfTextAtSize(ch, size) + tracking
+  }
+}
+
 /**
- * Baut die PDF: Deckblatt + exakt 1 Foto pro Seite.
+ * Baut die PDF: Deckblatt (Stil "Einarbeitungsmappe") + exakt 1 Foto pro Seite.
  * onProgress wird nach jeder eingefuegten Fotoseite aufgerufen.
  */
 export async function buildPdf(
@@ -45,8 +69,8 @@ export async function buildPdf(
   onProgress?: (done: number, total: number) => void,
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
-  doc.setTitle('Fotodokumentation Analysetermin')
-  doc.setSubject(`Analysetermin - ${inputs.salespersonName}`)
+  doc.setTitle('Analysetermin - Fotodokumentation')
+  doc.setSubject(`Analysetermin ${inputs.terminLabel} - ${inputs.salespersonName}`)
   doc.setCreator('Fotodoku Analysetermin (100 % clientseitig)')
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const regular = await doc.embedFont(StandardFonts.Helvetica)
@@ -57,96 +81,108 @@ export async function buildPdf(
     const page = doc.addPage(A4)
     const margin = 48
 
-    // Kopfband in ISOTEC-Rot
-    page.drawRectangle({ x: 0, y: H - 128, width: W, height: 128, color: RED })
-    page.drawText('FOTODOKUMENTATION', {
-      x: margin,
-      y: H - 70,
-      size: 29,
-      font: bold,
-      color: WHITE,
-    })
-    page.drawText('Analysetermin', { x: margin, y: H - 100, size: 17, font: regular, color: WHITE })
+    // Hero: Teamfoto in voller Breite, darunter rotes Band
+    const hero = await doc.embedJpg(inputs.heroJpg)
+    const heroH = W * (hero.height / hero.width)
+    page.drawImage(hero, { x: 0, y: H - heroH, width: W, height: heroH })
+    const bandH = 14
+    const bandY = H - heroH - bandH
+    page.drawRectangle({ x: 0, y: bandY, width: W, height: bandH, color: RED })
 
-    // Objektfoto prominent, mittig
+    // Kicker + Titelblock
+    let cursor = bandY - 42
+    drawTracked(page, 'ISOTEC ABDICHTUNGSTECHNIK MORSCHECK', margin, cursor, bold, 9, RED, 1.6)
+    cursor -= 33
+    page.drawText('Analysetermin', { x: margin, y: cursor, size: 30, font: bold, color: BROWN })
+    cursor -= 25
+    page.drawText('Fotodokumentation', { x: margin, y: cursor, size: 16, font: regular, color: MUTED })
+    cursor -= 19
+    page.drawLine({
+      start: { x: margin, y: cursor },
+      end: { x: W - margin, y: cursor },
+      thickness: 0.75,
+      color: GREY,
+    })
+    const ruleY = cursor
+
+    // Objektfoto rechts
+    const objBoxW = 220
+    const objBoxH = 190
+    const objTop = ruleY - 10
     const objImg = await embed(doc, inputs.objectImage)
-    const boxTop = H - 168
-    const { w, h } = fitInto(objImg.width, objImg.height, W - 2 * margin, 390)
-    const ox = (W - w) / 2
-    const oy = boxTop - h
+    const objFit = fitInto(objImg.width, objImg.height, objBoxW, objBoxH)
+    const objX = W - margin - objFit.w
+    const objY = objTop - objFit.h
     page.drawRectangle({
-      x: ox - 5,
-      y: oy - 5,
-      width: w + 10,
-      height: h + 10,
+      x: objX - 4,
+      y: objY - 4,
+      width: objFit.w + 8,
+      height: objFit.h + 8,
       color: LIGHT,
       borderColor: GREY,
       borderWidth: 1,
     })
-    page.drawImage(objImg, { x: ox, y: oy, width: w, height: h })
-    page.drawText('Objekt', { x: ox, y: oy - 18, size: 9, font: regular, color: BROWN })
+    page.drawImage(objImg, { x: objX, y: objY, width: objFit.w, height: objFit.h })
+    page.drawText('Objekt', { x: objX, y: objY - 16, size: 9, font: regular, color: MUTED })
 
-    // Infoblock: Vertrieblerfoto (oder Initialen) + Angaben
-    const tile = 96
-    const infoTop = Math.min(oy - 46, 300)
-    const tileY = infoTop - tile
+    // Infoblock links
+    cursor -= 30
+    page.drawText(inputs.salespersonName, { x: margin, y: cursor, size: 14, font: bold, color: BROWN })
+    cursor -= 21
+    page.drawText(`Termin: ${inputs.terminLabel}`, {
+      x: margin,
+      y: cursor,
+      size: 11,
+      font: regular,
+      color: BROWN,
+    })
+    cursor -= 18
+    page.drawText(
+      `Termin-Fotos: ${inputs.photos.length} · Erstellt am: ${formatDateShort(inputs.createdAt.getTime())}`,
+      { x: margin, y: cursor, size: 11, font: regular, color: BROWN },
+    )
+
+    // Unten links: rundes Vertrieblerfoto (oder Initialen-Kreis)
+    const d = 88
+    const circleY = 44
     if (inputs.salespersonImage) {
       const spImg = await embed(doc, inputs.salespersonImage)
-      page.drawRectangle({
-        x: margin - 3,
-        y: tileY - 3,
-        width: tile + 6,
-        height: tile + 6,
-        color: WHITE,
+      page.drawImage(spImg, { x: margin, y: circleY, width: d, height: d })
+      page.drawEllipse({
+        x: margin + d / 2,
+        y: circleY + d / 2,
+        xScale: d / 2,
+        yScale: d / 2,
         borderColor: RED,
         borderWidth: 2,
       })
-      page.drawImage(spImg, { x: margin, y: tileY, width: tile, height: tile })
     } else {
-      page.drawRectangle({
-        x: margin,
-        y: tileY,
-        width: tile,
-        height: tile,
+      page.drawEllipse({
+        x: margin + d / 2,
+        y: circleY + d / 2,
+        xScale: d / 2,
+        yScale: d / 2,
         color: LIGHT,
         borderColor: RED,
         borderWidth: 2,
       })
       const initials = initialsOf(inputs.salespersonName) || '?'
-      const size = 38
+      const size = 30
       const tw = bold.widthOfTextAtSize(initials, size)
       page.drawText(initials, {
-        x: margin + (tile - tw) / 2,
-        y: tileY + tile / 2 - size * 0.36,
+        x: margin + (d - tw) / 2,
+        y: circleY + d / 2 - size * 0.36,
         size,
         font: bold,
         color: RED,
       })
     }
 
-    const tx = margin + tile + 22
-    let ty = infoTop - 14
-    const drawInfo = (label: string, value: string) => {
-      page.drawText(label.toUpperCase(), { x: tx, y: ty, size: 8, font: bold, color: RED })
-      page.drawText(value, { x: tx, y: ty - 16, size: 13, font: bold, color: BROWN })
-      ty -= 40
-    }
-    drawInfo('Vertriebler', inputs.salespersonName)
-    drawInfo('Erstellt am', formatDate(inputs.createdAt))
-    drawInfo('Termin-Fotos', String(inputs.photos.length))
-
-    // Fussband
-    page.drawRectangle({ x: 0, y: 0, width: W, height: 26, color: RED })
-    const claim = 'IMMER BESSER.'
-    const cw = bold.widthOfTextAtSize(claim, 10)
-    page.drawText(claim, { x: W - margin - cw, y: 9, size: 10, font: bold, color: WHITE })
-    page.drawText('Fotodokumentation Analysetermin', {
-      x: margin,
-      y: 9,
-      size: 9,
-      font: regular,
-      color: WHITE,
-    })
+    // Unten rechts: ISOTEC-Logo (inkl. Claim "IMMER BESSER.")
+    const logo = await doc.embedPng(inputs.logoPng)
+    const logoW = 150
+    const logoH = logoW * (logo.height / logo.width)
+    page.drawImage(logo, { x: W - margin - logoW, y: 48, width: logoW, height: logoH })
   }
 
   // ---------- Fotoseiten: exakt 1 Foto pro Seite ----------

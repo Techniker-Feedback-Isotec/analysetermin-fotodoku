@@ -6,18 +6,23 @@ import { sha256Hex } from './lib/hash'
 import {
   loadOriented,
   makeThumbnailUrl,
+  optimizeCircle,
   optimizeImage,
-  optimizeSquare,
   type OptimizedImage,
 } from './lib/image'
 import { buildPdf, type PdfPhoto } from './lib/pdf'
 import {
   formatBytes,
+  formatDateShort,
   formatDateTime,
+  formatDateWeekday,
   initialsOf,
+  isSameDay,
   isoDate,
   sanitizeFilePart,
 } from './lib/format'
+import teamJpgUrl from './assets/team.jpg'
+import logoPngUrl from './assets/isotec-logo.png'
 
 // ---------- Typen ----------
 
@@ -69,6 +74,9 @@ const QUALITIES = [
 
 const ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif'
 
+/** Dropdown-Wert fuer "Anderer Name (selbst eingeben)" */
+const CUSTOM_VALUE = '__custom__'
+
 function isSupported(file: File): boolean {
   if (/\.(jpe?g|png|heic|heif)$/i.test(file.name)) return true
   return ['image/jpeg', 'image/png', 'image/heic', 'image/heif'].includes(file.type.toLowerCase())
@@ -109,7 +117,8 @@ let toastCounter = 0
 // ---------- App ----------
 
 export default function App() {
-  const [salesperson, setSalesperson] = useState('')
+  const [selectValue, setSelectValue] = useState('')
+  const [customName, setCustomName] = useState('')
   const [spPhotoFailed, setSpPhotoFailed] = useState(false)
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
@@ -147,7 +156,12 @@ export default function App() {
 
   // ---------- Vertriebler ----------
 
-  const spEntry = useMemo(() => SALESPEOPLE.find((s) => s.name === salesperson), [salesperson])
+  const isCustomName = selectValue === CUSTOM_VALUE
+  const salesperson = isCustomName ? customName.trim() : selectValue
+  const spEntry = useMemo(
+    () => (isCustomName ? undefined : SALESPEOPLE.find((s) => s.name === selectValue)),
+    [isCustomName, selectValue],
+  )
   const spPhotoUrl = spEntry
     ? `${import.meta.env.BASE_URL}vertriebler/${encodeURIComponent(spEntry.file)}`
     : null
@@ -262,29 +276,51 @@ export default function App() {
   )
   const duplicateTotal = useMemo(() => sorted.filter((p) => p.isDuplicate).length, [sorted])
 
+  // Termindatum automatisch aus den Aufnahmedaten der Fotos
+  const terminRange = useMemo(() => {
+    if (included.length === 0) return null
+    let min = Infinity
+    let max = -Infinity
+    for (const p of included) {
+      if (p.takenAt < min) min = p.takenAt
+      if (p.takenAt > max) max = p.takenAt
+    }
+    return { min, max }
+  }, [included])
+
+  const terminLabel = terminRange
+    ? isSameDay(terminRange.min, terminRange.max)
+      ? formatDateWeekday(terminRange.min)
+      : `${formatDateShort(terminRange.min)} – ${formatDateShort(terminRange.max)}`
+    : null
+
   // ---------- PDF ----------
 
   const busy = importProgress !== null || pdfProgress !== null
   const canCreate = salesperson !== '' && objectPhoto !== null && included.length > 0 && !busy
 
   const missingHints: string[] = []
-  if (!salesperson) missingHints.push('Vertriebler wählen')
+  if (!salesperson) missingHints.push(isCustomName ? 'Namen eingeben' : 'Vertriebler wählen')
   if (!objectPhoto) missingHints.push('Objektfoto hochladen')
   if (included.length === 0) missingHints.push('mind. 1 Termin-Foto hinzufügen')
 
   const handleCreatePdf = useCallback(async () => {
-    if (!canCreate || !objectPhoto) return
+    if (!canCreate || !objectPhoto || !terminRange || !terminLabel) return
     const totalSteps = included.length + 2
     try {
-      // 1) Vertrieblerfoto aus dem Repo laden (404 -> Initialen-Platzhalter)
-      setPdfProgress({ label: 'Lade Vertrieblerfoto …', done: 0, total: totalSteps })
+      // 1) Statische Assets (Teamfoto, Logo) + Vertrieblerfoto laden
+      setPdfProgress({ label: 'Lade Deckblatt-Bilder …', done: 0, total: totalSteps })
+      const [heroJpg, logoPng] = await Promise.all([
+        fetch(teamJpgUrl).then((r) => r.arrayBuffer()),
+        fetch(logoPngUrl).then((r) => r.arrayBuffer()),
+      ])
       let spImage: OptimizedImage | null = null
       if (spPhotoUrl) {
         try {
           const res = await fetch(spPhotoUrl)
           const type = res.headers.get('content-type') ?? ''
           if (res.ok && type.startsWith('image/')) {
-            spImage = await optimizeSquare(await res.blob(), 1, 400, 0.85)
+            spImage = await optimizeCircle(await res.blob(), 1, 360)
           }
         } catch {
           // Platzhalter mit Initialen wird verwendet
@@ -341,12 +377,16 @@ export default function App() {
           objectImage: objImage,
           photos: pdfPhotos,
           createdAt: new Date(),
+          terminLabel,
+          heroJpg: new Uint8Array(heroJpg),
+          logoPng: new Uint8Array(logoPng),
         },
         (done, total) =>
           setPdfProgress({ label: `Füge Seite ${done}/${total} ein …`, done: totalSteps, total: totalSteps }),
       )
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
-      const fileName = `Analysetermin_${sanitizeFilePart(salesperson)}_${isoDate(new Date())}.pdf`
+      // Datum im Dateinamen = Termindatum (fruehestes Foto), nicht das heutige Datum
+      const fileName = `Analysetermin_${sanitizeFilePart(salesperson)}_${isoDate(new Date(terminRange.min))}.pdf`
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -367,7 +407,18 @@ export default function App() {
     } finally {
       setPdfProgress(null)
     }
-  }, [canCreate, objectPhoto, included, spPhotoUrl, maxEdge, quality, salesperson, pushToast])
+  }, [
+    canCreate,
+    objectPhoto,
+    included,
+    spPhotoUrl,
+    maxEdge,
+    quality,
+    salesperson,
+    terminRange,
+    terminLabel,
+    pushToast,
+  ])
 
   const progress = pdfProgress ?? importProgress
 
@@ -377,9 +428,14 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="container header-inner">
-          <div>
-            <p className="header-kicker">ISOTEC · Analysetermin</p>
-            <h1>Fotodokumentation</h1>
+          <div className="header-brand">
+            <span className="header-logo">
+              <img src={logoPngUrl} alt="ISOTEC – Immer besser." />
+            </span>
+            <div>
+              <h1>Analysetermin</h1>
+              <p className="header-kicker">Fotodokumentation · ISOTEC Abdichtungstechnik Morscheck</p>
+            </div>
           </div>
           <p className="privacy-note">
             🔒 Alle Dateien bleiben lokal im Browser. Es wird nichts hochgeladen.
@@ -398,9 +454,9 @@ export default function App() {
               <label htmlFor="salesperson-select">Name auswählen</label>
               <select
                 id="salesperson-select"
-                value={salesperson}
+                value={selectValue}
                 onChange={(e) => {
-                  setSalesperson(e.target.value)
+                  setSelectValue(e.target.value)
                   setSpPhotoFailed(false)
                 }}
               >
@@ -410,7 +466,19 @@ export default function App() {
                     {s.name}
                   </option>
                 ))}
+                <option value={CUSTOM_VALUE}>Anderer Name (selbst eingeben) …</option>
               </select>
+              {isCustomName && (
+                <input
+                  type="text"
+                  className="custom-name-input"
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  placeholder="Vorname Nachname"
+                  aria-label="Eigenen Vertriebler-Namen eingeben"
+                  autoFocus
+                />
+              )}
             </div>
             {salesperson !== '' && (
               <div className="salesperson-preview">
@@ -611,6 +679,11 @@ export default function App() {
           <h2 id="sec-create" className="visually-hidden">
             PDF erstellen
           </h2>
+          {terminLabel && (
+            <p className="termin-line">
+              Termin (aus den Foto-Aufnahmedaten): <strong>{terminLabel}</strong>
+            </p>
+          )}
           <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
             PDF erstellen ({included.length + 1} Seiten)
           </button>

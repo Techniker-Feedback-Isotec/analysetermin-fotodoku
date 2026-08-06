@@ -51,9 +51,28 @@ body {
 }
 
 .header-kicker {
-  margin: 0 0 2px;
+  margin: 2px 0 0;
   font-size: 0.85rem;
   opacity: 0.9;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-logo {
+  display: inline-flex;
+  background: var(--white);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.header-logo img {
+  height: 34px;
+  width: auto;
+  display: block;
 }
 
 .privacy-note {
@@ -115,7 +134,8 @@ fieldset legend {
   font-size: 0.95rem;
 }
 
-select {
+select,
+.custom-name-input {
   font: inherit;
   padding: 9px 12px;
   border: 1px solid var(--grey);
@@ -123,6 +143,11 @@ select {
   background: var(--white);
   color: inherit;
   min-width: 260px;
+}
+
+.custom-name-input {
+  display: block;
+  margin-top: 8px;
 }
 
 fieldset {
@@ -420,6 +445,11 @@ input[type='checkbox'] {
   margin: 10px 0 0;
   font-size: 0.9rem;
   color: #7a6f68;
+}
+
+.termin-line {
+  margin: 0 0 14px;
+  font-size: 0.95rem;
 }
 
 .progress {

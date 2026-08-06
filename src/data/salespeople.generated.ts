@@ -1,5 +1,5 @@
 // AUTOMATISCH GENERIERT von scripts/generate-salespeople.mjs - nicht von Hand bearbeiten.
-// Quelle: public/vertriebler/*.jpg ("Vorname Nachname.jpg")
+// Quelle: public/vertriebler/ ("Vorname Nachname.jpg" oder ".png")
 
 export interface Salesperson {
   /** Anzeigename, z. B. "Mike Alsdorf" */
@@ -10,15 +10,23 @@ export interface Salesperson {
 
 export const SALESPEOPLE: Salesperson[] = [
   {
-    "name": "Erika Musterfrau",
-    "file": "Erika Musterfrau.jpg"
+    "name": "Alexander Swaghoven",
+    "file": "Alexander Swaghoven.png"
   },
   {
-    "name": "Max Mustermann",
-    "file": "Max Mustermann.jpg"
+    "name": "Boris Hohl",
+    "file": "Boris Hohl.png"
   },
   {
-    "name": "Peter Beispiel",
-    "file": "Peter Beispiel.jpg"
+    "name": "Marvin Bethke",
+    "file": "Marvin Bethke.png"
+  },
+  {
+    "name": "Mike Alsdorf",
+    "file": "Mike Alsdorf.png"
+  },
+  {
+    "name": "Sarah Najji",
+    "file": "Sarah Najji.png"
   }
 ]

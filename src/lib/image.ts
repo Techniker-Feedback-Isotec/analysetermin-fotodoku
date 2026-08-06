@@ -191,6 +191,39 @@ export async function optimizeSquare(
   }
 }
 
+/** Runder Center-Crop mit transparentem Hintergrund (PNG), fuer das Deckblatt. */
+export async function optimizeCircle(
+  blob: Blob,
+  orientation: number,
+  size: number,
+): Promise<OptimizedImage> {
+  const oriented = await loadOriented(blob, orientation)
+  try {
+    const side = Math.min(oriented.width, oriented.height)
+    const sx = (oriented.width - side) / 2
+    const sy = (oriented.height - side) / 2
+    const target = Math.max(1, Math.min(size, side))
+    const canvas = document.createElement('canvas')
+    canvas.width = target
+    canvas.height = target
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar')
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.beginPath()
+    ctx.arc(target / 2, target / 2, target / 2, 0, Math.PI * 2)
+    ctx.closePath()
+    ctx.clip()
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, target, target)
+    ctx.drawImage(oriented.source, sx, sy, side, side, 0, 0, target, target)
+    const out = await canvasToBlob(canvas, 'image/png')
+    return { bytes: new Uint8Array(await out.arrayBuffer()), width: target, height: target, format: 'png' }
+  } finally {
+    oriented.cleanup()
+  }
+}
+
 /** Kleines Vorschaubild als Object-URL (Aufrufer muss revokeObjectURL aufrufen). */
 export async function makeThumbnailUrl(
   blob: Blob,
