@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { SALESPEOPLE } from './data/salespeople.generated'
+import { SALESPEOPLE } from './data/salespeople'
 import { readExif } from './lib/exif'
 import { heicToJpegBlob, isHeic } from './lib/heic'
 import { sha256Hex } from './lib/hash'
@@ -13,6 +13,7 @@ import {
 import { buildPdf, type PdfPhoto } from './lib/pdf'
 import {
   formatBytes,
+  formatDateShort,
   formatDateTime,
   formatDateWeekday,
   initialsOf,
@@ -135,6 +136,8 @@ export default function App() {
   // Nur bei Terminart "Reklamation" sichtbar und nur dann in der PDF
   const [orderNumber, setOrderNumber] = useState('')
   const [assessment, setAssessment] = useState('')
+  // Nur bei Terminart "Analysetermin" sichtbar und nur dann in der PDF
+  const [summary, setSummary] = useState('')
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
   const [keepDuplicates, setKeepDuplicates] = useState(false)
   const [extraCompression, setExtraCompression] = useState(true)
@@ -183,9 +186,7 @@ export default function App() {
     () => (isCustomName ? undefined : SALESPEOPLE.find((s) => s.name === selectValue)),
     [isCustomName, selectValue],
   )
-  const spPhotoUrl = spEntry
-    ? `${import.meta.env.BASE_URL}vertriebler/${encodeURIComponent(spEntry.file)}`
-    : null
+  const spPhotoUrl = spEntry ? spEntry.url : null
 
   // ---------- Objektfoto ----------
 
@@ -348,8 +349,10 @@ export default function App() {
   const canCreate = salesperson !== '' && objectPhoto !== null && included.length > 0 && !busy
 
   const isReklamation = terminType === 'Reklamation'
+  const isAnalyse = terminType === 'Analysetermin'
   const hasAssessment = isReklamation && assessment.trim() !== ''
-  const pageCount = included.length + 1 + (hasAssessment ? 1 : 0)
+  const hasSummary = isAnalyse && summary.trim() !== ''
+  const pageCount = included.length + 1 + (hasAssessment || hasSummary ? 1 : 0)
 
   const missingHints: string[] = []
   if (!salesperson) missingHints.push(isCustomName ? 'Namen eingeben' : 'Mitarbeiter wählen')
@@ -434,7 +437,19 @@ export default function App() {
             objectAddress,
             customerName: customerName.trim() || null,
             orderNumber: isReklamation ? orderNumber.trim() || null : null,
-            assessment: isReklamation ? assessment.trim() || null : null,
+            textPage: hasAssessment
+              ? {
+                  title: 'Fachliche Beurteilung',
+                  text: assessment.trim(),
+                  note: `Die fachliche Beurteilung wurde durchgeführt von ${salesperson} am ${formatDateShort(Date.now())}.`,
+                }
+              : hasSummary
+                ? {
+                    title: 'Zusammenfassung',
+                    text: summary.trim(),
+                    note: `Die Zusammenfassung wurde erstellt von ${salesperson} am ${formatDateShort(Date.now())}.`,
+                  }
+                : null,
             photos: pdfPhotos,
             createdAt: new Date(),
             terminLabel,
@@ -508,7 +523,10 @@ export default function App() {
     addressInput,
     isReklamation,
     orderNumber,
+    hasAssessment,
     assessment,
+    hasSummary,
+    summary,
     pageCount,
     pushToast,
   ])
@@ -576,7 +594,7 @@ export default function App() {
               >
                 <option value="">Bitte wählen …</option>
                 {SALESPEOPLE.map((s) => (
-                  <option key={s.file} value={s.name}>
+                  <option key={s.name} value={s.name}>
                     {s.name}
                   </option>
                 ))}
@@ -723,6 +741,22 @@ export default function App() {
                   </p>
                 </div>
               </>
+            )}
+            {isAnalyse && (
+              <div className="field">
+                <label htmlFor="summary-input">Zusammenfassung (optional)</label>
+                <textarea
+                  id="summary-input"
+                  className="custom-name-input assessment-input"
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  placeholder="Text der Zusammenfassung einfügen …"
+                  rows={1}
+                />
+                <p className="field-hint">
+                  Erscheint als eigene Seite „Zusammenfassung" direkt nach dem Deckblatt.
+                </p>
+              </div>
             )}
           </div>
         </section>

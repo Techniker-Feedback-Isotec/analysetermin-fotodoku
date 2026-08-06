@@ -4,10 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "generate:salespeople": "node scripts/generate-salespeople.mjs",
-    "predev": "npm run generate:salespeople",
     "dev": "vite",
-    "prebuild": "npm run generate:salespeople",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },

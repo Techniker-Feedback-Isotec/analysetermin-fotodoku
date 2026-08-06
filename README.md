@@ -17,6 +17,9 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
   auch im PDF-Dateinamen; jede Fotoseite trägt zusätzlich ein kleines ISOTEC-Logo
 - **Optionale Felder „Kunde" und „Objektadresse"** – erscheinen nur auf dem Deckblatt,
   wenn sie ausgefüllt sind
+- **Optionale Textseite nach dem Deckblatt**: bei Reklamation „Beurteilung" (Fachliche
+  Beurteilung + Auftragsnummer auf dem Deckblatt), bei Analysetermin „Zusammenfassung" –
+  jeweils mit Vermerk, wer den Text wann verfasst hat; leer = keine Extra-Seite
 - **Mitarbeiter-Dropdown mit Freitext-Option**: „Anderer Name (selbst eingeben) …"
   erlaubt neue Namen ohne Foto (Initialen-Platzhalter)
 - **Exakt 1 Foto pro Seite** ab Seite 2
@@ -48,29 +51,28 @@ npm run build    # Produktions-Build nach dist/
 npm run preview  # dist/ lokal testen
 ```
 
-Vor `dev` und `build` läuft automatisch `scripts/generate-salespeople.mjs` (siehe unten).
 
 ## Vertriebler pflegen
 
-Die Vertrieblerfotos liegen im Repo unter **`public/vertriebler/`**. Dateinamen sind exakt
+Die Mitarbeiterfotos liegen im Repo unter **`src/assets/vertriebler/`**. Dateinamen sind exakt
 **„Vorname Nachname.jpg“** oder **„Vorname Nachname.png“** (Leerzeichen gehören zum Namen,
 Groß-/Kleinschreibung beibehalten), z. B. `Mike Alsdorf.png`. Aktuell enthalten:
 Mike Alsdorf, Sarah Najji, Boris Hohl, Alexander Swaghoven, Marvin Bethke, Hüseyin Manaz,
 Björn Morscheck, Gerd Kahlau, Dzevit Veliji.
 
-**Neuen Vertriebler hinzufügen:**
+**Neuen Mitarbeiter hinzufügen:**
 
-1. Foto als `Vorname Nachname.jpg`/`.png` in `public/vertriebler/` ablegen (das Bild wird auf
-   dem Deckblatt mittig rund zugeschnitten – quadratisch/Portrait wirkt am besten)
+1. Foto als `Vorname Nachname.jpg`/`.png` in `src/assets/vertriebler/` ablegen (das Bild wird
+   auf dem Deckblatt mittig rund zugeschnitten – quadratisch/Portrait wirkt am besten)
 2. Committen und pushen – fertig.
 
 Alternativ kann im Tool jederzeit „Anderer Name (selbst eingeben) …" gewählt werden –
 dann erscheint statt des Fotos ein Initialen-Platzhalter.
 
-Die Dropdown-Liste wird **nicht manuell gepflegt**: GitHub Pages bietet kein Directory-Listing,
-daher scannt `scripts/generate-salespeople.mjs` bei jedem Dev-Start/Build den Ordner
-`public/vertriebler/`, entfernt die Dateiendung und schreibt die alphabetisch sortierte Liste
-nach `src/data/salespeople.generated.ts`. Zur Laufzeit bleibt alles statisch.
+Die Dropdown-Liste wird **nicht manuell gepflegt**: `src/data/salespeople.ts` liest den Ordner
+zur Build-Zeit per `import.meta.glob` ein. Vite vergibt dabei gehashte ASCII-Dateinamen –
+wichtig, weil der GitHub-Pages-Build an Umlaut-Dateinamen (z. B. „Björn …", „Hüseyin …")
+scheitert; die Anzeigenamen behalten ihre Umlaute natürlich.
 
 Wird ein Foto zur Laufzeit nicht gefunden (404), zeigt die App einen Initialen-Platzhalter
 und einen Hinweis – kein Absturz.

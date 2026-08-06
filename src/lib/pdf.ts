@@ -31,8 +31,12 @@ export interface PdfInputs {
   customerName: string | null
   /** Auftragsnummer (nur bei Reklamation, optional), oder null */
   orderNumber: string | null
-  /** Fachliche Beurteilung (nur bei Reklamation, optional) - eigene Seite nach dem Deckblatt */
-  assessment: string | null
+  /**
+   * Optionale Textseite direkt nach dem Deckblatt (Fliesstext), z. B.
+   * "Fachliche Beurteilung" (Reklamation) oder "Zusammenfassung" (Analysetermin).
+   * note = Vermerk am Ende (wer, wann).
+   */
+  textPage: { title: string; text: string; note: string } | null
   photos: PdfPhoto[]
   createdAt: Date
   /** Termindatum aus den Foto-Aufnahmedaten, z. B. "Mittwoch, 6. August 2026" */
@@ -278,14 +282,15 @@ export async function buildPdf(
     page.drawImage(logo, { x: W - margin - logoW, y: 48, width: logoW, height: logoH })
   }
 
-  // ---------- Fachliche Beurteilung (nur wenn ausgefuellt, direkt nach dem Deckblatt) ----------
-  if (inputs.assessment) {
+  // ---------- Optionale Textseite (nur wenn ausgefuellt, direkt nach dem Deckblatt) ----------
+  if (inputs.textPage) {
+    const { title, text, note } = inputs.textPage
     const margin = 48
     const textSize = 11
     const lineHeight = 17
     const bottomLimit = 70
 
-    const newAssessmentPage = (first: boolean) => {
+    const newTextPage = (first: boolean) => {
       const page = doc.addPage(A4)
       const pageLogoW = 70
       const pageLogoH = pageLogoW * (logo.height / logo.width)
@@ -299,7 +304,7 @@ export async function buildPdf(
       if (first) {
         drawTracked(page, inputs.terminType.toUpperCase(), margin, y, bold, 9, RED, 1.6)
         y -= 26
-        page.drawText('Fachliche Beurteilung', { x: margin, y, size: 22, font: bold, color: BROWN })
+        page.drawText(title, { x: margin, y, size: 22, font: bold, color: BROWN })
         y -= 14
         page.drawLine({
           start: { x: margin, y },
@@ -312,138 +317,24 @@ export async function buildPdf(
       return { page, y }
     }
 
-    // ----- Gegliederte Darstellung -----
-    // "Ueberschrift:"            -> fette Zwischenueberschrift
-    // "* Punkt" / "- Punkt"      -> Aufzaehlung mit haengendem Einzug
-    // "Label: Text"              -> fettes Label, normaler Text
-    // Leerzeile                  -> Absatzabstand
-    const maxW = W - 2 * margin
-    const bulletTextIndent = 14
-
-    interface Word {
-      text: string
-      font: PDFFont
-    }
-    const wrapWords = (segs: Word[], size: number, availW: number): Word[][] => {
-      const words: Word[] = []
-      for (const seg of segs) {
-        for (const token of seg.text.split(/\s+/)) {
-          if (token) words.push({ text: token, font: seg.font })
-        }
+    // Fliesstext: Zeilen umbrechen, Leerzeilen bleiben als Absatzabstand erhalten
+    const lines = wrapText(toWinAnsi(text), regular, textSize, W - 2 * margin)
+    let { page, y } = newTextPage(true)
+    for (const line of lines) {
+      if (y < bottomLimit) {
+        ;({ page, y } = newTextPage(false))
       }
-      const wrapped: Word[][] = []
-      let line: Word[] = []
-      let width = 0
-      const spaceW = regular.widthOfTextAtSize(' ', size)
-      for (const word of words) {
-        const wWidth = word.font.widthOfTextAtSize(word.text, size)
-        if (line.length > 0 && width + spaceW + wWidth > availW) {
-          wrapped.push(line)
-          line = []
-          width = 0
-        }
-        width += (line.length > 0 ? spaceW : 0) + wWidth
-        line.push(word)
-      }
-      if (line.length > 0) wrapped.push(line)
-      return wrapped.length > 0 ? wrapped : [[]]
-    }
-
-    interface FlowLine {
-      words: Word[]
-      x: number
-      size: number
-      gapBefore: number
-      bullet?: boolean
-    }
-    const flow: FlowLine[] = []
-    let pendingGap = 0
-    const addBlock = (
-      segs: Word[],
-      size: number,
-      indent: number,
-      opts: { gapBefore?: number; bullet?: boolean } = {},
-    ) => {
-      const wrapped = wrapWords(segs, size, maxW - indent)
-      wrapped.forEach((words, i) => {
-        flow.push({
-          words,
-          x: margin + indent,
-          size,
-          gapBefore: i === 0 ? Math.max(pendingGap, opts.gapBefore ?? 0) : 0,
-          bullet: i === 0 && opts.bullet,
-        })
-      })
-      pendingGap = 0
-    }
-    const splitLabel = (line: string): [string, string] | null => {
-      const m = line.match(/^([^:]{2,60}):\s+(\S.*)$/)
-      return m ? [m[1], m[2]] : null
-    }
-
-    for (const raw of toWinAnsi(inputs.assessment).split('\n')) {
-      const line = raw.trim()
-      if (line === '') {
-        pendingGap = Math.max(pendingGap, 6)
-        continue
-      }
-      const bulletMatch = line.match(/^[-*•]\s+(.*)$/)
-      if (bulletMatch) {
-        const content = bulletMatch[1]
-        const lab = splitLabel(content)
-        const segs: Word[] = lab
-          ? [
-              { text: `${lab[0]}:`, font: bold },
-              { text: lab[1], font: regular },
-            ]
-          : [{ text: content, font: regular }]
-        addBlock(segs, textSize, bulletTextIndent, { gapBefore: 3, bullet: true })
-        continue
-      }
-      if (line.endsWith(':') && line.length <= 90) {
-        addBlock([{ text: line, font: bold }], 12, 0, { gapBefore: 14 })
-        continue
-      }
-      const lab = splitLabel(line)
-      if (lab) {
-        addBlock(
-          [
-            { text: `${lab[0]}:`, font: bold },
-            { text: lab[1], font: regular },
-          ],
-          textSize,
-          0,
-          { gapBefore: 4 },
-        )
-        continue
-      }
-      addBlock([{ text: line, font: regular }], textSize, 0)
-    }
-
-    let { page, y } = newAssessmentPage(true)
-    for (const flowLine of flow) {
-      y -= flowLine.gapBefore
-      if (y - lineHeight < bottomLimit) {
-        ;({ page, y } = newAssessmentPage(false))
-      }
-      if (flowLine.bullet) {
-        page.drawText('•', { x: margin + 3, y, size: flowLine.size, font: regular, color: BROWN })
-      }
-      let x = flowLine.x
-      const spaceW = regular.widthOfTextAtSize(' ', flowLine.size)
-      for (const word of flowLine.words) {
-        page.drawText(word.text, { x, y, size: flowLine.size, font: word.font, color: BROWN })
-        x += word.font.widthOfTextAtSize(word.text, flowLine.size) + spaceW
+      if (line !== '') {
+        page.drawText(line, { x: margin, y, size: textSize, font: regular, color: BROWN })
       }
       y -= lineHeight
     }
 
-    // Vermerk: wer hat die Beurteilung wann durchgefuehrt
-    const note = `Die fachliche Beurteilung wurde durchgeführt von ${inputs.salespersonName} am ${formatDateShort(inputs.createdAt.getTime())}.`
+    // Vermerk am Ende (wer, wann)
     const noteLines = wrapText(toWinAnsi(note), italic, 10, W - 2 * margin)
     const noteHeight = 24 + noteLines.length * 15
     if (y - noteHeight < 40) {
-      ;({ page, y } = newAssessmentPage(false))
+      ;({ page, y } = newTextPage(false))
     }
     y -= 8
     page.drawLine({
