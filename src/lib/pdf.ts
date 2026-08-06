@@ -19,7 +19,7 @@ export interface PdfPhoto {
 }
 
 export interface PdfInputs {
-  /** Terminart, wird zur Deckblatt-Ueberschrift: Analysetermin / Reklamation / Baustellenbesuch */
+  /** Terminart, wird zur Deckblatt-Ueberschrift: Analysetermin / Reklamation */
   terminType: string
   salespersonName: string
   /** Rund zugeschnittenes Mitarbeiterfoto (PNG mit Alpha), oder null fuer Initialen */

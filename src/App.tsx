@@ -74,7 +74,7 @@ const EXTRA_LADDER: Array<{ maxEdge: number; quality: number }> = [
 
 const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 
-const TERMINARTEN = ['Analysetermin', 'Reklamation', 'Baustellenbesuch']
+const TERMINARTEN = ['Analysetermin', 'Reklamation']
 
 const ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif'
 

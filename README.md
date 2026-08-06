@@ -13,7 +13,7 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
 
 ## Funktionen
 
-- **Terminart wählbar** (Analysetermin / Reklamation / Baustellenbesuch) – sie wird zur
+- **Terminart wählbar** (Analysetermin / Reklamation) – sie wird zur
   Überschrift des Deckblatts und steht im PDF-Dateinamen
 - **Deckblatt** im Stil der ISOTEC-Einarbeitungsmappe: Teamfoto als Hero, rotes Band,
   ISOTEC-Logo, Mitarbeiter (Name + rundes Foto), Objektfoto und Termindatum –
