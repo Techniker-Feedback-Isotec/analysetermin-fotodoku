@@ -104,7 +104,7 @@ async function prepareImage(file: File): Promise<PreparedImage> {
       throw new Error(`HEIC konnte nicht konvertiert werden: ${file.name} (${reason})`)
     }
   }
-  const thumbUrl = await makeThumbnailUrl(workingBlob, orientation)
+  const thumbUrl = await makeThumbnailUrl(workingBlob, orientation, 512)
   return {
     fileName: file.name,
     fileSize: file.size,
@@ -144,6 +144,11 @@ async function lookupAddress(gps: GpsInfo): Promise<string | null> {
   }
 }
 
+/** Chronologische Grundsortierung: Aufnahmedatum, Tie-Breaker Dateiname */
+function chronoCompare(a: { takenAt: number; fileName: string }, b: { takenAt: number; fileName: string }): number {
+  return a.takenAt - b.takenAt || a.fileName.localeCompare(b.fileName, 'de', { numeric: true })
+}
+
 let toastCounter = 0
 
 // ---------- App ----------
@@ -156,15 +161,22 @@ export default function App() {
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
   const [keepDuplicates, setKeepDuplicates] = useState(false)
-  const [extraCompression, setExtraCompression] = useState(false)
+  const [extraCompression, setExtraCompression] = useState(true)
   const [importProgress, setImportProgress] = useState<Progress | null>(null)
   const [pdfProgress, setPdfProgress] = useState<Progress | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [dragOverObject, setDragOverObject] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
+  // Reihenfolge: startet chronologisch; sobald manuell sortiert wurde, bleibt
+  // die Reihenfolge beim Import neuer Fotos unangetastet (neue kommen ans Ende)
+  const [orderTouched, setOrderTouched] = useState(false)
+  const [dragPhotoId, setDragPhotoId] = useState<string | null>(null)
+  const [dragOverPhotoId, setDragOverPhotoId] = useState<string | null>(null)
 
   const photosRef = useRef(photos)
   photosRef.current = photos
+  const orderTouchedRef = useRef(orderTouched)
+  orderTouchedRef.current = orderTouched
   const dropInputRef = useRef<HTMLInputElement>(null)
   const objectInputRef = useRef<HTMLInputElement>(null)
 
@@ -256,7 +268,10 @@ export default function App() {
             pushToast('info', `Duplikat erkannt: ${file.name}`)
           }
           knownHashes.add(hash)
-          setPhotos((prev) => [...prev, { ...prepared, hash, id: crypto.randomUUID() }])
+          setPhotos((prev) => {
+            const next = [...prev, { ...prepared, hash, id: crypto.randomUUID() }]
+            return orderTouchedRef.current ? next : next.sort(chronoCompare)
+          })
         } catch (err) {
           pushToast('error', err instanceof Error ? err.message : `Fehler bei ${file.name}`)
         }
@@ -280,6 +295,43 @@ export default function App() {
     })
   }, [])
 
+  /** Foto per Pfeil-Button eine Position nach oben/unten schieben */
+  const movePhoto = useCallback((id: string, dir: -1 | 1) => {
+    setOrderTouched(true)
+    setPhotos((prev) => {
+      const i = prev.findIndex((p) => p.id === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= prev.length) return prev
+      const next = [...prev]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  }, [])
+
+  /** Foto per Drag & Drop an die Position des Ziel-Fotos verschieben */
+  const reorderByDrop = useCallback(
+    (targetId: string) => {
+      if (!dragPhotoId || dragPhotoId === targetId) {
+        setDragPhotoId(null)
+        setDragOverPhotoId(null)
+        return
+      }
+      setOrderTouched(true)
+      setPhotos((prev) => {
+        const from = prev.findIndex((p) => p.id === dragPhotoId)
+        const to = prev.findIndex((p) => p.id === targetId)
+        if (from < 0 || to < 0) return prev
+        const next = [...prev]
+        const [moved] = next.splice(from, 1)
+        next.splice(to, 0, moved)
+        return next
+      })
+      setDragPhotoId(null)
+      setDragOverPhotoId(null)
+    },
+    [dragPhotoId],
+  )
+
   // Duplikate markieren (erste Datei mit einem Hash gilt als Original)
   const annotated = useMemo(() => {
     const firstByHash = new Map<string, string>()
@@ -293,21 +345,13 @@ export default function App() {
     })
   }, [photos])
 
-  // Chronologisch: EXIF-Datum > Dateidatum, Tie-Breaker Dateiname
-  const sorted = useMemo(
-    () =>
-      [...annotated].sort(
-        (a, b) =>
-          a.takenAt - b.takenAt || a.fileName.localeCompare(b.fileName, 'de', { numeric: true }),
-      ),
-    [annotated],
-  )
-
+  // Die Listen-Reihenfolge (initial chronologisch, manuell aenderbar) ist
+  // exakt die Seiten-Reihenfolge in der PDF.
   const included = useMemo(
-    () => (keepDuplicates ? sorted : sorted.filter((p) => !p.isDuplicate)),
-    [sorted, keepDuplicates],
+    () => (keepDuplicates ? annotated : annotated.filter((p) => !p.isDuplicate)),
+    [annotated, keepDuplicates],
   )
-  const duplicateTotal = useMemo(() => sorted.filter((p) => p.isDuplicate).length, [sorted])
+  const duplicateTotal = useMemo(() => annotated.filter((p) => p.isDuplicate).length, [annotated])
 
   // Termindatum automatisch aus den Aufnahmedaten der Fotos:
   // immer das NEUESTE Foto, ein einzelnes Datum
@@ -683,11 +727,11 @@ export default function App() {
             </button>
           </div>
 
-          {sorted.length > 0 && (
+          {annotated.length > 0 && (
             <>
               <div className="list-toolbar">
                 <p aria-live="polite">
-                  {sorted.length} Foto(s) importiert
+                  {annotated.length} Foto(s) importiert
                   {duplicateTotal > 0 &&
                     ` · ${duplicateTotal} Duplikat(e)${keepDuplicates ? ' (bleiben enthalten)' : ' ausgeschlossen'}`}
                   {' '}· {included.length} in der PDF
@@ -701,10 +745,53 @@ export default function App() {
                   Duplikate behalten (kennzeichnen)
                 </label>
               </div>
+              <p className="order-hint">
+                Die Reihenfolge unten ist die Seiten-Reihenfolge in der PDF – per Pfeiltasten oder
+                Ziehen ändern (startet chronologisch).
+              </p>
               <ul className="photo-list">
-                {sorted.map((p) => (
-                  <li key={p.id} className={p.isDuplicate && !keepDuplicates ? 'photo-excluded' : ''}>
-                    <img src={p.thumbUrl} alt="" className="photo-thumb" />
+                {annotated.map((p, idx) => (
+                  <li
+                    key={p.id}
+                    className={[
+                      p.isDuplicate && !keepDuplicates ? 'photo-excluded' : '',
+                      dragPhotoId === p.id ? 'dragging' : '',
+                      dragOverPhotoId === p.id && dragPhotoId !== p.id ? 'drag-target' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    draggable
+                    onDragStart={(e) => {
+                      setDragPhotoId(p.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onDragEnd={() => {
+                      setDragPhotoId(null)
+                      setDragOverPhotoId(null)
+                    }}
+                    onDragOver={(e) => {
+                      if (dragPhotoId) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        e.dataTransfer.dropEffect = 'move'
+                        setDragOverPhotoId(p.id)
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverPhotoId === p.id) setDragOverPhotoId(null)
+                    }}
+                    onDrop={(e) => {
+                      if (dragPhotoId) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        reorderByDrop(p.id)
+                      }
+                    }}
+                  >
+                    <span className="order-number" aria-hidden="true">
+                      {idx + 1}
+                    </span>
+                    <img src={p.thumbUrl} alt="" className="photo-thumb" draggable={false} />
                     <div className="photo-info">
                       <p className="file-name">{p.fileName}</p>
                       <p className="file-meta">
@@ -716,10 +803,32 @@ export default function App() {
                         )}
                         {p.convertedFromHeic && <span className="badge">HEIC</span>}
                       </p>
+                      <p className="file-meta">
+                        <span className={`badge ${p.isDuplicate ? 'badge-dup' : 'badge-ok'}`}>
+                          {p.isDuplicate ? `Duplikat von ${p.duplicateOf}` : 'OK'}
+                        </span>
+                      </p>
                     </div>
-                    <span className={`badge ${p.isDuplicate ? 'badge-dup' : 'badge-ok'}`}>
-                      {p.isDuplicate ? `Duplikat von ${p.duplicateOf}` : 'OK'}
-                    </span>
+                    <div className="move-buttons">
+                      <button
+                        type="button"
+                        className="btn-move"
+                        onClick={() => movePhoto(p.id, -1)}
+                        disabled={idx === 0}
+                        aria-label={`${p.fileName} nach oben verschieben`}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-move"
+                        onClick={() => movePhoto(p.id, 1)}
+                        disabled={idx === annotated.length - 1}
+                        aria-label={`${p.fileName} nach unten verschieben`}
+                      >
+                        ↓
+                      </button>
+                    </div>
                     <button
                       type="button"
                       className="btn-remove"

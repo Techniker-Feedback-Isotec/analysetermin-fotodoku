@@ -361,32 +361,94 @@ input[type='checkbox'] {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 420px;
+  gap: 10px;
+  max-height: 640px;
   overflow-y: auto;
 }
 
 .photo-list li {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   border: 1px solid var(--grey);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: var(--white);
+  cursor: grab;
 }
 
 .photo-list li.photo-excluded {
   opacity: 0.55;
 }
 
+.photo-list li.dragging {
+  opacity: 0.45;
+}
+
+.photo-list li.drag-target {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(213, 19, 23, 0.25);
+}
+
+.order-hint {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: #7a6f68;
+}
+
+.order-number {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 700;
+  color: #a99f98;
+  flex-shrink: 0;
+}
+
 .photo-thumb {
-  width: 64px;
-  height: 48px;
+  width: 192px;
+  height: 144px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
   flex-shrink: 0;
   background: var(--light);
+}
+
+.move-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-move {
+  font: inherit;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--grey);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--brown);
+  cursor: pointer;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.btn-move:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+  background: #fdf0f0;
+}
+
+.btn-move:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .photo-thumb {
+    width: 128px;
+    height: 96px;
+  }
 }
 
 .photo-info {
