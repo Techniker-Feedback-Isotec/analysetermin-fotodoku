@@ -25,8 +25,10 @@ export interface PdfInputs {
   /** Rund zugeschnittenes Mitarbeiterfoto (PNG mit Alpha), oder null fuer Initialen */
   salespersonImage: OptimizedImage | null
   objectImage: OptimizedImage
-  /** Strasse + Ort aus den GPS-Daten der Fotos, oder null */
+  /** Strasse + Ort (manuelle Eingabe oder aus GPS-Daten), oder null */
   objectAddress: string | null
+  /** Kundenname (optionale Eingabe), oder null */
+  customerName: string | null
   photos: PdfPhoto[]
   createdAt: Date
   /** Termindatum aus den Foto-Aufnahmedaten, z. B. "Mittwoch, 6. August 2026" */
@@ -149,6 +151,16 @@ export async function buildPdf(
     cursor -= 30
     page.drawText(inputs.salespersonName, { x: margin, y: cursor, size: 14, font: bold, color: BROWN })
     cursor -= 21
+    if (inputs.customerName) {
+      page.drawText(`Kunde: ${inputs.customerName}`, {
+        x: margin,
+        y: cursor,
+        size: 11,
+        font: regular,
+        color: BROWN,
+      })
+      cursor -= 18
+    }
     page.drawText(`Termin: ${inputs.terminLabel}`, {
       x: margin,
       y: cursor,
@@ -158,7 +170,7 @@ export async function buildPdf(
     })
     cursor -= 18
     page.drawText(
-      `Fotodokumentation: ${inputs.photos.length} Fotos, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
+      `Fotodokumentation: ${inputs.photos.length} ${inputs.photos.length === 1 ? 'Foto' : 'Fotos'}, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
       { x: margin, y: cursor, size: 11, font: regular, color: BROWN },
     )
 

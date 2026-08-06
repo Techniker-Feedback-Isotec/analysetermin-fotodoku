@@ -150,6 +150,25 @@ select,
   margin-top: 8px;
 }
 
+.object-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.object-fields .custom-name-input {
+  margin-top: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: #7a6f68;
+}
+
 fieldset {
   border: 1px solid var(--grey);
   border-radius: 8px;

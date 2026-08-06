@@ -159,6 +159,8 @@ export default function App() {
   const [customName, setCustomName] = useState('')
   const [spPhotoFailed, setSpPhotoFailed] = useState(false)
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
+  const [customerName, setCustomerName] = useState('')
+  const [addressInput, setAddressInput] = useState('')
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
   const [keepDuplicates, setKeepDuplicates] = useState(false)
   const [extraCompression, setExtraCompression] = useState(true)
@@ -398,13 +400,15 @@ export default function App() {
         }
       }
 
-      // 2) Adresse aus GPS-Daten ableiten (Objektfoto bevorzugt, sonst erstes
-      //    Termin-Foto mit GPS). Schlaegt die Abfrage fehl, bleibt alles beim Alten.
-      let objectAddress: string | null = null
-      const gps = objectPhoto.gps ?? included.find((p) => p.gps)?.gps ?? null
-      if (gps) {
-        setPdfProgress({ label: 'Ermittle Adresse aus GPS-Daten …', done: 0, total: 1 })
-        objectAddress = await lookupAddress(gps)
+      // 2) Objektadresse: manuelle Eingabe hat Vorrang; sonst aus GPS-Daten
+      //    ableiten (Objektfoto bevorzugt, sonst erstes Termin-Foto mit GPS).
+      let objectAddress: string | null = addressInput.trim() || null
+      if (!objectAddress) {
+        const gps = objectPhoto.gps ?? included.find((p) => p.gps)?.gps ?? null
+        if (gps) {
+          setPdfProgress({ label: 'Ermittle Adresse aus GPS-Daten …', done: 0, total: 1 })
+          objectAddress = await lookupAddress(gps)
+        }
       }
 
       // Ein kompletter Durchlauf: Objektfoto + Termin-Fotos optimieren, PDF bauen.
@@ -458,6 +462,7 @@ export default function App() {
             salespersonImage: spImage,
             objectImage: objImage,
             objectAddress,
+            customerName: customerName.trim() || null,
             photos: pdfPhotos,
             createdAt: new Date(),
             terminLabel,
@@ -527,6 +532,8 @@ export default function App() {
     terminDate,
     terminLabel,
     extraCompression,
+    customerName,
+    addressInput,
     pushToast,
   ])
 
@@ -688,6 +695,33 @@ export default function App() {
                 </button>
               </>
             )}
+          </div>
+          <div className="object-fields">
+            <div className="field">
+              <label htmlFor="customer-input">Kunde (optional)</label>
+              <input
+                id="customer-input"
+                type="text"
+                className="custom-name-input"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="z. B. Familie Mustermann"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="address-input">Objektadresse (optional)</label>
+              <input
+                id="address-input"
+                type="text"
+                className="custom-name-input"
+                value={addressInput}
+                onChange={(e) => setAddressInput(e.target.value)}
+                placeholder="z. B. Musterstraße, Krefeld"
+              />
+              <p className="field-hint">
+                Leer lassen = Adresse wird, wenn möglich, aus den GPS-Daten der Fotos ermittelt.
+              </p>
+            </div>
           </div>
         </section>
 
