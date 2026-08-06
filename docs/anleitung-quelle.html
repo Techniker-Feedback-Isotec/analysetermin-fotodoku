@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>Fotodokumentation – Kurzanleitung</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  :root {
+    --red: #d51317;
+    --brown: #564a44;
+    --muted: #8a7f78;
+    --grey: #e0e0e0;
+    --light: #f4f4f4;
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    color: var(--brown);
+    font-size: 10.2pt;
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page {
+    width: 210mm;
+    height: 297mm;
+    padding: 16mm 16mm 14mm;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* Seitenkopf / Fuss */
+  .kicker {
+    color: var(--red);
+    font-weight: 700;
+    font-size: 7.6pt;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin: 0 0 4mm;
+  }
+  h1 { font-size: 26pt; margin: 0 0 1mm; line-height: 1.1; }
+  h1 .sub { display: block; font-size: 14pt; font-weight: 400; color: var(--muted); margin-top: 1.5mm; }
+  h2 {
+    font-size: 14pt;
+    margin: 0 0 3mm;
+    padding-bottom: 2mm;
+    border-bottom: 1.5px solid var(--grey);
+  }
+  h3 { font-size: 10.8pt; margin: 5mm 0 1.5mm; }
+  p { margin: 0 0 3mm; }
+  .lead { font-size: 11.4pt; }
+  strong { color: var(--brown); }
+  .footer {
+    position: absolute;
+    left: 16mm; right: 16mm; bottom: 8mm;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    font-size: 7.6pt; color: var(--muted);
+    border-top: 1px solid var(--grey);
+    padding-top: 2mm;
+  }
+  .footer img { height: 7mm; }
+
+  /* Titelseite */
+  .hero { margin: 0 -16mm; }
+  .hero img { width: 100%; height: 82mm; object-fit: cover; object-position: 50% 42%; display: block; }
+  .hero .band { height: 4mm; background: var(--red); }
+  .title-body { padding-top: 7mm; }
+  .url-box {
+    background: var(--light);
+    border-left: 4px solid var(--red);
+    padding: 4mm 5mm;
+    margin: 6mm 0 5mm;
+  }
+  .url-box .label { font-size: 7.6pt; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); font-weight: 700; }
+  .url-box .url { font-size: 13pt; font-weight: 700; word-break: break-all; line-height: 1.3; }
+  .privacy {
+    border: 1px solid var(--grey);
+    border-radius: 2mm;
+    padding: 4mm 5mm;
+    background: #fff;
+  }
+  .privacy .head { font-weight: 700; color: var(--red); margin-bottom: 1mm; }
+
+  /* Schritte */
+  .steps { margin: 0; padding: 0; list-style: none; }
+  .steps li { display: flex; gap: 4mm; margin-bottom: 4mm; }
+  .num {
+    flex: 0 0 7mm; height: 7mm;
+    border-radius: 50%;
+    background: var(--red); color: #fff;
+    font-weight: 700; font-size: 9.5pt;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 0.4mm;
+  }
+  .steps .t { font-weight: 700; }
+  .steps .d { color: #6f645d; }
+
+  /* Screenshot */
+  .shot {
+    border: 1px solid var(--grey);
+    border-radius: 1.5mm;
+    overflow: hidden;
+    background: #fff;
+  }
+  .shot img { width: 100%; display: block; }
+  .caption { font-size: 8pt; color: var(--muted); margin-top: 1.5mm; }
+
+  /* Zwei Spalten */
+  .cols { display: flex; gap: 8mm; }
+  .cols > * { flex: 1; min-width: 0; }
+
+  /* Tabelle Terminarten */
+  table { width: 100%; border-collapse: collapse; font-size: 9.4pt; }
+  th, td { text-align: left; padding: 2.6mm 3mm; border-bottom: 1px solid var(--grey); vertical-align: top; }
+  thead th { background: var(--light); color: var(--brown); font-size: 8.4pt; text-transform: uppercase; letter-spacing: 0.06em; }
+  td.yes { color: var(--red); font-weight: 700; }
+  td.no { color: #b3aaa4; }
+
+  /* Hinweiskästen */
+  .tip {
+    background: var(--light);
+    border-left: 3px solid var(--red);
+    padding: 3mm 4mm;
+    margin: 0 0 3mm;
+    font-size: 9.4pt;
+  }
+  .tip b { color: var(--red); }
+
+  /* Mini-Deckblatt (maßstabsgetreue Vorschau) */
+  .mini {
+    width: 62mm; height: 87.7mm;
+    border: 1px solid var(--grey);
+    background: #fff;
+    position: relative;
+    overflow: hidden;
+    font-size: 3.1pt;
+    line-height: 1.35;
+    flex: 0 0 auto;
+  }
+  .mini .m-hero { width: 100%; height: 30mm; object-fit: cover; display: block; }
+  .mini .m-band { height: 1.4mm; background: var(--red); }
+  .mini .m-body { padding: 4mm 4.5mm 0; }
+  .mini .m-kick { color: var(--red); font-weight: 700; letter-spacing: 0.1em; font-size: 2.7pt; text-transform: uppercase; }
+  .mini .m-title { font-size: 9pt; font-weight: 700; margin-top: 1.6mm; line-height: 1; }
+  .mini .m-sub { color: var(--muted); font-size: 4.6pt; margin-top: 0.8mm; }
+  .mini .m-rule { border-top: 0.5px solid var(--grey); margin: 1.8mm 0 2mm; }
+  .mini .m-row { display: flex; gap: 3mm; }
+  .mini .m-info { flex: 1; }
+  .mini .m-name { font-weight: 700; font-size: 4.4pt; margin-bottom: 1mm; }
+  .mini .m-line { font-size: 3.1pt; margin-bottom: 0.5mm; }
+  .mini .m-obj { width: 23mm; }
+  .mini .m-obj img { width: 100%; height: 19mm; object-fit: cover; border: 0.5px solid var(--grey); display: block; }
+  .mini .m-obj .cap { font-size: 2.5pt; color: var(--muted); margin-top: 0.5mm; }
+  .mini .m-obj .adr { font-size: 2.8pt; font-weight: 700; }
+  .mini .m-foot {
+    position: absolute; left: 4.5mm; right: 4.5mm; bottom: 4mm;
+    display: flex; align-items: flex-end; justify-content: space-between;
+  }
+  .mini .m-person { width: 11mm; height: 11mm; border-radius: 50%; border: 0.7mm solid var(--red); object-fit: cover; }
+  .mini .m-logo { width: 20mm; }
+  .hl { background: #fde8e8; outline: 0.4mm solid var(--red); }
+
+  /* verkleinerte Vorschau (proportional skaliert) */
+  .mini-wrap { width: 44.6mm; height: 63.1mm; flex: 0 0 auto; }
+  .mini-wrap .mini { transform: scale(0.72); transform-origin: top left; }
+
+  /* Seiten-Schema */
+  .flowset { margin-bottom: 3.5mm; }
+  .flowset .fs-head { font-weight: 700; font-size: 10.4pt; margin-bottom: 0.5mm; }
+  .flowset .fs-note { font-size: 8.4pt; color: var(--muted); margin-bottom: 2mm; }
+  .flow { display: flex; align-items: stretch; gap: 2.5mm; }
+  .sheet {
+    width: 22mm; height: 29mm;
+    border: 1px solid var(--grey);
+    background: #fff;
+    padding: 1.8mm;
+    display: flex; flex-direction: column;
+    font-size: 6.4pt;
+    position: relative;
+  }
+  .sheet .sh-label {
+    position: absolute; left: 0; right: 0; bottom: -5mm;
+    text-align: center; font-size: 7pt; color: var(--muted);
+  }
+  .sheet.cover { border-top: 2mm solid var(--red); }
+  .sheet .sh-t { font-weight: 700; font-size: 6.6pt; line-height: 1.15; }
+  .sheet .bar { height: 1mm; background: var(--grey); margin-top: 1mm; border-radius: 0.5mm; }
+  .sheet .bar.s { width: 60%; }
+  .sheet .bar.m { width: 80%; }
+  .sheet .imgbox { flex: 1; background: var(--light); border: 0.5px dashed #c9c0ba; margin-top: 1.4mm; display: flex; align-items: center; justify-content: center; color: #a99f98; font-size: 6pt; }
+  .sheet.text .lines { margin-top: 1.6mm; }
+  .sheet.opt { border-style: dashed; border-color: var(--red); }
+  .flow-wrap { display: flex; gap: 2.5mm; padding-bottom: 6mm; }
+  .dots { align-self: center; color: var(--muted); font-size: 10pt; padding-bottom: 6mm; }
+  .legend { font-size: 8.4pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ============ SEITE 1: Titel ============ -->
+<section class="page">
+  <div class="hero">
+    <img src="team.jpg" alt="" />
+    <div class="band"></div>
+  </div>
+  <div class="title-body">
+    <p class="kicker">Abdichtungstechnik Dipl.-Ing. Morscheck GmbH</p>
+    <h1>Fotodokumentation
+      <span class="sub">Kurzanleitung für Analysetermin, Reklamation und Baustellenbesuch</span>
+    </h1>
+
+    <p class="lead" style="margin-top:5mm">
+      Mit dem Tool erstellst du aus deinen Handyfotos in unter einer Minute eine fertige,
+      einheitliche PDF-Mappe: Deckblatt mit Objektfoto und deinem Namen, danach
+      <strong>ein Foto pro Seite</strong> in der richtigen Reihenfolge – automatisch komprimiert,
+      damit die Datei per Mail versendbar bleibt.
+    </p>
+
+    <div class="url-box">
+      <div class="label">Im Browser öffnen</div>
+      <div class="url">techniker-feedback-isotec.github.io/analysetermin-fotodoku</div>
+    </div>
+
+    <div class="privacy">
+      <div class="head">Wichtig zum Datenschutz</div>
+      Alle Fotos bleiben <strong>auf deinem Gerät</strong>. Es wird nichts hochgeladen, nichts
+      gespeichert und nichts ausgewertet – die PDF entsteht direkt im Browser. Deshalb funktioniert
+      das Tool auch ohne Login und du kannst es bedenkenlos mit Kundenfotos nutzen.
+    </div>
+
+    <h3 style="margin-top:6mm">Tipp: als App aufs Handy oder an die Taskleiste</h3>
+    <p style="color:#6f645d; margin-bottom:0">
+      Öffne die Seite und wähle im Browsermenü <strong>„Zum Startbildschirm hinzufügen"</strong>
+      (Handy) bzw. <strong>„Installieren"</strong> (PC). Dann startest du das Tool künftig mit einem
+      Tipp über das rote PDF-Symbol.
+    </p>
+  </div>
+  <div class="footer">
+    <span>Kurzanleitung Fotodokumentation · Stand August 2026</span>
+    <img src="logo.png" alt="ISOTEC" />
+  </div>
+</section>
+
+<!-- ============ SEITE 2: In 5 Schritten ============ -->
+<section class="page">
+  <p class="kicker">So funktioniert es</p>
+  <h2>In fünf Schritten zur fertigen PDF</h2>
+
+  <div class="cols">
+    <div>
+      <ul class="steps">
+        <li>
+          <span class="num">1</span>
+          <span>
+            <span class="t">Terminart wählen</span><br />
+            <span class="d">Analysetermin, Reklamation oder Baustellenbesuch. Diese Auswahl
+            bestimmt die Überschrift der Mappe und welche Zusatzfelder erscheinen (Seite 3).</span>
+          </span>
+        </li>
+        <li>
+          <span class="num">2</span>
+          <span>
+            <span class="t">Mitarbeiter wählen</span><br />
+            <span class="d">Dein Name aus der Liste – dein Foto erscheint automatisch auf dem
+            Deckblatt. Steht ein Name nicht in der Liste: <strong>„Anderer Name (selbst eingeben)"</strong>
+            wählen und eintippen (dann ohne Foto).</span>
+          </span>
+        </li>
+        <li>
+          <span class="num">3</span>
+          <span>
+            <span class="t">Objektfoto hinzufügen</span><br />
+            <span class="d">Genau ein Gebäudefoto – ziehen oder auswählen. Es erscheint groß auf dem
+            Deckblatt. <strong>Kunde</strong> und <strong>Objektadresse</strong> sind optional und
+            werden nur gedruckt, wenn du sie ausfüllst.</span>
+          </span>
+        </li>
+        <li>
+          <span class="num">4</span>
+          <span>
+            <span class="t">Termin-Fotos hinzufügen</span><br />
+            <span class="d">Alle Fotos gleichzeitig auswählen oder in das Feld ziehen –
+            auch <strong>HEIC vom iPhone</strong>. Die Fotos werden automatisch chronologisch
+            sortiert und richtig gedreht.</span>
+          </span>
+        </li>
+        <li>
+          <span class="num">5</span>
+          <span>
+            <span class="t">PDF erstellen</span><br />
+            <span class="d">Der Knopf wird aktiv, sobald Name, Objektfoto und mindestens ein
+            Termin-Foto da sind. Die PDF landet in deinem Download-Ordner.</span>
+          </span>
+        </li>
+      </ul>
+
+      <div class="tip">
+        <b>Dateiname</b> automatisch:
+        <strong>Terminart_Name_Datum.pdf</strong><br />
+        z. B. <em>Reklamation_Mike Alsdorf_2026-08-05.pdf</em> – das Datum ist das
+        Aufnahmedatum der Fotos, nicht der Tag der Erstellung.
+      </div>
+      <div class="tip">
+        <b>Extra Komprimierung</b> ist voreingestellt und sorgt dafür, dass die PDF
+        <strong>unter 10 MB</strong> bleibt und damit per Mail versendbar ist. Nur abschalten,
+        wenn maximale Bildqualität wichtiger ist als die Dateigröße.
+      </div>
+    </div>
+
+    <div style="flex:0 0 72mm">
+      <div class="shot"><img src="ui.png" alt="Das Tool im Browser" /></div>
+      <p class="caption">Das Tool im Browser – hier mit Terminart „Analysetermin".</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Kurzanleitung Fotodokumentation · Stand August 2026</span>
+    <img src="logo.png" alt="ISOTEC" />
+  </div>
+</section>
+
+<!-- ============ SEITE 3: Terminarten ============ -->
+<section class="page">
+  <p class="kicker">Die drei Wege</p>
+  <h2>Was sich je Terminart ändert</h2>
+
+  <p>
+    Die Terminart wählst du in Schritt 1. Sie erscheint als große Überschrift auf dem Deckblatt –
+    und schaltet die passenden Zusatzfelder frei. Felder, die zu einer Terminart nicht gehören,
+    werden gar nicht angezeigt.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:34%">Feld in Schritt 3</th>
+        <th>Analysetermin</th>
+        <th>Reklamation</th>
+        <th>Baustellenbesuch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Kunde <em>(optional)</em></td>
+        <td class="yes">ja</td><td class="yes">ja</td><td class="yes">ja</td>
+      </tr>
+      <tr>
+        <td>Objektadresse <em>(optional)</em></td>
+        <td class="yes">ja</td><td class="yes">ja</td><td class="yes">ja</td>
+      </tr>
+      <tr>
+        <td>Auftragsnummer <em>(optional)</em></td>
+        <td class="no">–</td><td class="yes">ja</td><td class="no">–</td>
+      </tr>
+      <tr>
+        <td>Zusammenfassung <em>(optional)</em></td>
+        <td class="yes">ja</td><td class="no">–</td><td class="no">–</td>
+      </tr>
+      <tr>
+        <td>Beurteilung <em>(optional)</em></td>
+        <td class="no">–</td><td class="yes">ja</td><td class="no">–</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Textseite: Zusammenfassung bzw. Beurteilung</h3>
+  <p>
+    Beide Felder funktionieren gleich: Du fügst deinen Text ein (Copy &amp; Paste aus Mail, Notiz
+    oder Diktat ist ideal) und daraus wird eine <strong>eigene Seite direkt nach dem Deckblatt</strong> –
+    mit Überschrift, deinem Text als Fließtext und am Ende dem Vermerk, wer den Text wann verfasst hat.
+    Absätze und Leerzeilen bleiben erhalten; langer Text läuft automatisch auf weitere Seiten.
+  </p>
+  <div class="tip">
+    <b>Lässt du das Feld leer</b>, entsteht auch keine Textseite – die Mappe beginnt dann direkt
+    nach dem Deckblatt mit den Fotos.
+  </div>
+
+  <h3>So sieht das Deckblatt aus</h3>
+  <div style="display:flex; gap:7mm; align-items:flex-start; margin-top:3mm">
+
+    <div>
+      <div class="mini">
+        <img class="m-hero" src="team.jpg" alt="" />
+        <div class="m-band"></div>
+        <div class="m-body">
+          <div class="m-kick">Abdichtungstechnik Dipl.-Ing. Morscheck GmbH</div>
+          <div class="m-title">Analysetermin</div>
+          <div class="m-sub">Fotodokumentation</div>
+          <div class="m-rule"></div>
+          <div class="m-row">
+            <div class="m-info">
+              <div class="m-name">Mike Alsdorf</div>
+              <div class="m-line">Kunde: Familie Mustermann</div>
+              <div class="m-line">Termin: Mittwoch, 5. August 2026</div>
+              <div class="m-line">Fotodokumentation: 12 Fotos, erstellt am 06.08.2026</div>
+            </div>
+            <div class="m-obj">
+              <img src="objekt.jpg" alt="" />
+              <div class="cap">Objekt</div>
+              <div class="adr">Musterstraße, Krefeld</div>
+            </div>
+          </div>
+        </div>
+        <div class="m-foot">
+          <img class="m-person" src="person.png" alt="" />
+          <img class="m-logo" src="logo.png" alt="" />
+        </div>
+      </div>
+      <p class="caption" style="width:62mm">Analysetermin – ohne Auftragsnummer.</p>
+    </div>
+
+    <div>
+      <div class="mini">
+        <img class="m-hero" src="team.jpg" alt="" />
+        <div class="m-band"></div>
+        <div class="m-body">
+          <div class="m-kick">Abdichtungstechnik Dipl.-Ing. Morscheck GmbH</div>
+          <div class="m-title">Reklamation</div>
+          <div class="m-sub">Fotodokumentation</div>
+          <div class="m-rule"></div>
+          <div class="m-row">
+            <div class="m-info">
+              <div class="m-name">Mike Alsdorf</div>
+              <div class="m-line">Kunde: Familie Mustermann</div>
+              <div class="m-line hl">Auftragsnummer: AB-2026-0815</div>
+              <div class="m-line">Termin: Mittwoch, 5. August 2026</div>
+              <div class="m-line">Fotodokumentation: 12 Fotos, erstellt am 06.08.2026</div>
+            </div>
+            <div class="m-obj">
+              <img src="objekt.jpg" alt="" />
+              <div class="cap">Objekt</div>
+              <div class="adr">Musterstraße, Krefeld</div>
+            </div>
+          </div>
+        </div>
+        <div class="m-foot">
+          <img class="m-person" src="person.png" alt="" />
+          <img class="m-logo" src="logo.png" alt="" />
+        </div>
+      </div>
+      <p class="caption" style="width:62mm">Reklamation – mit Auftragsnummer (rot markiert).</p>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <span>Kurzanleitung Fotodokumentation · Stand August 2026</span>
+    <img src="logo.png" alt="ISOTEC" />
+  </div>
+</section>
+
+<!-- ============ SEITE 4: Aufbau der Mappen + Fotoliste ============ -->
+<section class="page">
+  <p class="kicker">Aufbau der fertigen Mappe</p>
+  <h2>Welche Seiten entstehen</h2>
+
+  <div class="flowset">
+    <div class="fs-head">Analysetermin</div>
+    <div class="fs-note">Deckblatt · optional Zusammenfassung · dann ein Foto pro Seite</div>
+    <div class="flow-wrap">
+      <div class="sheet cover">
+        <div class="sh-t">Analysetermin</div>
+        <div class="bar m"></div><div class="bar s"></div>
+        <div class="imgbox">Objektfoto</div>
+        <div class="sh-label">Deckblatt</div>
+      </div>
+      <div class="sheet text opt">
+        <div class="sh-t">Zusammenfassung</div>
+        <div class="lines">
+          <div class="bar"></div><div class="bar"></div><div class="bar m"></div>
+          <div class="bar"></div><div class="bar s"></div>
+        </div>
+        <div class="sh-label">nur wenn gefüllt</div>
+      </div>
+      <div class="sheet"><div class="imgbox">Foto 1</div><div class="sh-label">Foto 1 / 12</div></div>
+      <div class="sheet"><div class="imgbox">Foto 2</div><div class="sh-label">Foto 2 / 12</div></div>
+      <div class="dots">…</div>
+    </div>
+  </div>
+
+  <div class="flowset">
+    <div class="fs-head">Reklamation</div>
+    <div class="fs-note">Deckblatt mit Auftragsnummer · optional Fachliche Beurteilung · dann die Fotos</div>
+    <div class="flow-wrap">
+      <div class="sheet cover">
+        <div class="sh-t">Reklamation</div>
+        <div class="bar m"></div><div class="bar s"></div>
+        <div class="imgbox">Objektfoto</div>
+        <div class="sh-label">Deckblatt</div>
+      </div>
+      <div class="sheet text opt">
+        <div class="sh-t">Fachliche Beurteilung</div>
+        <div class="lines">
+          <div class="bar"></div><div class="bar"></div><div class="bar m"></div>
+          <div class="bar"></div><div class="bar s"></div>
+        </div>
+        <div class="sh-label">nur wenn gefüllt</div>
+      </div>
+      <div class="sheet"><div class="imgbox">Foto 1</div><div class="sh-label">Foto 1 / 8</div></div>
+      <div class="sheet"><div class="imgbox">Foto 2</div><div class="sh-label">Foto 2 / 8</div></div>
+      <div class="dots">…</div>
+    </div>
+  </div>
+
+  <div class="flowset">
+    <div class="fs-head">Baustellenbesuch</div>
+    <div class="fs-note">Deckblatt · direkt die Fotos (keine Zusatzfelder)</div>
+    <div class="flow-wrap">
+      <div class="sheet cover">
+        <div class="sh-t">Baustellenbesuch</div>
+        <div class="bar m"></div><div class="bar s"></div>
+        <div class="imgbox">Objektfoto</div>
+        <div class="sh-label">Deckblatt</div>
+      </div>
+      <div class="sheet"><div class="imgbox">Foto 1</div><div class="sh-label">Foto 1 / 5</div></div>
+      <div class="sheet"><div class="imgbox">Foto 2</div><div class="sh-label">Foto 2 / 5</div></div>
+      <div class="sheet"><div class="imgbox">Foto 3</div><div class="sh-label">Foto 3 / 5</div></div>
+      <div class="dots">…</div>
+    </div>
+  </div>
+
+  <p class="legend" style="margin-top:-2mm">
+    Jede Fotoseite zeigt unten „Foto X / N" und Datum samt Uhrzeit der Aufnahme, oben rechts das
+    ISOTEC-Logo.
+  </p>
+
+  <h2 style="margin-top:5mm">So sieht die Textseite aus</h2>
+  <div style="display:flex; gap:7mm; align-items:flex-start">
+   <div class="mini-wrap">
+    <div class="mini">
+      <img class="m-logo" src="logo.png" alt="" style="position:absolute; top:3mm; right:4.5mm; width:16mm" />
+      <div class="m-body" style="padding-top:11mm">
+        <div class="m-kick">Reklamation</div>
+        <div class="m-title" style="font-size:7pt; margin-top:1.4mm">Fachliche Beurteilung</div>
+        <div class="m-rule" style="margin-top:1.6mm"></div>
+        <div style="margin-top:1mm">
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:1.1mm"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:1.1mm"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:1.1mm; width:72%"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:3mm"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:1.1mm"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:1.1mm"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:1.1mm; width:55%"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:3mm"></div>
+          <div class="bar" style="height:0.7mm; background:#ded8d3; margin-top:1.1mm; width:84%"></div>
+        </div>
+        <div class="m-rule" style="margin-top:4mm"></div>
+        <div style="font-style:italic; font-size:2.7pt; color:#6f645d">
+          Die fachliche Beurteilung wurde durchgeführt von Mike Alsdorf am 06.08.2026.
+        </div>
+      </div>
+    </div>
+   </div>
+    <div style="flex:1">
+      <p>
+        Die Textseite folgt direkt auf das Deckblatt und ist bewusst schlicht: rote Terminart-Zeile,
+        Überschrift, dein Text – und darunter abgesetzt der <strong>Vermerk, wer den Text wann
+        verfasst hat</strong>. So ist die Mappe auch Wochen später eindeutig zuordenbar.
+        Die Überschrift richtet sich nach der Terminart: „Fachliche Beurteilung" bei
+        Reklamation, „Zusammenfassung" beim Analysetermin.
+      </p>
+      <div class="tip" style="margin-bottom:0">
+        <b>Wie viel Text passt?</b> Beliebig viel – reicht der Platz nicht, läuft der Text
+        automatisch auf weitere Seiten, bevor die Fotos beginnen.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Kurzanleitung Fotodokumentation · Stand August 2026</span>
+    <img src="logo.png" alt="ISOTEC" />
+  </div>
+</section>
+
+<!-- ============ SEITE 5: Fotos pruefen und sortieren ============ -->
+<section class="page">
+  <p class="kicker">Vor dem Erstellen</p>
+  <h2>Fotos prüfen und sortieren</h2>
+
+  <p>
+    Nach dem Import siehst du alle Fotos als große Vorschau mit Dateinamen, Aufnahmezeit und
+    Positionsnummer. <strong>Die Reihenfolge in der Liste ist genau die Reihenfolge in der
+    PDF.</strong> Sie startet chronologisch – das älteste Foto zuerst – und du kannst sie frei
+    anpassen:
+  </p>
+
+  <table style="margin-bottom:5mm">
+    <tbody>
+      <tr>
+        <td style="width:26mm; font-weight:700; font-size:12pt">↑ / ↓</td>
+        <td>Verschiebt das Foto eine Position nach oben oder unten. <strong>Ideal am Handy.</strong></td>
+      </tr>
+      <tr>
+        <td style="font-weight:700">Ziehen</td>
+        <td>Karte mit der Maus greifen und an die gewünschte Stelle ziehen – <strong>schnell am PC</strong>,
+          das Ziel wird rot markiert.</td>
+      </tr>
+      <tr>
+        <td style="font-weight:700; font-size:12pt">✕</td>
+        <td>Entfernt das Foto aus der Mappe.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <b>Achtung beim Nachladen:</b> Sobald du die Reihenfolge einmal von Hand geändert hast, bleibt
+    sie so – später hinzugefügte Fotos landen dann am Ende der Liste und werden nicht mehr
+    automatisch einsortiert.
+  </div>
+
+  <h3>Häufige Fälle</h3>
+  <div class="cols">
+    <div>
+      <div class="tip">
+        <b>Doppelte Fotos</b> erkennt das Tool automatisch und lässt sie weg – in der Liste sind sie
+        als „Duplikat" gekennzeichnet. Willst du sie trotzdem drin haben, setze den Haken bei
+        <strong>„Duplikate behalten"</strong>.
+      </div>
+      <div class="tip">
+        <b>Kein Aufnahmedatum im Foto?</b> Dann erscheint der Hinweis „Dateidatum" – das Tool nutzt
+        ersatzweise das Datum der Datei. Prüfe in diesem Fall die Reihenfolge kurz von Hand.
+      </div>
+    </div>
+    <div>
+      <div class="tip">
+        <b>Fotos vom iPhone (HEIC)</b> werden automatisch umgewandelt. Das dauert pro Foto einen
+        Moment – der Fortschritt wird angezeigt. Einfach warten, bis alle Fotos in der Liste stehen.
+      </div>
+      <div class="tip">
+        <b>Viele Fotos</b> sind kein Problem (150 und mehr getestet). Bei großen Mengen dauert das
+        Erstellen entsprechend länger – Fenster offen lassen, bis der Download startet.
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:7mm">Fragen, Wünsche, Fehler?</h3>
+  <p>
+    Melde dich bei <strong>Yann Feyen</strong> – am besten mit Screenshot und der Angabe, welche
+    Terminart du gewählt hattest. Verbesserungsvorschläge sind ausdrücklich willkommen.
+  </p>
+
+  <div class="footer">
+    <span>Kurzanleitung Fotodokumentation · Stand August 2026</span>
+    <img src="logo.png" alt="ISOTEC" />
+  </div>
+</section>
+
+</body>
+</html>

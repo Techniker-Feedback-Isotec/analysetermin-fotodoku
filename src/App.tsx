@@ -933,7 +933,7 @@ export default function App() {
             Extra Komprimierung (Ziel: PDF kleiner als 10 MB)
           </label>
           <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
-            PDF erstellen ({pageCount} Seiten)
+            PDF erstellen ({pageCount} {pageCount === 1 ? 'Seite' : 'Seiten'})
           </button>
           {!canCreate && !busy && missingHints.length > 0 && (
             <p className="hint-missing">Noch offen: {missingHints.join(' · ')}</p>

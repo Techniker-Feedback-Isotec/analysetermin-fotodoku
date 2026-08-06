@@ -7,6 +7,10 @@ komprimierten PDF verarbeitet. Objektfoto und Termin-Fotos lassen sich per Drag 
 **Es werden keine Daten hochgeladen oder gespeichert** – kein Backend, keine APIs, kein Tracking,
 keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf GitHub Pages hostbar.
 
+**Kurzanleitung für die Nutzer:** [docs/Kurzanleitung_Fotodokumentation.pdf](docs/Kurzanleitung_Fotodokumentation.pdf)
+(5 Seiten, erklärt die drei Terminarten und den Aufbau der fertigen Mappen; Quelle:
+`docs/anleitung-quelle.html`, wird mit Edge/Chrome per „Als PDF drucken" erzeugt).
+
 ## Funktionen
 
 - **Terminart wählbar** (Analysetermin / Reklamation / Baustellenbesuch) – sie wird zur
