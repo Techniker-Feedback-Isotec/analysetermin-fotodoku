@@ -13,11 +13,9 @@ import {
 import { buildPdf, type PdfPhoto } from './lib/pdf'
 import {
   formatBytes,
-  formatDateShort,
   formatDateTime,
   formatDateWeekday,
   initialsOf,
-  isSameDay,
   isoDate,
   sanitizeFilePart,
 } from './lib/format'
@@ -63,6 +61,15 @@ interface Progress {
 // Feste Komprimierung (keine Auswahl im UI): Standard-Aufloesung, kleinste Qualitaetsstufe
 const MAX_EDGE = 2200
 const JPEG_QUALITY = 0.75
+
+// "Extra Komprimierung": stufenweise staerker komprimieren, bis die PDF unter 10 MB liegt
+const EXTRA_TARGET_BYTES = 10 * 1024 * 1024
+const EXTRA_LADDER: Array<{ maxEdge: number; quality: number }> = [
+  { maxEdge: 1600, quality: 0.6 },
+  { maxEdge: 1200, quality: 0.5 },
+  { maxEdge: 960, quality: 0.4 },
+  { maxEdge: 800, quality: 0.35 },
+]
 
 const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 
@@ -117,6 +124,7 @@ export default function App() {
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
   const [keepDuplicates, setKeepDuplicates] = useState(false)
+  const [extraCompression, setExtraCompression] = useState(false)
   const [importProgress, setImportProgress] = useState<Progress | null>(null)
   const [pdfProgress, setPdfProgress] = useState<Progress | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -269,23 +277,18 @@ export default function App() {
   )
   const duplicateTotal = useMemo(() => sorted.filter((p) => p.isDuplicate).length, [sorted])
 
-  // Termindatum automatisch aus den Aufnahmedaten der Fotos
+  // Termindatum automatisch aus den Aufnahmedaten der Fotos:
+  // immer das aelteste Foto, ein einzelnes Datum (kein Zeitraum)
   const terminRange = useMemo(() => {
     if (included.length === 0) return null
     let min = Infinity
-    let max = -Infinity
     for (const p of included) {
       if (p.takenAt < min) min = p.takenAt
-      if (p.takenAt > max) max = p.takenAt
     }
-    return { min, max }
+    return { min }
   }, [included])
 
-  const terminLabel = terminRange
-    ? isSameDay(terminRange.min, terminRange.max)
-      ? formatDateWeekday(terminRange.min)
-      : `${formatDateShort(terminRange.min)} – ${formatDateShort(terminRange.max)}`
-    : null
+  const terminLabel = terminRange ? formatDateWeekday(terminRange.min) : null
 
   // ---------- PDF ----------
 
@@ -299,10 +302,9 @@ export default function App() {
 
   const handleCreatePdf = useCallback(async () => {
     if (!canCreate || !objectPhoto || !terminRange || !terminLabel) return
-    const totalSteps = included.length + 2
     try {
       // 1) Statische Assets (Teamfoto, Logo) + Vertrieblerfoto laden
-      setPdfProgress({ label: 'Lade Deckblatt-Bilder …', done: 0, total: totalSteps })
+      setPdfProgress({ label: 'Lade Deckblatt-Bilder …', done: 0, total: 1 })
       const [heroJpg, logoPng] = await Promise.all([
         fetch(teamJpgUrl).then((r) => r.arrayBuffer()),
         fetch(logoPngUrl).then((r) => r.arrayBuffer()),
@@ -320,63 +322,91 @@ export default function App() {
         }
       }
 
-      // 2) Objektfoto optimieren
-      setPdfProgress({ label: 'Komprimiere Objektfoto …', done: 1, total: totalSteps })
-      const objOriented = await loadOriented(objectPhoto.workingBlob, objectPhoto.orientation)
-      let objImage: OptimizedImage
-      try {
-        objImage = await optimizeImage(objOriented, {
-          maxEdge: MAX_EDGE,
-          quality: JPEG_QUALITY,
-          sourceType: objectPhoto.sourceType,
-        })
-      } finally {
-        objOriented.cleanup()
-      }
-
-      // 3) Termin-Fotos sequenziell verarbeiten (speicherschonend, auch bei 150+)
-      const pdfPhotos: PdfPhoto[] = []
-      for (let i = 0; i < included.length; i++) {
-        const photo = included[i]
-        setPdfProgress({
-          label: `Verarbeite Bild ${i + 1}/${included.length} …`,
-          done: 2 + i,
-          total: totalSteps,
-        })
-        const oriented = await loadOriented(photo.workingBlob, photo.orientation)
-        let image: OptimizedImage
+      // Ein kompletter Durchlauf: Objektfoto + Termin-Fotos optimieren, PDF bauen.
+      // Sequenziell und speicherschonend, auch bei 150+ Bildern.
+      const buildOnce = async (maxEdge: number, jpegQuality: number, passLabel: string) => {
+        const totalSteps = included.length + 2
+        setPdfProgress({ label: `Komprimiere Objektfoto${passLabel} …`, done: 1, total: totalSteps })
+        const objOriented = await loadOriented(objectPhoto.workingBlob, objectPhoto.orientation)
+        let objImage: OptimizedImage
         try {
+          objImage = await optimizeImage(objOriented, {
+            maxEdge,
+            quality: jpegQuality,
+            sourceType: objectPhoto.sourceType,
+          })
+        } finally {
+          objOriented.cleanup()
+        }
+
+        const pdfPhotos: PdfPhoto[] = []
+        for (let i = 0; i < included.length; i++) {
+          const photo = included[i]
           setPdfProgress({
-            label: `Komprimiere Bild ${i + 1}/${included.length} …`,
+            label: `Verarbeite Bild ${i + 1}/${included.length}${passLabel} …`,
             done: 2 + i,
             total: totalSteps,
           })
-          image = await optimizeImage(oriented, {
-            maxEdge: MAX_EDGE,
-            quality: JPEG_QUALITY,
-            sourceType: photo.sourceType,
-          })
-        } finally {
-          oriented.cleanup()
+          const oriented = await loadOriented(photo.workingBlob, photo.orientation)
+          let image: OptimizedImage
+          try {
+            setPdfProgress({
+              label: `Komprimiere Bild ${i + 1}/${included.length}${passLabel} …`,
+              done: 2 + i,
+              total: totalSteps,
+            })
+            image = await optimizeImage(oriented, {
+              maxEdge,
+              quality: jpegQuality,
+              sourceType: photo.sourceType,
+            })
+          } finally {
+            oriented.cleanup()
+          }
+          pdfPhotos.push({ image, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate })
         }
-        pdfPhotos.push({ image, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate })
+
+        return buildPdf(
+          {
+            salespersonName: salesperson,
+            salespersonImage: spImage,
+            objectImage: objImage,
+            photos: pdfPhotos,
+            createdAt: new Date(),
+            terminLabel,
+            heroJpg: new Uint8Array(heroJpg),
+            logoPng: new Uint8Array(logoPng),
+          },
+          (done, total) =>
+            setPdfProgress({
+              label: `Füge Seite ${done}/${total} ein${passLabel} …`,
+              done: totalSteps,
+              total: totalSteps,
+            }),
+        )
       }
 
-      // 4) PDF bauen und herunterladen
-      const bytes = await buildPdf(
-        {
-          salespersonName: salesperson,
-          salespersonImage: spImage,
-          objectImage: objImage,
-          photos: pdfPhotos,
-          createdAt: new Date(),
-          terminLabel,
-          heroJpg: new Uint8Array(heroJpg),
-          logoPng: new Uint8Array(logoPng),
-        },
-        (done, total) =>
-          setPdfProgress({ label: `Füge Seite ${done}/${total} ein …`, done: totalSteps, total: totalSteps }),
-      )
+      // Ohne Extra-Komprimierung ein Durchlauf mit den Standardwerten;
+      // mit Extra-Komprimierung stufenweise staerker, bis die PDF unter 10 MB liegt.
+      const attempts = extraCompression
+        ? EXTRA_LADDER
+        : [{ maxEdge: MAX_EDGE, quality: JPEG_QUALITY }]
+      let bytes: Uint8Array = new Uint8Array()
+      for (let a = 0; a < attempts.length; a++) {
+        const step = attempts[a]
+        const passLabel = extraCompression
+          ? ` – Extra-Komprimierung, Stufe ${a + 1}/${attempts.length}`
+          : ''
+        bytes = await buildOnce(step.maxEdge, step.quality, passLabel)
+        if (!extraCompression || bytes.length < EXTRA_TARGET_BYTES) break
+      }
+      if (extraCompression && bytes.length >= EXTRA_TARGET_BYTES) {
+        pushToast(
+          'info',
+          `PDF ist trotz maximaler Komprimierung ${formatBytes(bytes.length)} groß (Ziel: unter 10 MB).`,
+        )
+      }
+
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       // Datum im Dateinamen = Termindatum (fruehestes Foto), nicht das heutige Datum
       const fileName = `Analysetermin_${sanitizeFilePart(salesperson)}_${isoDate(new Date(terminRange.min))}.pdf`
@@ -408,6 +438,7 @@ export default function App() {
     salesperson,
     terminRange,
     terminLabel,
+    extraCompression,
     pushToast,
   ])
 
@@ -649,6 +680,14 @@ export default function App() {
               Termin (aus den Foto-Aufnahmedaten): <strong>{terminLabel}</strong>
             </p>
           )}
+          <label className="checkbox checkbox-center">
+            <input
+              type="checkbox"
+              checked={extraCompression}
+              onChange={(e) => setExtraCompression(e.target.checked)}
+            />
+            Extra Komprimierung (Ziel: PDF kleiner als 10 MB)
+          </label>
           <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
             PDF erstellen ({included.length + 1} Seiten)
           </button>

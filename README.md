@@ -26,6 +26,8 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
 - **Feste, qualitätsschonende Komprimierung** vor dem Einbetten (keine Auswahl nötig):
   Downscale auf max. 2200 px Kante (nie Hochskalierung) + JPEG-Qualität 0,75.
   PNGs mit echter Transparenz bleiben PNG.
+- **„Extra Komprimierung"** (Checkbox): komprimiert stufenweise stärker
+  (1600/0,60 → 1200/0,50 → 960/0,40 → 800/0,35), bis die PDF **unter 10 MB** liegt
 - Dateiname: `Analysetermin_<Vertriebler>_<JJJJ-MM-TT>.pdf`
 
 ## Stack
@@ -49,7 +51,7 @@ Vor `dev` und `build` läuft automatisch `scripts/generate-salespeople.mjs` (sie
 Die Vertrieblerfotos liegen im Repo unter **`public/vertriebler/`**. Dateinamen sind exakt
 **„Vorname Nachname.jpg“** oder **„Vorname Nachname.png“** (Leerzeichen gehören zum Namen,
 Groß-/Kleinschreibung beibehalten), z. B. `Mike Alsdorf.png`. Aktuell enthalten:
-Mike Alsdorf, Sarah Najji, Boris Hohl, Alexander Swaghoven, Marvin Bethke.
+Mike Alsdorf, Sarah Najji, Boris Hohl, Alexander Swaghoven, Marvin Bethke, Hüseyin Manaz.
 
 **Neuen Vertriebler hinzufügen:**
 
