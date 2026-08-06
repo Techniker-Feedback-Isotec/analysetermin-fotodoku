@@ -28,11 +28,14 @@ body {
   padding: 0 16px;
 }
 
-/* Header */
+/* Header: schlicht weiss, bleibt beim Scrollen oben stehen */
 .header {
-  background: var(--red);
-  color: var(--white);
-  padding: 20px 0;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--white);
+  border-bottom: 1px solid var(--grey);
+  padding: 12px 0;
 }
 
 .header-inner {
@@ -40,49 +43,69 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 16px;
 }
 
 .header h1 {
   margin: 0;
-  font-size: 1.7rem;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--brown);
+  line-height: 1.2;
 }
 
 .header-kicker {
-  margin: 2px 0 0;
-  font-size: 0.85rem;
-  opacity: 0.9;
+  margin: 1px 0 0;
+  font-size: 0.8rem;
+  color: #8a7f78;
 }
 
 .header-brand {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .header-logo {
-  display: inline-flex;
-  background: var(--white);
-  border-radius: 8px;
-  padding: 8px 10px;
-}
-
-.header-logo img {
-  height: 34px;
+  height: 30px;
   width: auto;
   display: block;
+  flex-shrink: 0;
+}
+
+.header-divider {
+  width: 1px;
+  height: 30px;
+  background: var(--grey);
+  flex-shrink: 0;
 }
 
 .privacy-note {
   margin: 0;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: var(--light);
+  border: 1px solid var(--grey);
   border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 0.9rem;
-  max-width: 340px;
+  padding: 6px 11px;
+  font-size: 0.82rem;
+  color: #6f645d;
+  max-width: 330px;
+}
+
+@media (max-width: 700px) {
+  .header-divider {
+    display: none;
+  }
+
+  .header h1 {
+    font-size: 1.1rem;
+  }
+
+  .privacy-note {
+    font-size: 0.78rem;
+    padding: 5px 9px;
+    max-width: none;
+  }
 }
 
 /* Cards / Sektionen */

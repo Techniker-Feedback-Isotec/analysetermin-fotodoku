@@ -487,8 +487,18 @@ export default function App() {
       }
 
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
-      // Datum im Dateinamen = Termindatum (neuestes Foto), nicht das heutige Datum
-      const fileName = `${sanitizeFilePart(terminType)}_${sanitizeFilePart(salesperson)}_${isoDate(new Date(terminDate))}.pdf`
+      // ISOTEC_Terminart_Fotodokumentation_[Kunde]_Datum.pdf
+      // Kunde nur, wenn ausgefuellt. Datum = Termindatum (neuestes Foto), nicht heute.
+      const fileName =
+        [
+          'ISOTEC',
+          sanitizeFilePart(terminType),
+          'Fotodokumentation',
+          sanitizeFilePart(customerName),
+          isoDate(new Date(terminDate)),
+        ]
+          .filter((part) => part !== '')
+          .join('_') + '.pdf'
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -540,16 +550,16 @@ export default function App() {
       <header className="header">
         <div className="container header-inner">
           <div className="header-brand">
-            <span className="header-logo">
-              <img src={logoPngUrl} alt="ISOTEC – Immer besser." />
-            </span>
+            <img className="header-logo" src={logoPngUrl} alt="ISOTEC – Immer besser." />
+            <span className="header-divider" aria-hidden="true" />
             <div>
               <h1>Fotodokumentation</h1>
               <p className="header-kicker">{COMPANY}</p>
             </div>
           </div>
           <p className="privacy-note">
-            🔒 Alle Dateien bleiben lokal im Browser. Es wird nichts hochgeladen.
+            <span aria-hidden="true">🔒</span> Alle Dateien bleiben lokal im Browser – es wird nichts
+            hochgeladen.
           </p>
         </div>
       </header>
@@ -962,7 +972,7 @@ export default function App() {
         <div className="container">
           <p>
             Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies ·
-            Dateiname: &lt;Terminart&gt;_&lt;Mitarbeiter&gt;_&lt;JJJJ-MM-TT&gt;.pdf
+            Dateiname: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;JJJJ-MM-TT&gt;.pdf
           </p>
         </div>
       </footer>

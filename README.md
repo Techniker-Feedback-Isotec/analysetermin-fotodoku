@@ -39,7 +39,8 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
   PNGs mit echter Transparenz bleiben PNG.
 - **„Extra Komprimierung"** (Checkbox): komprimiert stufenweise stärker
   (1600/0,60 → 1200/0,50 → 960/0,40 → 800/0,35), bis die PDF **unter 10 MB** liegt
-- Dateiname: `<Terminart>_<Mitarbeiter>_<JJJJ-MM-TT>.pdf`
+- Dateiname: `ISOTEC_<Terminart>_Fotodokumentation_<Kunde>_<JJJJ-MM-TT>.pdf`
+  (der Kunde entfällt, wenn das Feld leer ist; das Datum ist das Termindatum)
 
 ## Stack
 
