@@ -10,9 +10,11 @@ permissions:
   pages: write
   id-token: write
 
+# Deploys nicht gegenseitig abbrechen: neue Laeufe warten, bis der laufende fertig ist.
+# (Die Pages-Warteschlange kann langsam sein; cancel-in-progress hat Deploys gekillt.)
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -46,3 +48,7 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # Geduldiger warten, wenn die Pages-Warteschlange langsam ist
+          timeout: 1800000
+          error_count: 30
