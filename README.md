@@ -15,10 +15,8 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
   ISOTEC-Logo, Mitarbeiter (Name + rundes Foto), Objektfoto und Termindatum –
   das Termindatum ist **automatisch das neueste Aufnahmedatum der Fotos** und steckt
   auch im PDF-Dateinamen; jede Fotoseite trägt zusätzlich ein kleines ISOTEC-Logo
-- **Adresse aus GPS-Daten**: Enthalten die Fotos GPS-Koordinaten, wird Straße + Ort
-  (ohne Hausnummer) per OpenStreetMap/Nominatim ermittelt und beim Objektfoto angezeigt.
-  Dabei werden **nur die Koordinaten** übertragen, keine Fotos; schlägt die Abfrage fehl,
-  erscheint einfach keine Adresse.
+- **Optionale Felder „Kunde" und „Objektadresse"** – erscheinen nur auf dem Deckblatt,
+  wenn sie ausgefüllt sind
 - **Mitarbeiter-Dropdown mit Freitext-Option**: „Anderer Name (selbst eingeben) …"
   erlaubt neue Namen ohne Foto (Initialen-Platzhalter)
 - **Exakt 1 Foto pro Seite** ab Seite 2
@@ -101,7 +99,6 @@ hart gepflegt werden. Lokal (ohne `BASE_PATH`) gilt der Fallback in
 
 - Alle Verarbeitung (EXIF, HEIC-Konvertierung, Hashing, Komprimierung, PDF) passiert
   ausschließlich clientseitig im Browser
-- Keine Uploads, kein Backend (auch die HEIC-WASM-Bibliothek wird mit der App ausgeliefert)
-- Einzige externe Anfrage: die optionale Adress-Ermittlung sendet **nur GPS-Koordinaten**
-  (niemals Fotos oder andere Daten) an nominatim.openstreetmap.org
+- Keine Uploads, kein Backend, keine externen Requests zur Laufzeit
+  (auch die HEIC-WASM-Bibliothek wird mit der App ausgeliefert)
 - Kein Tracking, keine Analytics, keine Cookies, kein localStorage

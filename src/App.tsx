@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SALESPEOPLE } from './data/salespeople.generated'
-import { readExif, readGps, type GpsInfo } from './lib/exif'
+import { readExif } from './lib/exif'
 import { heicToJpegBlob, isHeic } from './lib/heic'
 import { sha256Hex } from './lib/hash'
 import {
@@ -35,8 +35,6 @@ interface PreparedImage {
   orientation: number
   takenAt: number
   dateSource: 'exif' | 'file'
-  /** GPS-Koordinaten aus dem EXIF, falls vorhanden */
-  gps: GpsInfo | null
   thumbUrl: string
   convertedFromHeic: boolean
 }
@@ -87,10 +85,9 @@ function isSupported(file: File): boolean {
   return ['image/jpeg', 'image/png', 'image/heic', 'image/heif'].includes(file.type.toLowerCase())
 }
 
-/** Datei einlesen: EXIF (Datum, Orientation, GPS) -> ggf. HEIC-Konvertierung -> Thumbnail. */
+/** Datei einlesen: EXIF (Datum, Orientation) -> ggf. HEIC-Konvertierung -> Thumbnail. */
 async function prepareImage(file: File): Promise<PreparedImage> {
   const exif = await readExif(file)
-  const gps = await readGps(file)
   let workingBlob: Blob = file
   let orientation = exif.orientation
   let convertedFromHeic = false
@@ -113,34 +110,8 @@ async function prepareImage(file: File): Promise<PreparedImage> {
     orientation,
     takenAt: exif.takenAt ?? file.lastModified,
     dateSource: exif.takenAt != null ? 'exif' : 'file',
-    gps,
     thumbUrl,
     convertedFromHeic,
-  }
-}
-
-/**
- * Strasse + Ort (ohne Hausnummer) per Reverse-Geocoding (OpenStreetMap/Nominatim).
- * Es werden nur die GPS-Koordinaten uebertragen, keine Fotos. null bei Fehlern.
- */
-async function lookupAddress(gps: GpsInfo): Promise<string | null> {
-  try {
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 6000)
-    const url =
-      'https://nominatim.openstreetmap.org/reverse?format=jsonv2' +
-      `&lat=${gps.lat}&lon=${gps.lon}&zoom=17&accept-language=de`
-    const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } })
-    window.clearTimeout(timeout)
-    if (!res.ok) return null
-    const data = (await res.json()) as { address?: Record<string, string> }
-    const a = data.address ?? {}
-    const road = a.road ?? a.pedestrian ?? a.footway ?? a.hamlet ?? null
-    const city = a.city ?? a.town ?? a.village ?? a.municipality ?? null
-    const parts = [road, city].filter(Boolean)
-    return parts.length > 0 ? parts.join(', ') : null
-  } catch {
-    return null
   }
 }
 
@@ -400,16 +371,8 @@ export default function App() {
         }
       }
 
-      // 2) Objektadresse: manuelle Eingabe hat Vorrang; sonst aus GPS-Daten
-      //    ableiten (Objektfoto bevorzugt, sonst erstes Termin-Foto mit GPS).
-      let objectAddress: string | null = addressInput.trim() || null
-      if (!objectAddress) {
-        const gps = objectPhoto.gps ?? included.find((p) => p.gps)?.gps ?? null
-        if (gps) {
-          setPdfProgress({ label: 'Ermittle Adresse aus GPS-Daten …', done: 0, total: 1 })
-          objectAddress = await lookupAddress(gps)
-        }
-      }
+      // 2) Objektadresse: ausschliesslich die manuelle Eingabe (optional)
+      const objectAddress: string | null = addressInput.trim() || null
 
       // Ein kompletter Durchlauf: Objektfoto + Termin-Fotos optimieren, PDF bauen.
       // Sequenziell und speicherschonend, auch bei 150+ Bildern.
@@ -718,9 +681,6 @@ export default function App() {
                 onChange={(e) => setAddressInput(e.target.value)}
                 placeholder="z. B. Musterstraße, Krefeld"
               />
-              <p className="field-hint">
-                Leer lassen = Adresse wird, wenn möglich, aus den GPS-Daten der Fotos ermittelt.
-              </p>
             </div>
           </div>
         </section>
@@ -926,8 +886,7 @@ export default function App() {
         <div className="container">
           <p>
             Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies ·
-            Dateiname: &lt;Terminart&gt;_&lt;Mitarbeiter&gt;_&lt;JJJJ-MM-TT&gt;.pdf ·
-            Nur zur Adress-Ermittlung werden GPS-Koordinaten (keine Fotos) an OpenStreetMap gesendet
+            Dateiname: &lt;Terminart&gt;_&lt;Mitarbeiter&gt;_&lt;JJJJ-MM-TT&gt;.pdf
           </p>
         </div>
       </footer>

@@ -12,30 +12,6 @@ export interface ExifInfo {
  * daher wird immer die Originaldatei (vor einer HEIC-Konvertierung) gelesen.
  * Fehler fuehren nie zum Abbruch - dann gilt: kein Datum, Orientation 1.
  */
-export interface GpsInfo {
-  lat: number
-  lon: number
-}
-
-/** Liest GPS-Koordinaten aus dem EXIF (JPEG/HEIC). null, wenn keine vorhanden. */
-export async function readGps(blob: Blob): Promise<GpsInfo | null> {
-  try {
-    const gps = await exifr.gps(blob)
-    if (
-      gps &&
-      typeof gps.latitude === 'number' &&
-      typeof gps.longitude === 'number' &&
-      Number.isFinite(gps.latitude) &&
-      Number.isFinite(gps.longitude)
-    ) {
-      return { lat: gps.latitude, lon: gps.longitude }
-    }
-  } catch {
-    // kein GPS -> null
-  }
-  return null
-}
-
 export async function readExif(blob: Blob): Promise<ExifInfo> {
   try {
     const data = await exifr.parse(blob, {

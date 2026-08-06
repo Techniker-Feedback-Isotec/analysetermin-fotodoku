@@ -25,7 +25,7 @@ export interface PdfInputs {
   /** Rund zugeschnittenes Mitarbeiterfoto (PNG mit Alpha), oder null fuer Initialen */
   salespersonImage: OptimizedImage | null
   objectImage: OptimizedImage
-  /** Strasse + Ort (manuelle Eingabe oder aus GPS-Daten), oder null */
+  /** Objektadresse (optionale manuelle Eingabe), oder null */
   objectAddress: string | null
   /** Kundenname (optionale Eingabe), oder null */
   customerName: string | null
