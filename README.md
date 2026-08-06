@@ -1,7 +1,8 @@
 # Fotodokumentation Analysetermin
 
-Statisches Web-Tool (Single-Page-App), das Fotos vom Analysetermin **komplett lokal im Browser**
-zu einer chronologisch sortierten, komprimierten PDF verarbeitet.
+Statisches Web-Tool (Single-Page-App) der **Abdichtungstechnik Dipl.-Ing. Morscheck GmbH**,
+das Fotos vom Analysetermin **komplett lokal im Browser** zu einer chronologisch sortierten,
+komprimierten PDF verarbeitet. Objektfoto und Termin-Fotos lassen sich per Drag & Drop einfügen.
 
 **Es werden keine Daten hochgeladen oder gespeichert** – kein Backend, keine APIs, kein Tracking,
 keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf GitHub Pages hostbar.
@@ -22,8 +23,8 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
 - **EXIF-Orientation** wird automatisch korrekt angewendet
 - **Duplikat-Erkennung** per SHA-256 über die Datei-Bytes (WebCrypto). Duplikate werden
   standardmäßig ausgeschlossen; optional „Duplikate behalten (kennzeichnen)“
-- **Qualitätsschonende Komprimierung** vor dem Einbetten: Downscale auf max. Kante
-  (1800 / 2200 / 3000 px, nie Hochskalierung) + JPEG-Qualität (0,75 / 0,82 / 0,90).
+- **Feste, qualitätsschonende Komprimierung** vor dem Einbetten (keine Auswahl nötig):
+  Downscale auf max. 2200 px Kante (nie Hochskalierung) + JPEG-Qualität 0,75.
   PNGs mit echter Transparenz bleiben PNG.
 - Dateiname: `Analysetermin_<Vertriebler>_<JJJJ-MM-TT>.pdf`
 

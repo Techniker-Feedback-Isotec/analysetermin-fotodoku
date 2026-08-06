@@ -60,17 +60,11 @@ interface Progress {
 
 // ---------- Konstanten ----------
 
-const RESOLUTIONS = [
-  { label: 'Standard (empfohlen)', hint: 'max. 2200 px Kante', value: 2200 },
-  { label: 'Kleinere Datei', hint: 'max. 1800 px Kante', value: 1800 },
-  { label: 'Beste Qualität', hint: 'max. 3000 px Kante', value: 3000 },
-]
+// Feste Komprimierung (keine Auswahl im UI): Standard-Aufloesung, kleinste Qualitaetsstufe
+const MAX_EDGE = 2200
+const JPEG_QUALITY = 0.75
 
-const QUALITIES = [
-  { label: '0,75', hint: 'kleinste Datei', value: 0.75 },
-  { label: '0,82 (empfohlen)', hint: 'ausgewogen', value: 0.82 },
-  { label: '0,90', hint: 'beste Qualität', value: 0.9 },
-]
+const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 
 const ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif'
 
@@ -123,11 +117,10 @@ export default function App() {
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
   const [keepDuplicates, setKeepDuplicates] = useState(false)
-  const [maxEdge, setMaxEdge] = useState(2200)
-  const [quality, setQuality] = useState(0.82)
   const [importProgress, setImportProgress] = useState<Progress | null>(null)
   const [pdfProgress, setPdfProgress] = useState<Progress | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [dragOverObject, setDragOverObject] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const photosRef = useRef(photos)
@@ -333,8 +326,8 @@ export default function App() {
       let objImage: OptimizedImage
       try {
         objImage = await optimizeImage(objOriented, {
-          maxEdge,
-          quality,
+          maxEdge: MAX_EDGE,
+          quality: JPEG_QUALITY,
           sourceType: objectPhoto.sourceType,
         })
       } finally {
@@ -359,8 +352,8 @@ export default function App() {
             total: totalSteps,
           })
           image = await optimizeImage(oriented, {
-            maxEdge,
-            quality,
+            maxEdge: MAX_EDGE,
+            quality: JPEG_QUALITY,
             sourceType: photo.sourceType,
           })
         } finally {
@@ -412,8 +405,6 @@ export default function App() {
     objectPhoto,
     included,
     spPhotoUrl,
-    maxEdge,
-    quality,
     salesperson,
     terminRange,
     terminLabel,
@@ -434,7 +425,7 @@ export default function App() {
             </span>
             <div>
               <h1>Analysetermin</h1>
-              <p className="header-kicker">Fotodokumentation · ISOTEC Abdichtungstechnik Morscheck</p>
+              <p className="header-kicker">Fotodokumentation · {COMPANY}</p>
             </div>
           </div>
           <p className="privacy-note">
@@ -522,25 +513,42 @@ export default function App() {
               e.target.value = ''
             }}
           />
-          {objectPhoto ? (
-            <div className="object-preview">
-              <img src={objectPhoto.thumbUrl} alt="Vorschau Objektfoto" />
-              <div>
-                <p className="file-name">{objectPhoto.fileName}</p>
-                <p className="file-meta">
-                  {formatBytes(objectPhoto.fileSize)}
-                  {objectPhoto.convertedFromHeic ? ' · aus HEIC konvertiert' : ''}
-                </p>
-                <button type="button" className="btn-secondary" onClick={() => objectInputRef.current?.click()}>
-                  Anderes Foto wählen
-                </button>
+          <div
+            className={`dropzone dropzone-small${dragOverObject ? ' dropzone-active' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOverObject(true)
+            }}
+            onDragLeave={() => setDragOverObject(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragOverObject(false)
+              void handleObjectFile(e.dataTransfer.files)
+            }}
+          >
+            {objectPhoto ? (
+              <div className="object-preview">
+                <img src={objectPhoto.thumbUrl} alt="Vorschau Objektfoto" />
+                <div>
+                  <p className="file-name">{objectPhoto.fileName}</p>
+                  <p className="file-meta">
+                    {formatBytes(objectPhoto.fileSize)}
+                    {objectPhoto.convertedFromHeic ? ' · aus HEIC konvertiert' : ''}
+                  </p>
+                  <button type="button" className="btn-secondary" onClick={() => objectInputRef.current?.click()}>
+                    Anderes Foto wählen
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <button type="button" className="btn-secondary" onClick={() => objectInputRef.current?.click()}>
-              Objektfoto auswählen
-            </button>
-          )}
+            ) : (
+              <>
+                <p className="dropzone-hint">Foto hierher ziehen oder</p>
+                <button type="button" className="btn-secondary" onClick={() => objectInputRef.current?.click()}>
+                  Objektfoto auswählen
+                </button>
+              </>
+            )}
+          </div>
         </section>
 
         {/* 3: Termin-Fotos */}
@@ -631,50 +639,7 @@ export default function App() {
           )}
         </section>
 
-        {/* 4: Einstellungen */}
-        <section className="card" aria-labelledby="sec-settings">
-          <h2 id="sec-settings">
-            <span className="step">4</span> Komprimierung
-          </h2>
-          <div className="settings-grid">
-            <fieldset>
-              <legend>Auflösung</legend>
-              {RESOLUTIONS.map((r) => (
-                <label key={r.value} className="radio">
-                  <input
-                    type="radio"
-                    name="resolution"
-                    value={r.value}
-                    checked={maxEdge === r.value}
-                    onChange={() => setMaxEdge(r.value)}
-                  />
-                  <span>
-                    {r.label} <small>({r.hint})</small>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-            <fieldset>
-              <legend>JPEG-Qualität</legend>
-              {QUALITIES.map((q) => (
-                <label key={q.value} className="radio">
-                  <input
-                    type="radio"
-                    name="quality"
-                    value={q.value}
-                    checked={quality === q.value}
-                    onChange={() => setQuality(q.value)}
-                  />
-                  <span>
-                    {q.label} <small>({q.hint})</small>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          </div>
-        </section>
-
-        {/* 5: PDF erstellen */}
+        {/* 4: PDF erstellen (Komprimierung ist fest eingestellt: 2200 px, Qualität 0,75) */}
         <section className="card card-action" aria-labelledby="sec-create">
           <h2 id="sec-create" className="visually-hidden">
             PDF erstellen

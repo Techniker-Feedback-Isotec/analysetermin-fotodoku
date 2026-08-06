@@ -293,6 +293,8 @@ input[type='checkbox'] {
   display: flex;
   gap: 16px;
   align-items: center;
+  justify-content: center;
+  text-align: left;
 }
 
 .object-preview img {
@@ -316,6 +318,14 @@ input[type='checkbox'] {
 .dropzone-active {
   border-color: var(--red);
   background: #fdf0f0;
+}
+
+.dropzone-small {
+  padding: 18px 16px;
+}
+
+.dropzone-small .dropzone-hint {
+  margin-bottom: 10px;
 }
 
 .dropzone-title {

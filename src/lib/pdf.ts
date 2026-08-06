@@ -91,7 +91,7 @@ export async function buildPdf(
 
     // Kicker + Titelblock
     let cursor = bandY - 42
-    drawTracked(page, 'ISOTEC ABDICHTUNGSTECHNIK MORSCHECK', margin, cursor, bold, 9, RED, 1.6)
+    drawTracked(page, 'ABDICHTUNGSTECHNIK DIPL.-ING. MORSCHECK GMBH', margin, cursor, bold, 9, RED, 1.6)
     cursor -= 33
     page.drawText('Analysetermin', { x: margin, y: cursor, size: 30, font: bold, color: BROWN })
     cursor -= 25
@@ -129,7 +129,7 @@ export async function buildPdf(
     cursor -= 30
     page.drawText(inputs.salespersonName, { x: margin, y: cursor, size: 14, font: bold, color: BROWN })
     cursor -= 21
-    page.drawText(`Termin: ${inputs.terminLabel}`, {
+    page.drawText(`Analysetermin: ${inputs.terminLabel}`, {
       x: margin,
       y: cursor,
       size: 11,
@@ -138,7 +138,7 @@ export async function buildPdf(
     })
     cursor -= 18
     page.drawText(
-      `Termin-Fotos: ${inputs.photos.length} · Erstellt am: ${formatDateShort(inputs.createdAt.getTime())}`,
+      `Fotodokumentation: ${inputs.photos.length} Fotos, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
       { x: margin, y: cursor, size: 11, font: regular, color: BROWN },
     )
 
