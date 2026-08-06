@@ -169,6 +169,12 @@ select,
   color: #7a6f68;
 }
 
+.assessment-input {
+  resize: vertical;
+  min-height: 41px;
+  font-family: inherit;
+}
+
 fieldset {
   border: 1px solid var(--grey);
   border-radius: 8px;

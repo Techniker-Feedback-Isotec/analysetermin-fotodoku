@@ -29,6 +29,10 @@ export interface PdfInputs {
   objectAddress: string | null
   /** Kundenname (optionale Eingabe), oder null */
   customerName: string | null
+  /** Auftragsnummer (nur bei Reklamation, optional), oder null */
+  orderNumber: string | null
+  /** Fachliche Beurteilung (nur bei Reklamation, optional) - eigene Seite nach dem Deckblatt */
+  assessment: string | null
   photos: PdfPhoto[]
   createdAt: Date
   /** Termindatum aus den Foto-Aufnahmedaten, z. B. "Mittwoch, 6. August 2026" */
@@ -46,6 +50,53 @@ function embed(doc: PDFDocument, img: OptimizedImage): Promise<PDFImage> {
 function fitInto(imgW: number, imgH: number, boxW: number, boxH: number) {
   const scale = Math.min(boxW / imgW, boxH / imgH)
   return { w: imgW * scale, h: imgH * scale }
+}
+
+// Zeichen ausserhalb von WinAnsi (Standard-Helvetica) durch "?" ersetzen,
+// damit eingefuegter Text (z. B. mit Emojis) die PDF-Erstellung nicht abbricht.
+const WINANSI_EXTRA = new Set([...'€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ'])
+function toWinAnsi(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t/g, '  ')
+    .split('')
+    .map((ch) => {
+      if (ch === '\n') return ch
+      const code = ch.charCodeAt(0)
+      if ((code >= 32 && code <= 126) || (code >= 160 && code <= 255)) return ch
+      return WINANSI_EXTRA.has(ch) ? ch : '?'
+    })
+    .join('')
+}
+
+/** Bricht Text wortweise auf eine maximale Zeilenbreite um (Absaetze bleiben erhalten). */
+function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
+  const lines: string[] = []
+  for (const paragraph of text.split('\n')) {
+    if (paragraph.trim() === '') {
+      lines.push('')
+      continue
+    }
+    let current = ''
+    for (const word of paragraph.split(/\s+/)) {
+      const candidate = current ? `${current} ${word}` : word
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        current = candidate
+      } else {
+        if (current) lines.push(current)
+        let rest = word
+        while (font.widthOfTextAtSize(rest, size) > maxWidth && rest.length > 1) {
+          let cut = rest.length - 1
+          while (cut > 1 && font.widthOfTextAtSize(rest.slice(0, cut), size) > maxWidth) cut--
+          lines.push(rest.slice(0, cut))
+          rest = rest.slice(cut)
+        }
+        current = rest
+      }
+    }
+    lines.push(current)
+  }
+  return lines
 }
 
 /** Text mit Buchstaben-Sperrung (pdf-lib kennt kein letter-spacing). */
@@ -80,6 +131,7 @@ export async function buildPdf(
   doc.setCreator('Fotodoku (100 % clientseitig)')
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const regular = await doc.embedFont(StandardFonts.Helvetica)
+  const italic = await doc.embedFont(StandardFonts.HelveticaOblique)
   const [W, H] = A4
   const logo = await doc.embedPng(inputs.logoPng)
 
@@ -161,6 +213,16 @@ export async function buildPdf(
       })
       cursor -= 18
     }
+    if (inputs.orderNumber) {
+      page.drawText(`Auftragsnummer: ${toWinAnsi(inputs.orderNumber)}`, {
+        x: margin,
+        y: cursor,
+        size: 11,
+        font: regular,
+        color: BROWN,
+      })
+      cursor -= 18
+    }
     page.drawText(`Termin: ${inputs.terminLabel}`, {
       x: margin,
       y: cursor,
@@ -214,6 +276,73 @@ export async function buildPdf(
     const logoW = 150
     const logoH = logoW * (logo.height / logo.width)
     page.drawImage(logo, { x: W - margin - logoW, y: 48, width: logoW, height: logoH })
+  }
+
+  // ---------- Fachliche Beurteilung (nur wenn ausgefuellt, direkt nach dem Deckblatt) ----------
+  if (inputs.assessment) {
+    const margin = 48
+    const textSize = 11
+    const lineHeight = 17
+    const bottomLimit = 70
+
+    const newAssessmentPage = (first: boolean) => {
+      const page = doc.addPage(A4)
+      const pageLogoW = 70
+      const pageLogoH = pageLogoW * (logo.height / logo.width)
+      page.drawImage(logo, {
+        x: W - margin + 8 - pageLogoW,
+        y: H - 12 - pageLogoH,
+        width: pageLogoW,
+        height: pageLogoH,
+      })
+      let y = H - 76
+      if (first) {
+        drawTracked(page, inputs.terminType.toUpperCase(), margin, y, bold, 9, RED, 1.6)
+        y -= 26
+        page.drawText('Fachliche Beurteilung', { x: margin, y, size: 22, font: bold, color: BROWN })
+        y -= 14
+        page.drawLine({
+          start: { x: margin, y },
+          end: { x: W - margin, y },
+          thickness: 0.75,
+          color: GREY,
+        })
+        y -= 28
+      }
+      return { page, y }
+    }
+
+    const lines = wrapText(toWinAnsi(inputs.assessment), regular, textSize, W - 2 * margin)
+    let { page, y } = newAssessmentPage(true)
+    for (const line of lines) {
+      if (y < bottomLimit) {
+        ;({ page, y } = newAssessmentPage(false))
+      }
+      if (line !== '') {
+        page.drawText(line, { x: margin, y, size: textSize, font: regular, color: BROWN })
+      }
+      y -= lineHeight
+    }
+
+    // Vermerk: wer hat die Beurteilung wann durchgefuehrt
+    const note = `Die fachliche Beurteilung wurde durchgeführt von ${inputs.salespersonName} am ${formatDateShort(inputs.createdAt.getTime())}.`
+    const noteLines = wrapText(toWinAnsi(note), italic, 10, W - 2 * margin)
+    const noteHeight = 24 + noteLines.length * 15
+    if (y - noteHeight < 40) {
+      ;({ page, y } = newAssessmentPage(false))
+    }
+    y -= 8
+    page.drawLine({
+      start: { x: margin, y },
+      end: { x: W - margin, y },
+      thickness: 0.5,
+      color: GREY,
+    })
+    y -= 20
+    for (const line of noteLines) {
+      page.drawText(line, { x: margin, y, size: 10, font: italic, color: BROWN })
+      y -= 15
+    }
   }
 
   // ---------- Fotoseiten: exakt 1 Foto pro Seite ----------

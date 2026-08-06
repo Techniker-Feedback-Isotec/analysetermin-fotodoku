@@ -132,6 +132,9 @@ export default function App() {
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [addressInput, setAddressInput] = useState('')
+  // Nur bei Terminart "Reklamation" sichtbar und nur dann in der PDF
+  const [orderNumber, setOrderNumber] = useState('')
+  const [assessment, setAssessment] = useState('')
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
   const [keepDuplicates, setKeepDuplicates] = useState(false)
   const [extraCompression, setExtraCompression] = useState(true)
@@ -344,6 +347,10 @@ export default function App() {
   const busy = importProgress !== null || pdfProgress !== null
   const canCreate = salesperson !== '' && objectPhoto !== null && included.length > 0 && !busy
 
+  const isReklamation = terminType === 'Reklamation'
+  const hasAssessment = isReklamation && assessment.trim() !== ''
+  const pageCount = included.length + 1 + (hasAssessment ? 1 : 0)
+
   const missingHints: string[] = []
   if (!salesperson) missingHints.push(isCustomName ? 'Namen eingeben' : 'Mitarbeiter wählen')
   if (!objectPhoto) missingHints.push('Objektfoto hochladen')
@@ -426,6 +433,8 @@ export default function App() {
             objectImage: objImage,
             objectAddress,
             customerName: customerName.trim() || null,
+            orderNumber: isReklamation ? orderNumber.trim() || null : null,
+            assessment: isReklamation ? assessment.trim() || null : null,
             photos: pdfPhotos,
             createdAt: new Date(),
             terminLabel,
@@ -475,7 +484,7 @@ export default function App() {
       window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
       pushToast(
         'success',
-        `PDF erstellt: ${fileName} (${formatBytes(blob.size)}, ${included.length + 1} Seiten)`,
+        `PDF erstellt: ${fileName} (${formatBytes(blob.size)}, ${pageCount} Seiten)`,
       )
     } catch (err) {
       pushToast(
@@ -497,6 +506,10 @@ export default function App() {
     extraCompression,
     customerName,
     addressInput,
+    isReklamation,
+    orderNumber,
+    assessment,
+    pageCount,
     pushToast,
   ])
 
@@ -682,6 +695,35 @@ export default function App() {
                 placeholder="z. B. Musterstraße, Krefeld"
               />
             </div>
+            {isReklamation && (
+              <>
+                <div className="field">
+                  <label htmlFor="ordernumber-input">Auftragsnummer (optional)</label>
+                  <input
+                    id="ordernumber-input"
+                    type="text"
+                    className="custom-name-input"
+                    value={orderNumber}
+                    onChange={(e) => setOrderNumber(e.target.value)}
+                    placeholder="z. B. AB-2026-0815"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="assessment-input">Beurteilung (optional)</label>
+                  <textarea
+                    id="assessment-input"
+                    className="custom-name-input assessment-input"
+                    value={assessment}
+                    onChange={(e) => setAssessment(e.target.value)}
+                    placeholder="Text der fachlichen Beurteilung einfügen …"
+                    rows={1}
+                  />
+                  <p className="field-hint">
+                    Erscheint als eigene Seite „Fachliche Beurteilung" direkt nach dem Deckblatt.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
@@ -857,7 +899,7 @@ export default function App() {
             Extra Komprimierung (Ziel: PDF kleiner als 10 MB)
           </label>
           <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
-            PDF erstellen ({included.length + 1} Seiten)
+            PDF erstellen ({pageCount} Seiten)
           </button>
           {!canCreate && !busy && missingHints.length > 0 && (
             <p className="hint-missing">Noch offen: {missingHints.join(' · ')}</p>
