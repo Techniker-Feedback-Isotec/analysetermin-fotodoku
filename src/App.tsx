@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SALESPEOPLE } from './data/salespeople.generated'
-import { readExif } from './lib/exif'
+import { readExif, readGps, type GpsInfo } from './lib/exif'
 import { heicToJpegBlob, isHeic } from './lib/heic'
 import { sha256Hex } from './lib/hash'
 import {
@@ -35,6 +35,8 @@ interface PreparedImage {
   orientation: number
   takenAt: number
   dateSource: 'exif' | 'file'
+  /** GPS-Koordinaten aus dem EXIF, falls vorhanden */
+  gps: GpsInfo | null
   thumbUrl: string
   convertedFromHeic: boolean
 }
@@ -73,6 +75,8 @@ const EXTRA_LADDER: Array<{ maxEdge: number; quality: number }> = [
 
 const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 
+const TERMINARTEN = ['Analysetermin', 'Reklamation', 'Baustellenbesuch']
+
 const ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif'
 
 /** Dropdown-Wert fuer "Anderer Name (selbst eingeben)" */
@@ -83,9 +87,10 @@ function isSupported(file: File): boolean {
   return ['image/jpeg', 'image/png', 'image/heic', 'image/heif'].includes(file.type.toLowerCase())
 }
 
-/** Datei einlesen: EXIF -> ggf. HEIC-Konvertierung -> Thumbnail. */
+/** Datei einlesen: EXIF (Datum, Orientation, GPS) -> ggf. HEIC-Konvertierung -> Thumbnail. */
 async function prepareImage(file: File): Promise<PreparedImage> {
   const exif = await readExif(file)
+  const gps = await readGps(file)
   let workingBlob: Blob = file
   let orientation = exif.orientation
   let convertedFromHeic = false
@@ -108,8 +113,34 @@ async function prepareImage(file: File): Promise<PreparedImage> {
     orientation,
     takenAt: exif.takenAt ?? file.lastModified,
     dateSource: exif.takenAt != null ? 'exif' : 'file',
+    gps,
     thumbUrl,
     convertedFromHeic,
+  }
+}
+
+/**
+ * Strasse + Ort (ohne Hausnummer) per Reverse-Geocoding (OpenStreetMap/Nominatim).
+ * Es werden nur die GPS-Koordinaten uebertragen, keine Fotos. null bei Fehlern.
+ */
+async function lookupAddress(gps: GpsInfo): Promise<string | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 6000)
+    const url =
+      'https://nominatim.openstreetmap.org/reverse?format=jsonv2' +
+      `&lat=${gps.lat}&lon=${gps.lon}&zoom=17&accept-language=de`
+    const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } })
+    window.clearTimeout(timeout)
+    if (!res.ok) return null
+    const data = (await res.json()) as { address?: Record<string, string> }
+    const a = data.address ?? {}
+    const road = a.road ?? a.pedestrian ?? a.footway ?? a.hamlet ?? null
+    const city = a.city ?? a.town ?? a.village ?? a.municipality ?? null
+    const parts = [road, city].filter(Boolean)
+    return parts.length > 0 ? parts.join(', ') : null
+  } catch {
+    return null
   }
 }
 
@@ -118,6 +149,7 @@ let toastCounter = 0
 // ---------- App ----------
 
 export default function App() {
+  const [terminType, setTerminType] = useState(TERMINARTEN[0])
   const [selectValue, setSelectValue] = useState('')
   const [customName, setCustomName] = useState('')
   const [spPhotoFailed, setSpPhotoFailed] = useState(false)
@@ -278,17 +310,17 @@ export default function App() {
   const duplicateTotal = useMemo(() => sorted.filter((p) => p.isDuplicate).length, [sorted])
 
   // Termindatum automatisch aus den Aufnahmedaten der Fotos:
-  // immer das aelteste Foto, ein einzelnes Datum (kein Zeitraum)
-  const terminRange = useMemo(() => {
+  // immer das NEUESTE Foto, ein einzelnes Datum
+  const terminDate = useMemo(() => {
     if (included.length === 0) return null
-    let min = Infinity
+    let max = -Infinity
     for (const p of included) {
-      if (p.takenAt < min) min = p.takenAt
+      if (p.takenAt > max) max = p.takenAt
     }
-    return { min }
+    return max
   }, [included])
 
-  const terminLabel = terminRange ? formatDateWeekday(terminRange.min) : null
+  const terminLabel = terminDate != null ? formatDateWeekday(terminDate) : null
 
   // ---------- PDF ----------
 
@@ -296,14 +328,14 @@ export default function App() {
   const canCreate = salesperson !== '' && objectPhoto !== null && included.length > 0 && !busy
 
   const missingHints: string[] = []
-  if (!salesperson) missingHints.push(isCustomName ? 'Namen eingeben' : 'Vertriebler wählen')
+  if (!salesperson) missingHints.push(isCustomName ? 'Namen eingeben' : 'Mitarbeiter wählen')
   if (!objectPhoto) missingHints.push('Objektfoto hochladen')
   if (included.length === 0) missingHints.push('mind. 1 Termin-Foto hinzufügen')
 
   const handleCreatePdf = useCallback(async () => {
-    if (!canCreate || !objectPhoto || !terminRange || !terminLabel) return
+    if (!canCreate || !objectPhoto || terminDate == null || !terminLabel) return
     try {
-      // 1) Statische Assets (Teamfoto, Logo) + Vertrieblerfoto laden
+      // 1) Statische Assets (Teamfoto, Logo) + Mitarbeiterfoto laden
       setPdfProgress({ label: 'Lade Deckblatt-Bilder …', done: 0, total: 1 })
       const [heroJpg, logoPng] = await Promise.all([
         fetch(teamJpgUrl).then((r) => r.arrayBuffer()),
@@ -320,6 +352,15 @@ export default function App() {
         } catch {
           // Platzhalter mit Initialen wird verwendet
         }
+      }
+
+      // 2) Adresse aus GPS-Daten ableiten (Objektfoto bevorzugt, sonst erstes
+      //    Termin-Foto mit GPS). Schlaegt die Abfrage fehl, bleibt alles beim Alten.
+      let objectAddress: string | null = null
+      const gps = objectPhoto.gps ?? included.find((p) => p.gps)?.gps ?? null
+      if (gps) {
+        setPdfProgress({ label: 'Ermittle Adresse aus GPS-Daten …', done: 0, total: 1 })
+        objectAddress = await lookupAddress(gps)
       }
 
       // Ein kompletter Durchlauf: Objektfoto + Termin-Fotos optimieren, PDF bauen.
@@ -368,9 +409,11 @@ export default function App() {
 
         return buildPdf(
           {
+            terminType,
             salespersonName: salesperson,
             salespersonImage: spImage,
             objectImage: objImage,
+            objectAddress,
             photos: pdfPhotos,
             createdAt: new Date(),
             terminLabel,
@@ -408,8 +451,8 @@ export default function App() {
       }
 
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
-      // Datum im Dateinamen = Termindatum (fruehestes Foto), nicht das heutige Datum
-      const fileName = `Analysetermin_${sanitizeFilePart(salesperson)}_${isoDate(new Date(terminRange.min))}.pdf`
+      // Datum im Dateinamen = Termindatum (neuestes Foto), nicht das heutige Datum
+      const fileName = `${sanitizeFilePart(terminType)}_${sanitizeFilePart(salesperson)}_${isoDate(new Date(terminDate))}.pdf`
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -436,7 +479,8 @@ export default function App() {
     included,
     spPhotoUrl,
     salesperson,
-    terminRange,
+    terminType,
+    terminDate,
     terminLabel,
     extraCompression,
     pushToast,
@@ -455,8 +499,8 @@ export default function App() {
               <img src={logoPngUrl} alt="ISOTEC – Immer besser." />
             </span>
             <div>
-              <h1>Analysetermin</h1>
-              <p className="header-kicker">Fotodokumentation · {COMPANY}</p>
+              <h1>Fotodokumentation</h1>
+              <p className="header-kicker">{COMPANY}</p>
             </div>
           </div>
           <p className="privacy-note">
@@ -466,10 +510,31 @@ export default function App() {
       </header>
 
       <main className="container">
-        {/* 1: Vertriebler */}
-        <section className="card" aria-labelledby="sec-vertriebler">
-          <h2 id="sec-vertriebler">
-            <span className="step">1</span> Vertriebler
+        {/* 1: Terminart */}
+        <section className="card" aria-labelledby="sec-terminart">
+          <h2 id="sec-terminart">
+            <span className="step">1</span> Terminart
+          </h2>
+          <div className="field">
+            <label htmlFor="terminart-select">Terminart auswählen</label>
+            <select
+              id="terminart-select"
+              value={terminType}
+              onChange={(e) => setTerminType(e.target.value)}
+            >
+              {TERMINARTEN.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+
+        {/* 2: Mitarbeiter */}
+        <section className="card" aria-labelledby="sec-mitarbeiter">
+          <h2 id="sec-mitarbeiter">
+            <span className="step">2</span> Mitarbeiter
           </h2>
           <div className="salesperson-row">
             <div className="field">
@@ -497,7 +562,7 @@ export default function App() {
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
                   placeholder="Vorname Nachname"
-                  aria-label="Eigenen Vertriebler-Namen eingeben"
+                  aria-label="Eigenen Mitarbeiter-Namen eingeben"
                   autoFocus
                 />
               )}
@@ -527,10 +592,10 @@ export default function App() {
           </div>
         </section>
 
-        {/* 2: Objektfoto */}
+        {/* 3: Objektfoto */}
         <section className="card" aria-labelledby="sec-objekt">
           <h2 id="sec-objekt">
-            <span className="step">2</span> Objektfoto (Gebäude)
+            <span className="step">3</span> Objektfoto (Gebäude)
           </h2>
           <p className="section-hint">Genau 1 Foto (JPG/PNG/HEIC) – erscheint prominent auf dem Deckblatt.</p>
           <input
@@ -582,10 +647,10 @@ export default function App() {
           </div>
         </section>
 
-        {/* 3: Termin-Fotos */}
+        {/* 4: Termin-Fotos */}
         <section className="card" aria-labelledby="sec-fotos">
           <h2 id="sec-fotos">
-            <span className="step">3</span> Termin-Fotos
+            <span className="step">4</span> Termin-Fotos
           </h2>
           <div
             className={`dropzone${dragOver ? ' dropzone-active' : ''}`}
@@ -670,7 +735,7 @@ export default function App() {
           )}
         </section>
 
-        {/* 4: PDF erstellen (Komprimierung ist fest eingestellt: 2200 px, Qualität 0,75) */}
+        {/* 5: PDF erstellen (Komprimierung ist fest eingestellt: 2200 px, Qualität 0,75) */}
         <section className="card card-action" aria-labelledby="sec-create">
           <h2 id="sec-create" className="visually-hidden">
             PDF erstellen
@@ -718,7 +783,8 @@ export default function App() {
         <div className="container">
           <p>
             Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies ·
-            Dateiname: Analysetermin_&lt;Vertriebler&gt;_&lt;JJJJ-MM-TT&gt;.pdf
+            Dateiname: &lt;Terminart&gt;_&lt;Mitarbeiter&gt;_&lt;JJJJ-MM-TT&gt;.pdf ·
+            Nur zur Adress-Ermittlung werden GPS-Koordinaten (keine Fotos) an OpenStreetMap gesendet
           </p>
         </div>
       </footer>

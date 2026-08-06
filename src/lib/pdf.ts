@@ -19,10 +19,14 @@ export interface PdfPhoto {
 }
 
 export interface PdfInputs {
+  /** Terminart, wird zur Deckblatt-Ueberschrift: Analysetermin / Reklamation / Baustellenbesuch */
+  terminType: string
   salespersonName: string
-  /** Rund zugeschnittenes Vertrieblerfoto (PNG mit Alpha), oder null fuer Initialen */
+  /** Rund zugeschnittenes Mitarbeiterfoto (PNG mit Alpha), oder null fuer Initialen */
   salespersonImage: OptimizedImage | null
   objectImage: OptimizedImage
+  /** Strasse + Ort aus den GPS-Daten der Fotos, oder null */
+  objectAddress: string | null
   photos: PdfPhoto[]
   createdAt: Date
   /** Termindatum aus den Foto-Aufnahmedaten, z. B. "Mittwoch, 6. August 2026" */
@@ -69,12 +73,13 @@ export async function buildPdf(
   onProgress?: (done: number, total: number) => void,
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
-  doc.setTitle('Analysetermin - Fotodokumentation')
-  doc.setSubject(`Analysetermin ${inputs.terminLabel} - ${inputs.salespersonName}`)
-  doc.setCreator('Fotodoku Analysetermin (100 % clientseitig)')
+  doc.setTitle(`${inputs.terminType} - Fotodokumentation`)
+  doc.setSubject(`${inputs.terminType} ${inputs.terminLabel} - ${inputs.salespersonName}`)
+  doc.setCreator('Fotodoku (100 % clientseitig)')
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const regular = await doc.embedFont(StandardFonts.Helvetica)
   const [W, H] = A4
+  const logo = await doc.embedPng(inputs.logoPng)
 
   // ---------- Deckblatt ----------
   {
@@ -93,7 +98,7 @@ export async function buildPdf(
     let cursor = bandY - 42
     drawTracked(page, 'ABDICHTUNGSTECHNIK DIPL.-ING. MORSCHECK GMBH', margin, cursor, bold, 9, RED, 1.6)
     cursor -= 33
-    page.drawText('Analysetermin', { x: margin, y: cursor, size: 30, font: bold, color: BROWN })
+    page.drawText(inputs.terminType, { x: margin, y: cursor, size: 30, font: bold, color: BROWN })
     cursor -= 25
     page.drawText('Fotodokumentation', { x: margin, y: cursor, size: 16, font: regular, color: MUTED })
     cursor -= 19
@@ -124,12 +129,27 @@ export async function buildPdf(
     })
     page.drawImage(objImg, { x: objX, y: objY, width: objFit.w, height: objFit.h })
     page.drawText('Objekt', { x: objX, y: objY - 16, size: 9, font: regular, color: MUTED })
+    if (inputs.objectAddress) {
+      // Adresse unter der Objekt-Beschriftung; Schrift ggf. verkleinern, damit sie
+      // nicht ueber den Seitenrand laeuft
+      let addrSize = 9
+      const maxW = W - margin - objX
+      const w9 = regular.widthOfTextAtSize(inputs.objectAddress, addrSize)
+      if (w9 > maxW) addrSize = Math.max(6.5, (addrSize * maxW) / w9)
+      page.drawText(inputs.objectAddress, {
+        x: objX,
+        y: objY - 30,
+        size: addrSize,
+        font: bold,
+        color: BROWN,
+      })
+    }
 
     // Infoblock links
     cursor -= 30
     page.drawText(inputs.salespersonName, { x: margin, y: cursor, size: 14, font: bold, color: BROWN })
     cursor -= 21
-    page.drawText(`Analysetermin: ${inputs.terminLabel}`, {
+    page.drawText(`Termin: ${inputs.terminLabel}`, {
       x: margin,
       y: cursor,
       size: 11,
@@ -179,7 +199,6 @@ export async function buildPdf(
     }
 
     // Unten rechts: ISOTEC-Logo (inkl. Claim "IMMER BESSER.")
-    const logo = await doc.embedPng(inputs.logoPng)
     const logoW = 150
     const logoH = logoW * (logo.height / logo.width)
     page.drawImage(logo, { x: W - margin - logoW, y: 48, width: logoW, height: logoH })
@@ -192,6 +211,16 @@ export async function buildPdf(
     const page = doc.addPage(A4)
     const margin = 40
     const footerH = 32
+    // Kleines ISOTEC-Logo oben rechts im Seitenrand
+    const pageLogoW = 70
+    const pageLogoH = pageLogoW * (logo.height / logo.width)
+    page.drawImage(logo, {
+      x: W - margin - pageLogoW,
+      y: H - 12 - pageLogoH,
+      width: pageLogoW,
+      height: pageLogoH,
+    })
+
     const img = await embed(doc, photo.image)
     const { w, h } = fitInto(img.width, img.height, W - 2 * margin, H - 2 * margin - footerH)
     const x = (W - w) / 2

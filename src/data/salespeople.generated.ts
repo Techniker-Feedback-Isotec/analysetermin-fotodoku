@@ -14,8 +14,20 @@ export const SALESPEOPLE: Salesperson[] = [
     "file": "Alexander Swaghoven.png"
   },
   {
+    "name": "Björn Morscheck",
+    "file": "Björn Morscheck.png"
+  },
+  {
     "name": "Boris Hohl",
     "file": "Boris Hohl.png"
+  },
+  {
+    "name": "Dzevit Veliji",
+    "file": "Dzevit Veliji.png"
+  },
+  {
+    "name": "Gerd Kahlau",
+    "file": "Gerd Kahlau.png"
   },
   {
     "name": "Hüseyin Manaz",

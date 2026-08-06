@@ -9,11 +9,17 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
 
 ## Funktionen
 
+- **Terminart wählbar** (Analysetermin / Reklamation / Baustellenbesuch) – sie wird zur
+  Überschrift des Deckblatts und steht im PDF-Dateinamen
 - **Deckblatt** im Stil der ISOTEC-Einarbeitungsmappe: Teamfoto als Hero, rotes Band,
-  ISOTEC-Logo, Vertriebler (Name + rundes Foto), Objektfoto und Termindatum –
-  das Termindatum wird **automatisch aus den Aufnahmedaten der Fotos** übernommen
-  (bei mehreren Tagen als Zeitraum) und steckt auch im PDF-Dateinamen
-- **Vertriebler-Dropdown mit Freitext-Option**: „Anderer Name (selbst eingeben) …"
+  ISOTEC-Logo, Mitarbeiter (Name + rundes Foto), Objektfoto und Termindatum –
+  das Termindatum ist **automatisch das neueste Aufnahmedatum der Fotos** und steckt
+  auch im PDF-Dateinamen; jede Fotoseite trägt zusätzlich ein kleines ISOTEC-Logo
+- **Adresse aus GPS-Daten**: Enthalten die Fotos GPS-Koordinaten, wird Straße + Ort
+  (ohne Hausnummer) per OpenStreetMap/Nominatim ermittelt und beim Objektfoto angezeigt.
+  Dabei werden **nur die Koordinaten** übertragen, keine Fotos; schlägt die Abfrage fehl,
+  erscheint einfach keine Adresse.
+- **Mitarbeiter-Dropdown mit Freitext-Option**: „Anderer Name (selbst eingeben) …"
   erlaubt neue Namen ohne Foto (Initialen-Platzhalter)
 - **Exakt 1 Foto pro Seite** ab Seite 2
 - **Chronologische Sortierung**: EXIF `DateTimeOriginal` → sonst Dateidatum (`lastModified`) →
@@ -28,7 +34,7 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
   PNGs mit echter Transparenz bleiben PNG.
 - **„Extra Komprimierung"** (Checkbox): komprimiert stufenweise stärker
   (1600/0,60 → 1200/0,50 → 960/0,40 → 800/0,35), bis die PDF **unter 10 MB** liegt
-- Dateiname: `Analysetermin_<Vertriebler>_<JJJJ-MM-TT>.pdf`
+- Dateiname: `<Terminart>_<Mitarbeiter>_<JJJJ-MM-TT>.pdf`
 
 ## Stack
 
@@ -51,7 +57,8 @@ Vor `dev` und `build` läuft automatisch `scripts/generate-salespeople.mjs` (sie
 Die Vertrieblerfotos liegen im Repo unter **`public/vertriebler/`**. Dateinamen sind exakt
 **„Vorname Nachname.jpg“** oder **„Vorname Nachname.png“** (Leerzeichen gehören zum Namen,
 Groß-/Kleinschreibung beibehalten), z. B. `Mike Alsdorf.png`. Aktuell enthalten:
-Mike Alsdorf, Sarah Najji, Boris Hohl, Alexander Swaghoven, Marvin Bethke, Hüseyin Manaz.
+Mike Alsdorf, Sarah Najji, Boris Hohl, Alexander Swaghoven, Marvin Bethke, Hüseyin Manaz,
+Björn Morscheck, Gerd Kahlau, Dzevit Veliji.
 
 **Neuen Vertriebler hinzufügen:**
 
@@ -94,6 +101,7 @@ hart gepflegt werden. Lokal (ohne `BASE_PATH`) gilt der Fallback in
 
 - Alle Verarbeitung (EXIF, HEIC-Konvertierung, Hashing, Komprimierung, PDF) passiert
   ausschließlich clientseitig im Browser
-- Keine Uploads, kein Backend, keine externen Requests zur Laufzeit
-  (auch die HEIC-WASM-Bibliothek wird mit der App ausgeliefert)
+- Keine Uploads, kein Backend (auch die HEIC-WASM-Bibliothek wird mit der App ausgeliefert)
+- Einzige externe Anfrage: die optionale Adress-Ermittlung sendet **nur GPS-Koordinaten**
+  (niemals Fotos oder andere Daten) an nominatim.openstreetmap.org
 - Kein Tracking, keine Analytics, keine Cookies, kein localStorage
