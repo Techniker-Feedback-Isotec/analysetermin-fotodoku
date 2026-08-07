@@ -37,16 +37,13 @@ function loadImageElement(blob: Blob): Promise<HTMLImageElement> {
   })
 }
 
-/** Wendet eine EXIF-Orientation (2-8) manuell per Canvas-Transformation an. */
-function orientOnCanvas(img: HTMLImageElement, orientation: number): HTMLCanvasElement {
-  const w = img.naturalWidth
-  const h = img.naturalHeight
-  const swap = orientation >= 5 && orientation <= 8
-  const canvas = document.createElement('canvas')
-  canvas.width = swap ? h : w
-  canvas.height = swap ? w : h
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar')
+/** Setzt die Canvas-Transformation fuer eine EXIF-Orientation (2-8). */
+function applyOrientation(
+  ctx: CanvasRenderingContext2D,
+  orientation: number,
+  w: number,
+  h: number,
+): void {
   switch (orientation) {
     case 2:
       ctx.transform(-1, 0, 0, 1, w, 0)
@@ -70,17 +67,30 @@ function orientOnCanvas(img: HTMLImageElement, orientation: number): HTMLCanvasE
       ctx.transform(0, -1, 1, 0, 0, w)
       break
   }
+}
+
+/** Wendet eine EXIF-Orientation (2-8) manuell auf ein <img> an. */
+function orientOnCanvas(img: HTMLImageElement, orientation: number): HTMLCanvasElement {
+  const w = img.naturalWidth
+  const h = img.naturalHeight
+  const swap = orientation >= 5 && orientation <= 8
+  const canvas = document.createElement('canvas')
+  canvas.width = swap ? h : w
+  canvas.height = swap ? w : h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar')
+  applyOrientation(ctx, orientation, w, h)
   ctx.drawImage(img, 0, 0)
   return canvas
 }
 
 /**
- * Dekodiert ein Bild bereits korrekt orientiert.
- * Primaer via createImageBitmap({ imageOrientation: 'from-image' }) - der Browser
- * wendet die EXIF-Orientation an. Fallback fuer aeltere Browser: <img> laden und
- * die Orientation manuell anwenden.
+ * Dekodiert ein Bild bereits korrekt orientiert - mit drei Stufen, damit ein
+ * einzelnes sperriges Bild (oder Speicherdruck bei vielen Fotos) nicht sofort
+ * zum Abbruch fuehrt.
  */
 export async function loadOriented(blob: Blob, orientation: number): Promise<OrientedImage> {
+  // 1) Bevorzugt: Browser wendet die EXIF-Orientation beim Dekodieren an
   try {
     const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
     return {
@@ -90,8 +100,36 @@ export async function loadOriented(blob: Blob, orientation: number): Promise<Ori
       cleanup: () => bitmap.close(),
     }
   } catch {
-    // Fallback unten
+    // naechster Versuch
   }
+
+  // 2) Bitmap ohne Orientierungs-Option (manche Browser/Bilder scheitern nur an der Option),
+  //    Orientation danach selbst anwenden
+  try {
+    const bitmap = await createImageBitmap(blob)
+    if (orientation <= 1) {
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        cleanup: () => bitmap.close(),
+      }
+    }
+    const swap = orientation >= 5 && orientation <= 8
+    const canvas = document.createElement('canvas')
+    canvas.width = swap ? bitmap.height : bitmap.width
+    canvas.height = swap ? bitmap.width : bitmap.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar')
+    applyOrientation(ctx, orientation, bitmap.width, bitmap.height)
+    ctx.drawImage(bitmap, 0, 0)
+    bitmap.close()
+    return { source: canvas, width: canvas.width, height: canvas.height, cleanup: () => {} }
+  } catch {
+    // letzter Versuch unten
+  }
+
+  // 3) Klassisch ueber ein <img>-Element
   const img = await loadImageElement(blob)
   if (orientation <= 1) {
     return { source: img, width: img.naturalWidth, height: img.naturalHeight, cleanup: () => {} }

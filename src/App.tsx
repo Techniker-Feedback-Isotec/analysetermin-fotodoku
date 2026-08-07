@@ -9,6 +9,7 @@ import {
   optimizeCircle,
   optimizeImage,
   type OptimizedImage,
+  type OptimizeOptions,
 } from './lib/image'
 import { buildPdf, type PdfPhoto } from './lib/pdf'
 import {
@@ -119,6 +120,34 @@ async function prepareImage(file: File): Promise<PreparedImage> {
 /** Chronologische Grundsortierung: Aufnahmedatum, Tie-Breaker Dateiname */
 function chronoCompare(a: { takenAt: number; fileName: string }, b: { takenAt: number; fileName: string }): number {
   return a.takenAt - b.takenAt || a.fileName.localeCompare(b.fileName, 'de', { numeric: true })
+}
+
+/**
+ * Bild orientieren + komprimieren, mit mehreren Anlaeufen. Bei vielen grossen
+ * Fotos kann das Dekodieren einmalig scheitern (Speicherdruck); eine kurze
+ * Pause gibt dem Browser Gelegenheit aufzuraeumen.
+ */
+async function optimizeWithRetry(
+  blob: Blob,
+  orientation: number,
+  opts: OptimizeOptions,
+  versuche = 3,
+): Promise<OptimizedImage> {
+  let letzterFehler: unknown
+  for (let v = 0; v < versuche; v++) {
+    try {
+      const oriented = await loadOriented(blob, orientation)
+      try {
+        return await optimizeImage(oriented, opts)
+      } finally {
+        oriented.cleanup()
+      }
+    } catch (err) {
+      letzterFehler = err
+      await new Promise((r) => window.setTimeout(r, 250 * (v + 1)))
+    }
+  }
+  throw letzterFehler instanceof Error ? letzterFehler : new Error(String(letzterFehler))
 }
 
 let toastCounter = 0
@@ -384,48 +413,40 @@ export default function App() {
       // 2) Objektadresse: ausschliesslich die manuelle Eingabe (optional)
       const objectAddress: string | null = addressInput.trim() || null
 
+      // Fotos, die sich partout nicht lesen lassen - werden uebersprungen
+      const fehlerhafteFotos = new Set<string>()
+
       // Ein kompletter Durchlauf: Objektfoto + Termin-Fotos optimieren, PDF bauen.
       // Sequenziell und speicherschonend, auch bei 150+ Bildern.
       const buildOnce = async (maxEdge: number, jpegQuality: number, passLabel: string) => {
         const totalSteps = included.length + 2
         setPdfProgress({ label: `Komprimiere Objektfoto${passLabel} …`, done: 1, total: totalSteps })
-        const objOriented = await loadOriented(objectPhoto.workingBlob, objectPhoto.orientation)
-        let objImage: OptimizedImage
-        try {
-          objImage = await optimizeImage(objOriented, {
-            maxEdge,
-            quality: jpegQuality,
-            sourceType: objectPhoto.sourceType,
-          })
-        } finally {
-          objOriented.cleanup()
-        }
+        const objImage = await optimizeWithRetry(objectPhoto.workingBlob, objectPhoto.orientation, {
+          maxEdge,
+          quality: jpegQuality,
+          sourceType: objectPhoto.sourceType,
+        })
 
-        const pdfPhotos: PdfPhoto[] = []
-        for (let i = 0; i < included.length; i++) {
+        // Jedes Foto wird erst beim Einbetten geladen und danach wieder freigegeben.
+        const loadPhoto = async (i: number): Promise<PdfPhoto | null> => {
           const photo = included[i]
           setPdfProgress({
-            label: `Verarbeite Bild ${i + 1}/${included.length}${passLabel} …`,
+            label: `Komprimiere Bild ${i + 1}/${included.length}${passLabel} …`,
             done: 2 + i,
             total: totalSteps,
           })
-          const oriented = await loadOriented(photo.workingBlob, photo.orientation)
-          let image: OptimizedImage
           try {
-            setPdfProgress({
-              label: `Komprimiere Bild ${i + 1}/${included.length}${passLabel} …`,
-              done: 2 + i,
-              total: totalSteps,
-            })
-            image = await optimizeImage(oriented, {
+            const image = await optimizeWithRetry(photo.workingBlob, photo.orientation, {
               maxEdge,
               quality: jpegQuality,
               sourceType: photo.sourceType,
             })
-          } finally {
-            oriented.cleanup()
+            return { image, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate }
+          } catch {
+            // Einzelnes unlesbares Foto darf die ganze PDF nicht verhindern
+            fehlerhafteFotos.add(photo.fileName)
+            return null
           }
-          pdfPhotos.push({ image, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate })
         }
 
         return buildPdf(
@@ -450,7 +471,8 @@ export default function App() {
                     note: `Die Zusammenfassung wurde erstellt von ${salesperson} am ${formatDateShort(Date.now())}.`,
                   }
                 : null,
-            photos: pdfPhotos,
+            photoCount: included.length,
+            loadPhoto,
             createdAt: new Date(),
             terminLabel,
             heroJpg: new Uint8Array(heroJpg),
@@ -476,6 +498,8 @@ export default function App() {
         const passLabel = extraCompression
           ? ` – Extra-Komprimierung, Stufe ${a + 1}/${attempts.length}`
           : ''
+        // Ergebnis der vorherigen Stufe vor dem naechsten Durchlauf freigeben
+        bytes = new Uint8Array()
         bytes = await buildOnce(step.maxEdge, step.quality, passLabel)
         if (!extraCompression || bytes.length < EXTRA_TARGET_BYTES) break
       }
@@ -509,8 +533,14 @@ export default function App() {
       window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
       pushToast(
         'success',
-        `PDF erstellt: ${fileName} (${formatBytes(blob.size)}, ${pageCount} Seiten)`,
+        `PDF erstellt: ${fileName} (${formatBytes(blob.size)}, ${pageCount - fehlerhafteFotos.size} Seiten)`,
       )
+      if (fehlerhafteFotos.size > 0) {
+        pushToast(
+          'error',
+          `${fehlerhafteFotos.size} Foto(s) konnten nicht gelesen werden und fehlen in der PDF: ${[...fehlerhafteFotos].join(', ')}`,
+        )
+      }
     } catch (err) {
       pushToast(
         'error',

@@ -37,7 +37,14 @@ export interface PdfInputs {
    * note = Vermerk am Ende (wer, wann).
    */
   textPage: { title: string; text: string; note: string } | null
-  photos: PdfPhoto[]
+  /** Anzahl der geplanten Termin-Fotos (Zaehler fuer den Fortschritt) */
+  photoCount: number
+  /**
+   * Liefert das Foto fuer Seite `index` erst, wenn es gebraucht wird - so liegt
+   * nie die komplette Bildmenge gleichzeitig im Speicher. null = Foto konnte
+   * nicht gelesen werden und wird uebersprungen.
+   */
+  loadPhoto: (index: number) => Promise<PdfPhoto | null>
   createdAt: Date
   /** Termindatum aus den Foto-Aufnahmedaten, z. B. "Mittwoch, 6. August 2026" */
   terminLabel: string
@@ -236,7 +243,7 @@ export async function buildPdf(
     })
     cursor -= 18
     page.drawText(
-      `Fotodokumentation: ${inputs.photos.length} ${inputs.photos.length === 1 ? 'Foto' : 'Fotos'}, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
+      `Fotodokumentation: ${inputs.photoCount} ${inputs.photoCount === 1 ? 'Foto' : 'Fotos'}, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
       { x: margin, y: cursor, size: 11, font: regular, color: BROWN },
     )
 
@@ -351,13 +358,17 @@ export async function buildPdf(
   }
 
   // ---------- Fotoseiten: exakt 1 Foto pro Seite ----------
-  const total = inputs.photos.length
-  for (let i = 0; i < total; i++) {
-    const photo = inputs.photos[i]
+  // Jedes Foto wird erst hier geladen und nach dem Einbetten wieder freigegeben.
+  const margin = 40
+  const footerH = 32
+  const footers: Array<{ page: PDFPage; takenAt: number | null; isDuplicate: boolean }> = []
+
+  for (let i = 0; i < inputs.photoCount; i++) {
+    const photo = await inputs.loadPhoto(i)
+    onProgress?.(i + 1, inputs.photoCount)
+    if (!photo) continue // nicht lesbar - Seite wird uebersprungen
+
     const page = doc.addPage(A4)
-    const margin = 40
-    const footerH = 32
-    // Kleines ISOTEC-Logo oben rechts im Seitenrand
     const pageLogoW = 70
     const pageLogoH = pageLogoW * (logo.height / logo.width)
     page.drawImage(logo, {
@@ -373,19 +384,26 @@ export async function buildPdf(
     const y = footerH + margin + (H - 2 * margin - footerH - h) / 2
     page.drawImage(img, { x, y, width: w, height: h })
 
-    page.drawLine({
+    footers.push({ page, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate })
+  }
+
+  // Fusszeilen erst jetzt zeichnen - dann stimmt "Foto X / N" auch, wenn
+  // einzelne Fotos uebersprungen wurden.
+  const total = footers.length
+  footers.forEach((f, idx) => {
+    f.page.drawLine({
       start: { x: margin, y: footerH },
       end: { x: W - margin, y: footerH },
       thickness: 0.5,
       color: GREY,
     })
-    let label = `Foto ${i + 1} / ${total}`
-    if (photo.isDuplicate) label += '  -  Duplikat'
-    page.drawText(label, { x: margin, y: footerH - 15, size: 9, font: regular, color: BROWN })
-    if (photo.takenAt != null) {
-      const dateText = formatDateTime(photo.takenAt)
+    let label = `Foto ${idx + 1} / ${total}`
+    if (f.isDuplicate) label += '  -  Duplikat'
+    f.page.drawText(label, { x: margin, y: footerH - 15, size: 9, font: regular, color: BROWN })
+    if (f.takenAt != null) {
+      const dateText = formatDateTime(f.takenAt)
       const dw = regular.widthOfTextAtSize(dateText, 9)
-      page.drawText(dateText, {
+      f.page.drawText(dateText, {
         x: W - margin - dw,
         y: footerH - 15,
         size: 9,
@@ -393,8 +411,7 @@ export async function buildPdf(
         color: BROWN,
       })
     }
-    onProgress?.(i + 1, total)
-  }
+  })
 
   return doc.save()
 }
