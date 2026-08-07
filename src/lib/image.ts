@@ -199,31 +199,21 @@ export async function optimizeImage(
   return { bytes: new Uint8Array(await blob.arrayBuffer()), width, height, format }
 }
 
-/** Quadratischer Center-Crop (fuer das Vertrieblerfoto auf dem Deckblatt). */
-export async function optimizeSquare(
+/**
+ * Verkleinert einen Blob auf maxEdge und liefert ihn als JPEG-Blob zurueck.
+ * Wird nach der HEIC-Konvertierung genutzt, damit nicht das JPEG in voller
+ * Aufloesung im Speicher gehalten wird.
+ */
+export async function downscaleToJpegBlob(
   blob: Blob,
   orientation: number,
-  size: number,
+  maxEdge: number,
   quality: number,
-): Promise<OptimizedImage> {
+): Promise<Blob> {
   const oriented = await loadOriented(blob, orientation)
   try {
-    const side = Math.min(oriented.width, oriented.height)
-    const sx = (oriented.width - side) / 2
-    const sy = (oriented.height - side) / 2
-    const target = Math.max(1, Math.min(size, side))
-    const canvas = document.createElement('canvas')
-    canvas.width = target
-    canvas.height = target
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar')
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, target, target)
-    ctx.drawImage(oriented.source, sx, sy, side, side, 0, 0, target, target)
-    const out = await canvasToBlob(canvas, 'image/jpeg', quality)
-    return { bytes: new Uint8Array(await out.arrayBuffer()), width: target, height: target, format: 'jpeg' }
+    const out = await optimizeImage(oriented, { maxEdge, quality })
+    return new Blob([out.bytes as BlobPart], { type: 'image/jpeg' })
   } finally {
     oriented.cleanup()
   }

@@ -4,6 +4,7 @@ import { readExif } from './lib/exif'
 import { heicToJpegBlob, isHeic } from './lib/heic'
 import { sha256Hex } from './lib/hash'
 import {
+  downscaleToJpegBlob,
   loadOriented,
   makeThumbnailUrl,
   optimizeCircle,
@@ -93,17 +94,44 @@ async function prepareImage(file: File): Promise<PreparedImage> {
   let workingBlob: Blob = file
   let orientation = exif.orientation
   let convertedFromHeic = false
+  let thumbUrl: string | null = null
+
   if (isHeic(file)) {
+    // 1) Nativ versuchen: Safari (iPhone/Mac) dekodiert HEIC direkt - dann bleibt
+    //    die Original-Datei die Arbeitsgrundlage und nichts liegt extra im Speicher.
     try {
-      workingBlob = await heicToJpegBlob(file)
+      thumbUrl = await makeThumbnailUrl(file, orientation, 512)
+    } catch {
+      // 2) Konvertieren (Chrome/Edge/Firefox) - mit einem zweiten Anlauf - und das
+      //    Ergebnis sofort auf Arbeitsgroesse verkleinern, statt das JPEG in voller
+      //    Aufloesung zu behalten (Speicher: ~0,5 MB statt 5-8 MB pro Foto).
+      let jpeg: Blob
+      try {
+        jpeg = await heicToJpegBlob(file)
+      } catch {
+        await new Promise((r) => window.setTimeout(r, 300))
+        try {
+          jpeg = await heicToJpegBlob(file)
+        } catch (err) {
+          // heic2any wirft teils Plain-Objects mit {code, message} statt Error
+          const reason =
+            err instanceof Error
+              ? err.message
+              : err && typeof err === 'object' && 'message' in err
+                ? String((err as { message: unknown }).message)
+                : String(err)
+          throw new Error(`HEIC konnte nicht konvertiert werden: ${file.name} (${reason})`)
+        }
+      }
+      workingBlob = await downscaleToJpegBlob(jpeg, 1, MAX_EDGE, 0.9)
       convertedFromHeic = true
       orientation = 1 // libheif liefert bereits korrekt orientierte Pixel
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      throw new Error(`HEIC konnte nicht konvertiert werden: ${file.name} (${reason})`)
     }
   }
-  const thumbUrl = await makeThumbnailUrl(workingBlob, orientation, 512)
+
+  if (thumbUrl === null) {
+    thumbUrl = await makeThumbnailUrl(workingBlob, orientation, 512)
+  }
   return {
     fileName: file.name,
     fileSize: file.size,

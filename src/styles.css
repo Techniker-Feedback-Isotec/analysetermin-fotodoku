@@ -149,8 +149,7 @@ main {
 }
 
 /* Formulare */
-.field label,
-fieldset legend {
+.field label {
   display: block;
   font-weight: 600;
   margin-bottom: 6px;
@@ -198,14 +197,6 @@ select,
   font-family: inherit;
 }
 
-fieldset {
-  border: 1px solid var(--grey);
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin: 0;
-}
-
-.radio,
 .checkbox {
   display: flex;
   align-items: center;
@@ -215,21 +206,10 @@ fieldset {
   font-size: 0.95rem;
 }
 
-.radio small {
-  color: #7a6f68;
-}
-
-input[type='radio'],
 input[type='checkbox'] {
   accent-color: var(--red);
   width: 17px;
   height: 17px;
-}
-
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
 }
 
 /* Buttons */
