@@ -175,10 +175,15 @@ export async function buildPdf(
     })
     const ruleY = cursor
 
-    // Objektfoto rechts
+    // Objektfoto rechts. Die Hoehe richtet sich nach dem tatsaechlich freien Platz
+    // bis zum Logo - sonst schieben Hochkant-Fotos die Beschriftung ins Logo.
+    const logoW = 150
+    const logoH = logoW * (logo.height / logo.width)
+    const logoY = 48
     const objBoxW = 220
-    const objBoxH = 190
     const objTop = ruleY - 10
+    const labelH = inputs.objectAddress ? 34 : 20
+    const objBoxH = Math.max(80, objTop - (logoY + logoH + 14) - labelH)
     const objImg = await embed(doc, inputs.objectImage)
     const objFit = fitInto(objImg.width, objImg.height, objBoxW, objBoxH)
     const objX = W - margin - objFit.w
@@ -195,19 +200,15 @@ export async function buildPdf(
     page.drawImage(objImg, { x: objX, y: objY, width: objFit.w, height: objFit.h })
     page.drawText('Objekt', { x: objX, y: objY - 16, size: 9, font: regular, color: MUTED })
     if (inputs.objectAddress) {
-      // Adresse unter der Objekt-Beschriftung; Schrift ggf. verkleinern, damit sie
-      // nicht ueber den Seitenrand laeuft
-      let addrSize = 9
-      const maxW = W - margin - objX
-      const w9 = regular.widthOfTextAtSize(inputs.objectAddress, addrSize)
-      if (w9 > maxW) addrSize = Math.max(6.5, (addrSize * maxW) / w9)
-      page.drawText(inputs.objectAddress, {
-        x: objX,
-        y: objY - 30,
-        size: addrSize,
-        font: bold,
-        color: BROWN,
-      })
+      // Adresse unter der Objekt-Beschriftung. Reicht die Bildbreite nicht, darf der
+      // Text nach links bis zur Spaltenkante wandern; erst danach wird verkleinert.
+      const addr = toWinAnsi(inputs.objectAddress)
+      const colLeft = W - margin - objBoxW
+      const fullW = bold.widthOfTextAtSize(addr, 9)
+      const addrX = objX + fullW > W - margin ? Math.max(colLeft, W - margin - fullW) : objX
+      const avail = W - margin - addrX
+      const addrSize = fullW > avail ? Math.max(6.5, (9 * avail) / fullW) : 9
+      page.drawText(addr, { x: addrX, y: objY - 30, size: addrSize, font: bold, color: BROWN })
     }
 
     // Infoblock links
@@ -284,9 +285,7 @@ export async function buildPdf(
     }
 
     // Unten rechts: ISOTEC-Logo (inkl. Claim "IMMER BESSER.")
-    const logoW = 150
-    const logoH = logoW * (logo.height / logo.width)
-    page.drawImage(logo, { x: W - margin - logoW, y: 48, width: logoW, height: logoH })
+    page.drawImage(logo, { x: W - margin - logoW, y: logoY, width: logoW, height: logoH })
   }
 
   // ---------- Optionale Textseite (nur wenn ausgefuellt, direkt nach dem Deckblatt) ----------
