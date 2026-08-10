@@ -45,6 +45,8 @@ interface PreparedImage {
 interface TerminPhoto extends PreparedImage {
   id: string
   hash: string
+  /** Vom Nutzer gewaehlte Drehung in Grad: 0, 90, 180 oder 270 */
+  rotation: number
 }
 
 interface Toast {
@@ -303,7 +305,7 @@ export default function App() {
           }
           knownHashes.add(hash)
           setPhotos((prev) => {
-            const next = [...prev, { ...prepared, hash, id: crypto.randomUUID() }]
+            const next = [...prev, { ...prepared, hash, id: crypto.randomUUID(), rotation: 0 }]
             return orderTouchedRef.current ? next : next.sort(chronoCompare)
           })
         } catch (err) {
@@ -328,6 +330,28 @@ export default function App() {
       return prev.filter((p) => p.id !== id)
     })
   }, [])
+
+  /** Foto um 90 Grad im Uhrzeigersinn drehen (Vorschau wird neu erzeugt) */
+  const rotatePhoto = useCallback(
+    async (id: string) => {
+      const photo = photosRef.current.find((p) => p.id === id)
+      if (!photo) return
+      const rotation = (photo.rotation + 90) % 360
+      try {
+        const thumbUrl = await makeThumbnailUrl(photo.workingBlob, photo.orientation, 512, rotation)
+        setPhotos((prev) =>
+          prev.map((p) => {
+            if (p.id !== id) return p
+            URL.revokeObjectURL(p.thumbUrl)
+            return { ...p, rotation, thumbUrl }
+          }),
+        )
+      } catch {
+        pushToast('error', `Foto konnte nicht gedreht werden: ${photo.fileName}`)
+      }
+    },
+    [pushToast],
+  )
 
   /** Foto per Pfeil-Button eine Position nach oben/unten schieben */
   const movePhoto = useCallback((id: string, dir: -1 | 1) => {
@@ -468,6 +492,7 @@ export default function App() {
               maxEdge,
               quality: jpegQuality,
               sourceType: photo.sourceType,
+              rotate: photo.rotation,
             })
             return { image, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate }
           } catch {
@@ -885,7 +910,7 @@ export default function App() {
               </div>
               <p className="order-hint">
                 Die Reihenfolge unten ist die Seiten-Reihenfolge in der PDF – per Pfeiltasten oder
-                Ziehen ändern (startet chronologisch).
+                Ziehen ändern (startet chronologisch). Mit ↻ drehst du ein Foto um 90°.
               </p>
               <ul className="photo-list">
                 {annotated.map((p, idx) => (
@@ -965,6 +990,15 @@ export default function App() {
                         aria-label={`${p.fileName} nach unten verschieben`}
                       >
                         ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-move btn-rotate"
+                        onClick={() => void rotatePhoto(p.id)}
+                        title="Um 90° drehen"
+                        aria-label={`${p.fileName} um 90 Grad drehen`}
+                      >
+                        ↻
                       </button>
                     </div>
                     <button

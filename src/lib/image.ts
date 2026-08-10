@@ -19,6 +19,13 @@ export interface OptimizeOptions {
   quality: number
   /** MIME-Typ der Originaldatei; PNG mit Transparenz bleibt PNG. */
   sourceType?: string
+  /** Zusaetzliche Drehung durch den Nutzer: 0, 90, 180 oder 270 Grad */
+  rotate?: number
+}
+
+/** Normalisiert einen Winkel auf 0, 90, 180 oder 270. */
+function normalizeRotation(deg: number | undefined): number {
+  return ((((deg ?? 0) % 360) + 360) % 360 / 90 | 0) * 90
 }
 
 function loadImageElement(blob: Blob): Promise<HTMLImageElement> {
@@ -169,8 +176,13 @@ export async function optimizeImage(
   opts: OptimizeOptions,
 ): Promise<OptimizedImage> {
   const scale = Math.min(1, opts.maxEdge / Math.max(oriented.width, oriented.height))
-  const width = Math.max(1, Math.round(oriented.width * scale))
-  const height = Math.max(1, Math.round(oriented.height * scale))
+  const drawW = Math.max(1, Math.round(oriented.width * scale))
+  const drawH = Math.max(1, Math.round(oriented.height * scale))
+  // Bei 90/270 Grad tauschen Breite und Hoehe der Zielflaeche
+  const rotate = normalizeRotation(opts.rotate)
+  const swap = rotate === 90 || rotate === 270
+  const width = swap ? drawH : drawW
+  const height = swap ? drawW : drawH
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -178,7 +190,10 @@ export async function optimizeImage(
   if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar')
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(oriented.source, 0, 0, width, height)
+  ctx.translate(width / 2, height / 2)
+  if (rotate !== 0) ctx.rotate((rotate * Math.PI) / 180)
+  ctx.drawImage(oriented.source, -drawW / 2, -drawH / 2, drawW, drawH)
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
 
   let format: 'jpeg' | 'png' = 'jpeg'
   if (opts.sourceType === 'image/png' && canvasHasAlpha(ctx, width, height)) {
@@ -257,23 +272,14 @@ export async function makeThumbnailUrl(
   blob: Blob,
   orientation: number,
   maxEdge = 240,
+  rotate = 0,
 ): Promise<string> {
   const oriented = await loadOriented(blob, orientation)
   try {
-    const scale = Math.min(1, maxEdge / Math.max(oriented.width, oriented.height))
-    const width = Math.max(1, Math.round(oriented.width * scale))
-    const height = Math.max(1, Math.round(oriented.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar')
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, width, height)
-    ctx.drawImage(oriented.source, 0, 0, width, height)
-    const out = await canvasToBlob(canvas, 'image/jpeg', 0.75)
-    return URL.createObjectURL(out)
+    const out = await optimizeImage(oriented, { maxEdge, quality: 0.75, rotate })
+    return URL.createObjectURL(new Blob([out.bytes as BlobPart], { type: 'image/jpeg' }))
   } finally {
     oriented.cleanup()
   }
 }
+

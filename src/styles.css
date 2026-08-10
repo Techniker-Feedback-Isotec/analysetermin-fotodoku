@@ -472,6 +472,11 @@ input[type='checkbox'] {
   cursor: default;
 }
 
+.btn-rotate {
+  font-size: 1.2rem;
+  margin-top: 2px;
+}
+
 @media (max-width: 640px) {
   .photo-thumb {
     width: 128px;
