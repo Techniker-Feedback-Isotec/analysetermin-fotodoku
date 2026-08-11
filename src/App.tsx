@@ -438,12 +438,6 @@ export default function App() {
   const terminDate = manualTerminDate ?? autoTerminDate
   const terminLabel = terminDate != null ? formatDateWeekday(terminDate) : null
 
-  // Fuer die Videos: ohne Fotos gibt es kein automatisch erkanntes Datum -
-  // dann gilt der heutige Tag, bis jemand etwas anderes eintraegt.
-  const videoDateMs = terminDate ?? Date.now()
-  const videoDatumIso = isoDate(new Date(videoDateMs))
-  const videoDatumText = formatDateWeekday(videoDateMs)
-
   // ---------- PDF ----------
 
   const busy = importProgress !== null || pdfProgress !== null
@@ -690,8 +684,8 @@ export default function App() {
           </button>
         </div>
 
-        {/* 1: Terminart */}
-        <section className="card" aria-labelledby="sec-terminart">
+        {/* 1: Terminart - nur fuer Fotos. Videos entstehen immer beim Analysetermin. */}
+        <section className="card" aria-labelledby="sec-terminart" hidden={modus !== 'foto'}>
           <h2 id="sec-terminart">
             <span className="step">1</span> Terminart
           </h2>
@@ -714,7 +708,7 @@ export default function App() {
         {/* 2: Mitarbeiter */}
         <section className="card" aria-labelledby="sec-mitarbeiter">
           <h2 id="sec-mitarbeiter">
-            <span className="step">2</span> Mitarbeiter
+            <span className="step">{modus === 'foto' ? 2 : 1}</span> Mitarbeiter
           </h2>
           <div className="salesperson-row">
             <div className="field">
@@ -775,7 +769,8 @@ export default function App() {
         {/* 3: Objekt - Foto nur fuer die Fotodokumentation, die Angaben gelten fuer beides */}
         <section className="card" aria-labelledby="sec-objekt">
           <h2 id="sec-objekt">
-            <span className="step">3</span> {modus === 'foto' ? 'Objektfoto (Gebäude)' : 'Angaben zum Objekt'}
+            <span className="step">{modus === 'foto' ? 3 : 2}</span>{' '}
+            {modus === 'foto' ? 'Objektfoto (Gebäude)' : 'Angaben zum Objekt'}
           </h2>
           {modus === 'foto' ? (
             <p className="section-hint">Genau 1 Foto (JPG/PNG/HEIC) – erscheint prominent auf dem Deckblatt.</p>
@@ -855,22 +850,24 @@ export default function App() {
                 placeholder="z. B. Musterstraße, Krefeld"
               />
             </div>
-            <div className="field">
-              <label htmlFor="termindate-input">Termindatum (optional)</label>
-              <input
-                id="termindate-input"
-                type="date"
-                className="custom-name-input"
-                value={terminDateInput}
-                onChange={(e) => setTerminDateInput(e.target.value)}
-              />
-              <p className="field-hint">
-                {modus === 'foto'
-                  ? 'Leer lassen = Datum kommt automatisch aus den Fotos. Nur ausfüllen, wenn das erkannte Datum nicht stimmt.'
-                  : 'Leer lassen = Datum kommt aus den Fotos, sonst der heutige Tag.'}
-              </p>
-            </div>
-            {(isReklamation || modus === 'video') && (
+            {/* Videos bringen ihr Aufnahmedatum selbst mit - hier nur fuer Fotos */}
+            {modus === 'foto' && (
+              <div className="field">
+                <label htmlFor="termindate-input">Termindatum (optional)</label>
+                <input
+                  id="termindate-input"
+                  type="date"
+                  className="custom-name-input"
+                  value={terminDateInput}
+                  onChange={(e) => setTerminDateInput(e.target.value)}
+                />
+                <p className="field-hint">
+                  Leer lassen = Datum kommt automatisch aus den Fotos. Nur ausfüllen, wenn das erkannte
+                  Datum nicht stimmt.
+                </p>
+              </div>
+            )}
+            {isReklamation && modus === 'foto' && (
               <div className="field">
                 <label htmlFor="ordernumber-input">Auftragsnummer (optional)</label>
                 <input
@@ -924,14 +921,10 @@ export default function App() {
             Videos verloren, sobald jemand kurz zu den Fotos wechselt. */}
         <div hidden={modus !== 'video'}>
           <VideoPanel
-            terminart={terminType}
             mitarbeiter={salesperson}
             mitarbeiterFoto={spPhotoUrl}
             kunde={customerName}
             objektadresse={addressInput}
-            auftragsnummer={orderNumber}
-            datumIso={videoDatumIso}
-            datumText={videoDatumText}
             onToast={pushToast}
           />
         </div>

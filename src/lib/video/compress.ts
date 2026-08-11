@@ -96,6 +96,11 @@ export interface VideoInfo {
   /** Codec-Kurzname des Originals, z. B. "hevc" */
   codec: string | null
   hasAudio: boolean
+  /**
+   * Aufnahmezeitpunkt aus den Metadaten der Datei, sonst null. Handys schreiben
+   * ihn beim Aufnehmen hinein - und aufgenommen wird beim Termin.
+   */
+  createdAt: number | null
 }
 
 export interface CompressResult {
@@ -144,12 +149,22 @@ export async function probeVideo(file: File): Promise<VideoInfo | null> {
     const metaDuration = await input.getDurationFromMetadata()
     const duration = metaDuration ?? (await input.computeDuration())
 
+    let createdAt: number | null = null
+    try {
+      const tags = await input.getMetadataTags()
+      const time = tags.date?.getTime()
+      if (time !== undefined && Number.isFinite(time)) createdAt = time
+    } catch {
+      createdAt = null
+    }
+
     return {
       durationSeconds: duration,
       width: track.displayWidth,
       height: track.displayHeight,
       codec: track.codec,
       hasAudio: audio !== null,
+      createdAt,
     }
   } catch {
     return null

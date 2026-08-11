@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PREVIEW_SIZE, renderCover, type CoverData } from './lib/cover'
-import { formatBytes, formatDuration, formatPercent, sanitizeFilePart } from './lib/format'
+import { formatBytes, formatDateWeekday, formatDuration, formatPercent, isoDate, sanitizeFilePart } from './lib/format'
 import {
   compressVideo,
   CompressCanceledError,
@@ -8,19 +8,25 @@ import {
   probeVideo,
   SIZE_LIMITS,
   type CompressResult,
-  type SizeLimit,
   type VideoInfo,
 } from './lib/video/compress'
 
 /**
  * Seite "Videodokumentation".
  *
- * Termindaten kommen als Eigenschaften herein - sie werden einmal oben im Tool
- * eingetragen und gelten fuer Fotos und Videos gleichermassen. Diese Komponente
- * kuemmert sich nur um die Videos selbst.
+ * Kunde, Objektadresse und Mitarbeiter kommen als Eigenschaften herein - sie
+ * werden einmal oben im Tool eingetragen und gelten fuer Fotos und Videos.
+ * Das Termindatum kommt dagegen aus dem Video selbst: Aufgenommen wird beim
+ * Termin, also ist der Aufnahmezeitpunkt das Termindatum.
  */
 
-type JobStatus = 'wartet' | 'laeuft' | 'fertig'
+/** Videos entstehen ausschliesslich beim Analysetermin. */
+const TERMINART = 'Analysetermin'
+
+/** Feste Groessengrenze: Craftboxx laesst 40 MB zu, das ist die engste Stelle. */
+const TARGET_BYTES = SIZE_LIMITS.craftboxx.bytes
+
+type JobStatus = 'pruefung' | 'wartet' | 'laeuft' | 'fertig'
 
 interface Job {
   id: string
@@ -29,28 +35,24 @@ interface Job {
   status: JobStatus
   progress: number
   statusText: string
+  /** Aufnahmezeitpunkt des Videos = Termindatum */
+  datumMs: number
   /** Freier Titel des Videos, geht in den Dateinamen ein */
   titel: string
   /** Selbst gesetzter Dateiname; leer = automatisch */
   nameOverride: string
   result: CompressResult | null
-  /** Stand der Termindaten, mit dem das Deckblatt gezeichnet wurde */
+  /** Stand der Angaben, mit dem das Deckblatt gezeichnet wurde */
   coverKey: string
   gespeichert: boolean
   previewUrl: string | null
 }
 
 export interface VideoPanelProps {
-  terminart: string
   mitarbeiter: string
   mitarbeiterFoto: string | null
   kunde: string
   objektadresse: string
-  auftragsnummer: string
-  /** ISO-Datum JJJJ-MM-TT fuer den Dateinamen */
-  datumIso: string
-  /** Ausgeschriebenes Datum fuer das Deckblatt */
-  datumText: string
   onToast: (kind: 'info' | 'error' | 'success', text: string) => void
 }
 
@@ -72,13 +74,13 @@ function ensureExtension(name: string, extension: string): string {
     : `${clean.replace(/\.[A-Za-z0-9]{1,5}$/, '')}.${extension}`
 }
 
-/** ISOTEC_Videodokumentation[_<Titel>][_<JJJJ-MM-TT>].mp4 */
-function buildFileName(titel: string, datumIso: string, index: number, gesamt: number, extension: string): string {
+/** ISOTEC_Videodokumentation[_<Titel>|_<Nr>]_<JJJJ-MM-TT>.mp4 */
+function buildFileName(titel: string, datumMs: number, index: number, gesamt: number, extension: string): string {
   const parts = ['ISOTEC', 'Videodokumentation']
   const sauber = sanitizeFilePart(titel).replace(/\s+/g, '-')
   if (sauber) parts.push(sauber)
   else if (gesamt > 1) parts.push(String(index + 1).padStart(2, '0'))
-  if (datumIso) parts.push(datumIso)
+  parts.push(isoDate(new Date(datumMs)))
   return `${parts.join('_')}.${extension}`
 }
 
@@ -120,7 +122,7 @@ function describeError(error: unknown): string {
 function describeResult(originalBytes: number, result: CompressResult): string {
   if (!result.compressed) return result.note ?? 'Original bleibt unverändert.'
   const groessen = `${formatBytes(originalBytes)} → ${formatBytes(result.blob.size)}`
-  if (result.ueberGrenze) return `${groessen} – passt trotzdem nicht unter die Grenze, das Video ist sehr lang.`
+  if (result.ueberGrenze) return `${groessen} – passt trotzdem nicht unter 39 MB, das Video ist sehr lang.`
   if (result.verkleinert)
     return `${groessen} (${savedPercent(originalBytes, result.blob.size)} kleiner), Deckblatt ergänzt`
   return `${groessen} – Qualität unverändert, Deckblatt ergänzt`
@@ -128,7 +130,6 @@ function describeResult(originalBytes: number, result: CompressResult): string {
 
 export default function VideoPanel(props: VideoPanelProps) {
   const [jobs, setJobs] = useState<Job[]>([])
-  const [limit, setLimit] = useState<SizeLimit>('craftboxx')
   const [dragOver, setDragOver] = useState(false)
   const [queueTick, setQueueTick] = useState(0)
 
@@ -139,34 +140,31 @@ export default function VideoPanel(props: VideoPanelProps) {
 
   const compressionAvailable = canCompress()
 
-  const coverData: CoverData = useMemo(
+  /** Deckblatt-Angaben ohne Datum - das steckt im jeweiligen Video. */
+  const coverBase = useMemo(
     () => ({
-      terminart: props.terminart.trim(),
+      terminart: TERMINART,
       mitarbeiter: props.mitarbeiter.trim(),
       mitarbeiterFoto: props.mitarbeiterFoto,
       kunde: props.kunde.trim(),
       objektadresse: props.objektadresse.trim(),
-      auftragsnummer: props.auftragsnummer.trim(),
-      datumText: props.datumText,
+      auftragsnummer: '',
     }),
-    [
-      props.terminart,
-      props.mitarbeiter,
-      props.mitarbeiterFoto,
-      props.kunde,
-      props.objektadresse,
-      props.auftragsnummer,
-      props.datumText,
-    ],
+    [props.mitarbeiter, props.mitarbeiterFoto, props.kunde, props.objektadresse],
   )
-  const coverKey = useMemo(() => JSON.stringify(coverData), [coverData])
 
-  // Immer die neuesten Termindaten verwenden, ohne die laufende Warteschlange
-  // bei jedem Tastendruck neu anzustossen.
-  const coverRef = useRef(coverData)
-  coverRef.current = coverData
-  const coverKeyRef = useRef(coverKey)
-  coverKeyRef.current = coverKey
+  const coverFor = useCallback(
+    (datumMs: number): CoverData => ({ ...coverBase, datumText: formatDateWeekday(datumMs) }),
+    [coverBase],
+  )
+  const coverKeyFor = useCallback((datumMs: number) => JSON.stringify(coverFor(datumMs)), [coverFor])
+
+  // Immer die neuesten Angaben verwenden, ohne die laufende Warteschlange bei
+  // jedem Tastendruck neu anzustossen.
+  const coverForRef = useRef(coverFor)
+  coverForRef.current = coverFor
+  const coverKeyForRef = useRef(coverKeyFor)
+  coverKeyForRef.current = coverKeyFor
 
   const updateJob = useCallback((id: string, patch: Partial<Job>) => {
     setJobs((current) => current.map((job) => (job.id === id ? { ...job, ...patch } : job)))
@@ -174,9 +172,13 @@ export default function VideoPanel(props: VideoPanelProps) {
 
   // ---------- Vorschau des Deckblatts ----------
 
+  // Ohne Video gibt es noch kein Aufnahmedatum - dann der heutige Tag.
+  const vorschauDatum = jobs.length > 0 ? jobs[jobs.length - 1].datumMs : Date.now()
+  const vorschauCover = useMemo(() => coverFor(vorschauDatum), [coverFor, vorschauDatum])
+
   useEffect(() => {
     let cancelled = false
-    void renderCover(PREVIEW_SIZE.width, PREVIEW_SIZE.height, coverData)
+    void renderCover(PREVIEW_SIZE.width, PREVIEW_SIZE.height, vorschauCover)
       .then((rendered) => {
         const target = coverCanvas.current
         if (cancelled || !target) return
@@ -188,7 +190,7 @@ export default function VideoPanel(props: VideoPanelProps) {
     return () => {
       cancelled = true
     }
-  }, [coverData])
+  }, [vorschauCover])
 
   // ---------- Warteschlange: immer nur ein Video gleichzeitig ----------
 
@@ -221,11 +223,11 @@ export default function VideoPanel(props: VideoPanelProps) {
       }
 
       updateJob(next.id, { status: 'laeuft', progress: 0, statusText: 'Wird verarbeitet …' })
-      const usedCoverKey = coverKeyRef.current
-      const usedCover = coverRef.current
+      const usedCoverKey = coverKeyForRef.current(next.datumMs)
+      const usedCover = coverForRef.current(next.datumMs)
       try {
         const result = await compressVideo(next.file, {
-          targetBytes: SIZE_LIMITS[limit].bytes,
+          targetBytes: TARGET_BYTES,
           signal: controller.signal,
           onProgress: (fraction) => updateJob(next.id, { progress: fraction }),
           onPhase: (text) => updateJob(next.id, { statusText: text }),
@@ -255,7 +257,7 @@ export default function VideoPanel(props: VideoPanelProps) {
       busyRef.current = false
       setQueueTick((tick) => tick + 1)
     })
-  }, [jobs, queueTick, limit, compressionAvailable, updateJob])
+  }, [jobs, queueTick, compressionAvailable, updateJob])
 
   // ---------- Dateien annehmen ----------
 
@@ -272,9 +274,10 @@ export default function VideoPanel(props: VideoPanelProps) {
         id: crypto.randomUUID(),
         file,
         info: null,
-        status: 'wartet',
+        status: 'pruefung',
         progress: 0,
-        statusText: 'Wartet …',
+        statusText: 'Wird gelesen …',
+        datumMs: file.lastModified,
         titel: '',
         nameOverride: '',
         result: null,
@@ -284,9 +287,23 @@ export default function VideoPanel(props: VideoPanelProps) {
       }))
       setJobs((current) => [...current, ...created])
 
+      // Erst lesen, dann in die Warteschlange: Das Aufnahmedatum steht im
+      // Video und muss feststehen, bevor das Deckblatt gezeichnet wird.
       for (const job of created) {
         const info = await probeVideo(job.file)
-        setJobs((current) => current.map((entry) => (entry.id === job.id ? { ...entry, info } : entry)))
+        setJobs((current) =>
+          current.map((entry) =>
+            entry.id === job.id
+              ? {
+                  ...entry,
+                  info,
+                  datumMs: info?.createdAt ?? entry.file.lastModified,
+                  status: 'wartet',
+                  statusText: 'Wartet …',
+                }
+              : entry,
+          ),
+        )
       }
     },
     [props],
@@ -325,14 +342,6 @@ export default function VideoPanel(props: VideoPanelProps) {
     )
   }, [])
 
-  const changeLimit = useCallback(
-    (value: SizeLimit) => {
-      setLimit(value)
-      requeue(() => true)
-    },
-    [requeue],
-  )
-
   // ---------- Dateinamen ----------
 
   const fileNames = useMemo(() => {
@@ -342,13 +351,13 @@ export default function VideoPanel(props: VideoPanelProps) {
       const extension = job.result?.extension ?? 'mp4'
       const base = job.nameOverride.trim()
         ? ensureExtension(job.nameOverride, extension)
-        : buildFileName(job.titel, props.datumIso, index, jobs.length, extension)
+        : buildFileName(job.titel, job.datumMs, index, jobs.length, extension)
       const unique = makeUnique(base, taken)
       taken.add(unique.toLowerCase())
       map.set(job.id, unique)
     })
     return map
-  }, [jobs, props.datumIso])
+  }, [jobs])
 
   const saveAll = useCallback(() => {
     const fertige = jobs.filter((job) => job.status === 'fertig')
@@ -382,7 +391,9 @@ export default function VideoPanel(props: VideoPanelProps) {
 
   const fertige = jobs.filter((job) => job.status === 'fertig')
   const busy = jobs.some((job) => job.status !== 'fertig')
-  const veraltet = jobs.filter((job) => job.status === 'fertig' && job.coverKey && job.coverKey !== coverKey)
+  const veraltet = jobs.filter(
+    (job) => job.status === 'fertig' && job.coverKey && job.coverKey !== coverKeyFor(job.datumMs),
+  )
   const totalOriginal = jobs.reduce((sum, job) => sum + job.file.size, 0)
   const totalResult = jobs.reduce((sum, job) => sum + (job.result?.blob.size ?? job.file.size), 0)
 
@@ -390,12 +401,12 @@ export default function VideoPanel(props: VideoPanelProps) {
     <>
       <section className="card" aria-labelledby="sec-deckblatt">
         <h2 id="sec-deckblatt">
-          <span className="step">4</span> Deckblatt
+          <span className="step">3</span> Deckblatt
         </h2>
         <p className="section-hint">
           Jedes Video beginnt mit diesem Deckblatt (2,5 Sekunden). Dadurch zeigt die Kachel in MeisterTask,
           Craftboxx und im Explorer sofort, zu welchem Termin das Video gehört – statt eines zufälligen
-          ersten Bildes.
+          ersten Bildes. Das Datum kommt aus dem Video selbst, also vom Tag der Aufnahme.
         </p>
         <figure className="cover-preview">
           <canvas ref={coverCanvas} aria-label="Vorschau des Deckblatts" />
@@ -405,11 +416,12 @@ export default function VideoPanel(props: VideoPanelProps) {
 
       <section className="card" aria-labelledby="sec-videos">
         <h2 id="sec-videos">
-          <span className="step">5</span> Videos
+          <span className="step">4</span> Videos
         </h2>
         <p className="section-hint">
           Alles läuft im Browser: Deckblatt davorsetzen, Drehung korrigieren – und verkleinern <strong>nur,
-          wenn das Video über der Grenze liegt</strong>. Was ohnehin passt, behält seine Qualität.
+          wenn das Video über 39 MB liegt</strong> (Grenze von Craftboxx). Was ohnehin passt, behält seine
+          Qualität.
         </p>
 
         {!compressionAvailable && (
@@ -452,28 +464,16 @@ export default function VideoPanel(props: VideoPanelProps) {
           </button>
         </div>
 
-        <div className="field video-limit">
-          <label htmlFor="video-limit-select">Maximale Dateigröße</label>
-          <select
-            id="video-limit-select"
-            className="custom-name-input"
-            value={limit}
-            onChange={(event) => changeLimit(event.target.value as SizeLimit)}
-          >
-            {(Object.keys(SIZE_LIMITS) as SizeLimit[]).map((key) => (
-              <option key={key} value={key}>
-                {SIZE_LIMITS[key].label} – {SIZE_LIMITS[key].hint}
-              </option>
-            ))}
-          </select>
-        </div>
-
         {veraltet.length > 0 && (
           <p className="hint-warn">
             Die Angaben oben wurden geändert –{' '}
             {veraltet.length === 1 ? 'ein Video zeigt' : `${veraltet.length} Videos zeigen`} noch das alte
             Deckblatt.{' '}
-            <button type="button" className="btn-inline" onClick={() => requeue((job) => job.coverKey !== coverKey)}>
+            <button
+              type="button"
+              className="btn-inline"
+              onClick={() => requeue((job) => job.coverKey !== coverKeyFor(job.datumMs))}
+            >
               Deckblatt erneuern
             </button>
           </p>
@@ -492,6 +492,7 @@ export default function VideoPanel(props: VideoPanelProps) {
                         job.info ? formatDuration(job.info.durationSeconds) : null,
                         job.info ? `${job.info.width} × ${job.info.height}` : null,
                         job.info && !job.info.hasAudio ? 'ohne Ton' : null,
+                        `Aufnahme: ${formatDateWeekday(job.datumMs)}`,
                         job.result?.compressed ? `→ ${formatBytes(job.result.blob.size)}` : null,
                       ]
                         .filter(Boolean)
@@ -521,7 +522,7 @@ export default function VideoPanel(props: VideoPanelProps) {
                       type="text"
                       className="custom-name-input"
                       value={job.titel}
-                      placeholder="z. B. Kellerwand Süd"
+                      placeholder="z. B. Sanierungsbereich, Außenbereich, Kellerwand Süd"
                       onChange={(event) => updateJob(job.id, { titel: event.target.value })}
                     />
                   </div>
@@ -557,7 +558,7 @@ export default function VideoPanel(props: VideoPanelProps) {
 
       <section className="card card-action" aria-labelledby="sec-video-save">
         <h2 id="sec-video-save">
-          <span className="step">6</span> Videos speichern
+          <span className="step">5</span> Videos speichern
         </h2>
         {jobs.length > 0 && (
           <p className="section-hint">
