@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PREVIEW_SIZE, renderCover, type CoverData } from './lib/cover'
-import { formatBytes, formatDateWeekday, formatDuration, formatPercent, isoDate, sanitizeFilePart } from './lib/format'
+import { fileDate, formatBytes, formatDateWeekday, formatDuration, formatPercent, sanitizeFilePart } from './lib/format'
 import {
   compressVideo,
   CompressCanceledError,
@@ -74,13 +74,13 @@ function ensureExtension(name: string, extension: string): string {
     : `${clean.replace(/\.[A-Za-z0-9]{1,5}$/, '')}.${extension}`
 }
 
-/** ISOTEC_Videodokumentation[_<Titel>|_<Nr>]_<JJJJ-MM-TT>.mp4 */
+/** ISOTEC_Videodokumentation[_<Titel>|_<Nr>]_<TT.MM.JJJJ>.mp4 */
 function buildFileName(titel: string, datumMs: number, index: number, gesamt: number, extension: string): string {
   const parts = ['ISOTEC', 'Videodokumentation']
   const sauber = sanitizeFilePart(titel).replace(/\s+/g, '-')
   if (sauber) parts.push(sauber)
   else if (gesamt > 1) parts.push(String(index + 1).padStart(2, '0'))
-  parts.push(isoDate(new Date(datumMs)))
+  parts.push(fileDate(new Date(datumMs)))
   return `${parts.join('_')}.${extension}`
 }
 
@@ -404,7 +404,7 @@ export default function VideoPanel(props: VideoPanelProps) {
           <span className="step">3</span> Deckblatt
         </h2>
         <p className="section-hint">
-          Jedes Video beginnt mit diesem Deckblatt (2,5 Sekunden). Dadurch zeigt die Kachel in MeisterTask,
+          Jedes Video beginnt mit diesem Deckblatt (5 Sekunden). Dadurch zeigt die Kachel in MeisterTask,
           Craftboxx und im Explorer sofort, zu welchem Termin das Video gehört – statt eines zufälligen
           ersten Bildes. Das Datum kommt aus dem Video selbst, also vom Tag der Aufnahme.
         </p>

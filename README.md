@@ -21,7 +21,7 @@ Die Anleitung beschreibt noch nicht den Video-Reiter.
 
 ## Videodokumentation
 
-Jedes Video beginnt mit einem **2,5 Sekunden langen Deckblatt** mit den Elementen des
+Jedes Video beginnt mit einem **5 Sekunden langen Deckblatt** mit den Elementen des
 PDF-Deckblatts (Teamfoto, rotes Band, Terminart, Mitarbeiter mit rundem Foto, Logo) – nur ohne
 Objektfoto und randlos statt auf Weiß. Der Grund ist die Kachel in MeisterTask, Craftboxx und im
 Explorer: Sie zeigt das erste Bild des Videos, und ohne Deckblatt ist das ein zufälliger

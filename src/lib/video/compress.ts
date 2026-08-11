@@ -56,14 +56,14 @@ const TARGET_FPS = 30
 const KEYFRAME_INTERVAL = 2
 
 /** Laenge des vorangestellten Deckblatts in Sekunden. */
-export const COVER_SECONDS = 2.5
+export const COVER_SECONDS = 5
 
 /**
- * Anzahl der Standbilder des Deckblatts. Ein einziges Bild mit 2,5 Sekunden
- * Laufzeit bringt manche Player durcheinander; mehrere gleiche Bilder kosten
- * dank Bewegungskompensation praktisch nichts.
+ * Anzahl der Standbilder des Deckblatts. Ein einziges Bild mit mehreren
+ * Sekunden Laufzeit bringt manche Player durcheinander; mehrere gleiche Bilder
+ * kosten dank Bewegungskompensation praktisch nichts.
  */
-const COVER_FRAMES = 5
+const COVER_FRAMES = 10
 
 /** Tonspur des Ergebnisses; fliesst in die Berechnung der Zielgroesse ein. */
 const AUDIO_BITRATE = 96_000

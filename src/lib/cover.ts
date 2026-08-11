@@ -126,7 +126,12 @@ export async function renderCover(width: number, height: number, data: CoverData
   // dass er nie mehr als zwei Drittel des Bildes einnimmt (wichtig im
   // Querformat, wo deutlich weniger Hoehe zur Verfuegung steht).
   const nameLine = data.mitarbeiter ? 1 : 0
-  const heightInUnits = 6 + 3 + 7 + 7.5 + 4 + 3.4 + 4 + nameLine * 5.4 + lines.length * 4.4 + 3 + 13 + 5
+  /** Durchmesser des Mitarbeiterfotos oben rechts */
+  const CIRCLE_UNITS = 16
+  /** Platz, den das Logo unten rechts braucht */
+  const LOGO_UNITS = 10
+  const textUnits = 6 + 7 + 4 + 4 + nameLine * 5.4 + lines.length * 4.4
+  const heightInUnits = Math.max(textUnits + LOGO_UNITS + 5, 4 + CIRCLE_UNITS + 4 + LOGO_UNITS + 5)
   const base = Math.min(width, height) / 100
   // Im Querformat ist Hoehe knapp: Der Balken bekommt weniger, damit vom
   // Teamfoto noch etwas zu sehen ist.
@@ -154,14 +159,29 @@ export async function renderCover(width: number, height: number, data: CoverData
   ctx.fillStyle = 'rgba(86, 74, 68, 0.94)'
   ctx.fillRect(0, panelTop, width, panelHeight)
 
+  // ---------- Oben rechts: rundes Mitarbeiterfoto ----------
+  // Steht neben dem Titel statt unten in der Ecke - dort geht es im kleinen
+  // Vorschaubild unter.
+  const circleSize = CIRCLE_UNITS * unit
+  const circleTop = panelTop + 4 * unit
+  const circleLeft = width - margin - circleSize
+  const circleBottom = circleTop + circleSize
+  if (data.mitarbeiter) await drawPortrait(ctx, data, circleLeft, circleTop, circleSize, unit)
+
+  /** Textbreite: neben dem Foto schmaler, darunter wieder voll. */
+  const widthAt = (baseline: number) =>
+    data.mitarbeiter && baseline > circleTop && baseline - 4 * unit < circleBottom
+      ? contentWidth - circleSize - 3 * unit
+      : contentWidth
+
   // ---------- Titelblock ----------
   let cursor = panelTop + 6 * unit
-  fitFontSize(ctx, KICKER, '700', 2 * unit, contentWidth * 0.9, 1.2 * unit)
+  fitFontSize(ctx, KICKER, '700', 2 * unit, widthAt(cursor) * 0.98, 1.2 * unit)
   ctx.fillStyle = 'rgba(255, 255, 255, 0.75)'
   drawTracked(ctx, KICKER, margin, cursor, 2 * unit * 0.14)
 
   cursor += 7 * unit
-  fitFontSize(ctx, data.terminart, '700', 7.5 * unit, contentWidth, 3.5 * unit)
+  fitFontSize(ctx, data.terminart, '700', 7.5 * unit, widthAt(cursor), 3.5 * unit)
   ctx.fillStyle = WHITE
   ctx.fillText(data.terminart, margin, cursor)
 
@@ -173,21 +193,17 @@ export async function renderCover(width: number, height: number, data: CoverData
   // ---------- Infoblock ----------
   cursor += 4 * unit
   if (data.mitarbeiter) {
-    fitFontSize(ctx, data.mitarbeiter, '700', 3.8 * unit, contentWidth, 2 * unit)
+    cursor += 5.4 * unit
+    fitFontSize(ctx, data.mitarbeiter, '700', 3.8 * unit, widthAt(cursor), 2 * unit)
     ctx.fillStyle = WHITE
-    ctx.fillText(data.mitarbeiter, margin, (cursor += 5.4 * unit) - 1.4 * unit)
+    ctx.fillText(data.mitarbeiter, margin, cursor - 1.4 * unit)
   }
   ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
   for (const line of lines) {
-    fitFontSize(ctx, line.text, line.weight, line.size * unit, contentWidth, 2 * unit)
     cursor += 4.4 * unit
+    fitFontSize(ctx, line.text, line.weight, line.size * unit, widthAt(cursor), 2 * unit)
     ctx.fillText(line.text, margin, cursor - 1.2 * unit)
   }
-
-  // ---------- Unten links: rundes Mitarbeiterfoto ----------
-  const circleSize = 13 * unit
-  const bottomRowTop = height - 5 * unit - circleSize
-  if (data.mitarbeiter) await drawPortrait(ctx, data, margin, bottomRowTop, circleSize, unit)
 
   // ---------- Unten rechts: ISOTEC-Logo auf weisser Flaeche ----------
   try {
@@ -240,6 +256,11 @@ async function drawPortrait(
   ctx.arc(circleX + radius, circleY + radius, radius, 0, Math.PI * 2)
   ctx.closePath()
   ctx.clip()
+  // Immer erst weiss fuellen: Die Fotos sind vor weissem Hintergrund
+  // aufgenommen, so wirkt der Kreis wie ausgeschnitten und nicht wie ein
+  // dunkler Fleck auf dem braunen Balken.
+  ctx.fillStyle = WHITE
+  ctx.fillRect(circleX, circleY, circleSize, circleSize)
   let drawn = false
   if (data.mitarbeiterFoto) {
     try {
@@ -249,10 +270,6 @@ async function drawPortrait(
     } catch {
       drawn = false
     }
-  }
-  if (!drawn) {
-    ctx.fillStyle = WHITE
-    ctx.fillRect(circleX, circleY, circleSize, circleSize)
   }
   ctx.restore()
 

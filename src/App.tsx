@@ -19,7 +19,7 @@ import {
   formatDateTime,
   formatDateWeekday,
   initialsOf,
-  isoDate,
+  fileDate,
   sanitizeFilePart,
 } from './lib/format'
 import teamJpgUrl from './assets/team.jpg'
@@ -586,7 +586,7 @@ export default function App() {
           sanitizeFilePart(terminType),
           'Fotodokumentation',
           sanitizeFilePart(customerName),
-          isoDate(new Date(terminDate)),
+          fileDate(new Date(terminDate)),
         ]
           .filter((part) => part !== '')
           .join('_') + '.pdf'
@@ -1141,8 +1141,8 @@ export default function App() {
           <p>
             Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies
             <br />
-            PDF: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;JJJJ-MM-TT&gt;.pdf ·
-            Video: ISOTEC_Videodokumentation_&lt;Titel&gt;_&lt;JJJJ-MM-TT&gt;.mp4
+            PDF: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;TT.MM.JJJJ&gt;.pdf ·
+            Video: ISOTEC_Videodokumentation_&lt;Titel&gt;_&lt;TT.MM.JJJJ&gt;.mp4
           </p>
         </div>
       </footer>

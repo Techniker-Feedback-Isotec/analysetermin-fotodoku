@@ -36,6 +36,14 @@ export function isoDate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+/** Datum fuer Dateinamen, deutsche Schreibweise: "04.08.2026". */
+export function fileDate(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${d}.${m}.${y}`
+}
+
 /** z. B. "1:23 Min." oder "48 Sek." */
 export function formatDuration(seconds: number): string {
   const total = Math.round(seconds)
