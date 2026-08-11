@@ -1,7 +1,7 @@
 {
-  "name": "Fotodokumentation – Abdichtungstechnik Dipl.-Ing. Morscheck GmbH",
-  "short_name": "Fotodoku",
-  "description": "Fotos vom Termin lokal im Browser zu einer PDF verarbeiten",
+  "name": "Dokumentation Analysetermin – Abdichtungstechnik Dipl.-Ing. Morscheck GmbH",
+  "short_name": "Doku Termin",
+  "description": "Fotos und Videos vom Termin lokal im Browser aufbereiten",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }

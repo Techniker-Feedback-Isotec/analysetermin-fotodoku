@@ -1,8 +1,15 @@
-# Fotodokumentation Analysetermin
+# Dokumentation Analysetermin
 
-Statisches Web-Tool (Single-Page-App) der **Abdichtungstechnik Dipl.-Ing. Morscheck GmbH**,
-das Fotos vom Analysetermin **komplett lokal im Browser** zu einer chronologisch sortierten,
-komprimierten PDF verarbeitet. Objektfoto und Termin-Fotos lassen sich per Drag & Drop einfügen.
+Statisches Web-Tool (Single-Page-App) der **Abdichtungstechnik Dipl.-Ing. Morscheck GmbH** für die
+Unterlagen vom Analysetermin – **ein Tool für Fotos und Videos**, umschaltbar über zwei Reiter:
+
+- **Fotodokumentation:** Fotos werden komplett lokal im Browser zu einer chronologisch sortierten,
+  komprimierten PDF verarbeitet.
+- **Videodokumentation:** Videos bekommen ein Deckblatt vorangestellt, die Drehung wird korrigiert
+  und die Datei nur dann verkleinert, wenn sie über der Größengrenze liegt.
+
+**Die Angaben zum Termin werden nur einmal eingetragen** (Terminart, Mitarbeiter, Kunde,
+Objektadresse, Termindatum, Auftragsnummer) und gelten für beide Reiter.
 
 **Es werden keine Daten hochgeladen oder gespeichert** – kein Backend, keine APIs, kein Tracking,
 keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf GitHub Pages hostbar.
@@ -10,8 +17,41 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
 **Kurzanleitung für die Nutzer:** [docs/Kurzanleitung_Fotodokumentation.pdf](docs/Kurzanleitung_Fotodokumentation.pdf)
 (5 Seiten, erklärt die drei Terminarten und den Aufbau der fertigen Mappen; Quelle:
 `docs/anleitung-quelle.html`, wird mit Edge/Chrome per „Als PDF drucken" erzeugt).
+Die Anleitung beschreibt noch nicht den Video-Reiter.
 
-## Funktionen
+## Videodokumentation
+
+Jedes Video beginnt mit einem **2,5 Sekunden langen Deckblatt** mit den Elementen des
+PDF-Deckblatts (Teamfoto, rotes Band, Terminart, Mitarbeiter mit rundem Foto, Logo) – nur ohne
+Objektfoto und randlos statt auf Weiß. Der Grund ist die Kachel in MeisterTask, Craftboxx und im
+Explorer: Sie zeigt das erste Bild des Videos, und ohne Deckblatt ist das ein zufälliger
+Kellerausschnitt.
+
+**Verkleinert wird nur, was zu groß ist.** Es gibt keine Qualitätsstufen, sondern eine maximale
+Dateigröße:
+
+| Auswahl         | Grenze | Warum                                                               |
+| --------------- | ------ | ------------------------------------------------------------------- |
+| Bis 39 MB       | 39 MB  | **Craftboxx** lässt nur 40 MB zu – die engste Stelle im Ablauf       |
+| Bis 190 MB      | 190 MB | MeisterTask erlaubt 200 MB je Datei (Pro/Business; Basic nur 20 MB) |
+| Ohne Begrenzung | –      | wenn das Video nur in SharePoint landet                             |
+
+Passt ein Video ohnehin darunter, bleiben Auflösung (höchstens Full HD) und Bitrate erhalten,
+gedeckelt auf 10 Mbit/s. Ist es zu groß, wird die Bitrate aus Laufzeit und Grenze berechnet und
+die Auflösung fällt auf die Stufe, die dazu noch gut aussieht (1080p ab 2,5 Mbit/s, 720p ab 1,2,
+480p ab 0,6, darunter 360p). Der Ton bleibt immer erhalten, die Drehung wird fest ins Bild
+gerechnet – quer gefilmt bleibt quer.
+
+Dateiname: `ISOTEC_Videodokumentation[_<Titel>]_<JJJJ-MM-TT>.mp4`, je Video überschreibbar.
+
+Gemessen an echtem Material: 372 MB / 3:20 Min. → 36,3 MB in 35 Sekunden; 146 MB / 1:18 Min. →
+35,4 MB in 18 Sekunden (bleibt in Full HD, weil das Budget es hergibt); 16,5 MB / 9 Sek. →
+12,4 MB bei voller Auflösung.
+
+Technisch: **WebCodecs** über [mediabunny](https://mediabunny.dev). Fehlt WebCodecs (Safari vor
+iOS 17), sagt das Tool das und die Videos lassen sich unverändert speichern.
+
+## Funktionen der Fotodokumentation
 
 - **Terminart wählbar** (Analysetermin / Reklamation) – sie wird zur
   Überschrift des Deckblatts und steht im PDF-Dateinamen

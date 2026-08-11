@@ -36,6 +36,19 @@ export function isoDate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+/** z. B. "1:23 Min." oder "48 Sek." */
+export function formatDuration(seconds: number): string {
+  const total = Math.round(seconds)
+  if (total < 60) return `${total} Sek.`
+  const min = Math.floor(total / 60)
+  const rest = String(total % 60).padStart(2, '0')
+  return `${min}:${rest} Min.`
+}
+
+export function formatPercent(value: number): string {
+  return `${Math.round(Math.min(1, Math.max(0, value)) * 100)} %`
+}
+
 export function initialsOf(name: string): string {
   return name
     .trim()

@@ -24,6 +24,7 @@ import {
 } from './lib/format'
 import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
+import VideoPanel from './VideoPanel'
 
 // ---------- Typen ----------
 
@@ -185,6 +186,8 @@ let toastCounter = 0
 // ---------- App ----------
 
 export default function App() {
+  /** Fotos oder Videos - die Angaben zum Termin gelten fuer beides. */
+  const [modus, setModus] = useState<'foto' | 'video'>('foto')
   const [terminType, setTerminType] = useState(TERMINARTEN[0])
   const [selectValue, setSelectValue] = useState('')
   const [customName, setCustomName] = useState('')
@@ -435,6 +438,12 @@ export default function App() {
   const terminDate = manualTerminDate ?? autoTerminDate
   const terminLabel = terminDate != null ? formatDateWeekday(terminDate) : null
 
+  // Fuer die Videos: ohne Fotos gibt es kein automatisch erkanntes Datum -
+  // dann gilt der heutige Tag, bis jemand etwas anderes eintraegt.
+  const videoDateMs = terminDate ?? Date.now()
+  const videoDatumIso = isoDate(new Date(videoDateMs))
+  const videoDatumText = formatDateWeekday(videoDateMs)
+
   // ---------- PDF ----------
 
   const busy = importProgress !== null || pdfProgress !== null
@@ -647,7 +656,7 @@ export default function App() {
             <img className="header-logo" src={logoPngUrl} alt="ISOTEC – Immer besser." />
             <span className="header-divider" aria-hidden="true" />
             <div>
-              <h1>Fotodokumentation</h1>
+              <h1>Dokumentation Analysetermin</h1>
               <p className="header-kicker">{COMPANY}</p>
             </div>
           </div>
@@ -659,6 +668,28 @@ export default function App() {
       </header>
 
       <main className="container">
+        {/* Fotos oder Videos - die Angaben in den Schritten 1 bis 3 gelten fuer beides */}
+        <div className="modus-tabs" role="tablist" aria-label="Art der Dokumentation">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={modus === 'foto'}
+            className={`modus-tab${modus === 'foto' ? ' is-active' : ''}`}
+            onClick={() => setModus('foto')}
+          >
+            Fotodokumentation
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={modus === 'video'}
+            className={`modus-tab${modus === 'video' ? ' is-active' : ''}`}
+            onClick={() => setModus('video')}
+          >
+            Videodokumentation
+          </button>
+        </div>
+
         {/* 1: Terminart */}
         <section className="card" aria-labelledby="sec-terminart">
           <h2 id="sec-terminart">
@@ -741,12 +772,18 @@ export default function App() {
           </div>
         </section>
 
-        {/* 3: Objektfoto */}
+        {/* 3: Objekt - Foto nur fuer die Fotodokumentation, die Angaben gelten fuer beides */}
         <section className="card" aria-labelledby="sec-objekt">
           <h2 id="sec-objekt">
-            <span className="step">3</span> Objektfoto (Gebäude)
+            <span className="step">3</span> {modus === 'foto' ? 'Objektfoto (Gebäude)' : 'Angaben zum Objekt'}
           </h2>
-          <p className="section-hint">Genau 1 Foto (JPG/PNG/HEIC) – erscheint prominent auf dem Deckblatt.</p>
+          {modus === 'foto' ? (
+            <p className="section-hint">Genau 1 Foto (JPG/PNG/HEIC) – erscheint prominent auf dem Deckblatt.</p>
+          ) : (
+            <p className="section-hint">
+              Diese Angaben gelten für Fotos und Videos gleichermaßen – einmal eintragen genügt.
+            </p>
+          )}
           <input
             ref={objectInputRef}
             id="object-input"
@@ -759,6 +796,7 @@ export default function App() {
             }}
           />
           <div
+            hidden={modus !== 'foto'}
             className={`dropzone dropzone-small${dragOverObject ? ' dropzone-active' : ''}`}
             onDragOver={(e) => {
               e.preventDefault()
@@ -827,23 +865,26 @@ export default function App() {
                 onChange={(e) => setTerminDateInput(e.target.value)}
               />
               <p className="field-hint">
-                Leer lassen = Datum kommt automatisch aus den Fotos. Nur ausfüllen, wenn das
-                erkannte Datum nicht stimmt.
+                {modus === 'foto'
+                  ? 'Leer lassen = Datum kommt automatisch aus den Fotos. Nur ausfüllen, wenn das erkannte Datum nicht stimmt.'
+                  : 'Leer lassen = Datum kommt aus den Fotos, sonst der heutige Tag.'}
               </p>
             </div>
-            {isReklamation && (
+            {(isReklamation || modus === 'video') && (
+              <div className="field">
+                <label htmlFor="ordernumber-input">Auftragsnummer (optional)</label>
+                <input
+                  id="ordernumber-input"
+                  type="text"
+                  className="custom-name-input"
+                  value={orderNumber}
+                  onChange={(e) => setOrderNumber(e.target.value)}
+                  placeholder="z. B. AB-2026-0815"
+                />
+              </div>
+            )}
+            {isReklamation && modus === 'foto' && (
               <>
-                <div className="field">
-                  <label htmlFor="ordernumber-input">Auftragsnummer (optional)</label>
-                  <input
-                    id="ordernumber-input"
-                    type="text"
-                    className="custom-name-input"
-                    value={orderNumber}
-                    onChange={(e) => setOrderNumber(e.target.value)}
-                    placeholder="z. B. AB-2026-0815"
-                  />
-                </div>
                 <div className="field">
                   <label htmlFor="assessment-input">Beurteilung (optional)</label>
                   <textarea
@@ -860,7 +901,7 @@ export default function App() {
                 </div>
               </>
             )}
-            {isAnalyse && (
+            {isAnalyse && modus === 'foto' && (
               <div className="field">
                 <label htmlFor="summary-input">Zusammenfassung (optional)</label>
                 <textarea
@@ -879,8 +920,24 @@ export default function App() {
           </div>
         </section>
 
+        {/* Bleibt beim Umschalten eingehaengt - sonst waeren bereits verarbeitete
+            Videos verloren, sobald jemand kurz zu den Fotos wechselt. */}
+        <div hidden={modus !== 'video'}>
+          <VideoPanel
+            terminart={terminType}
+            mitarbeiter={salesperson}
+            mitarbeiterFoto={spPhotoUrl}
+            kunde={customerName}
+            objektadresse={addressInput}
+            auftragsnummer={orderNumber}
+            datumIso={videoDatumIso}
+            datumText={videoDatumText}
+            onToast={pushToast}
+          />
+        </div>
+
         {/* 4: Termin-Fotos */}
-        <section className="card" aria-labelledby="sec-fotos">
+        <section className="card" aria-labelledby="sec-fotos" hidden={modus !== 'foto'}>
           <h2 id="sec-fotos">
             <span className="step">4</span> Termin-Fotos
           </h2>
@@ -1042,7 +1099,7 @@ export default function App() {
         </section>
 
         {/* 5: PDF erstellen (Komprimierung ist fest eingestellt: 2200 px, Qualität 0,75) */}
-        <section className="card card-action" aria-labelledby="sec-create">
+        <section className="card card-action" aria-labelledby="sec-create" hidden={modus !== 'foto'}>
           <h2 id="sec-create" className="visually-hidden">
             PDF erstellen
           </h2>
@@ -1089,8 +1146,10 @@ export default function App() {
       <footer className="footer">
         <div className="container">
           <p>
-            Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies ·
-            Dateiname: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;JJJJ-MM-TT&gt;.pdf
+            Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies
+            <br />
+            PDF: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;JJJJ-MM-TT&gt;.pdf ·
+            Video: ISOTEC_Videodokumentation_&lt;Titel&gt;_&lt;JJJJ-MM-TT&gt;.mp4
           </p>
         </div>
       </footer>

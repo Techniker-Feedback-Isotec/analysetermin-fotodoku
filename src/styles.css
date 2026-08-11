@@ -642,3 +642,165 @@ input[type='checkbox'] {
   white-space: nowrap;
   border: 0;
 }
+
+/* ---------- Umschaltung Foto / Video ---------- */
+
+[hidden] {
+  display: none !important;
+}
+
+.modus-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.modus-tab {
+  flex: 1;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 11px 14px;
+  border: 1px solid var(--grey);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--muted, #8a7f78);
+}
+
+.modus-tab:hover {
+  border-color: var(--brown);
+}
+
+.modus-tab.is-active {
+  background: var(--red);
+  border-color: var(--red);
+  color: var(--white);
+}
+
+.modus-tab:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+/* ---------- Deckblatt-Vorschau ---------- */
+
+.cover-preview {
+  margin: 0;
+  width: 180px;
+}
+
+.cover-preview canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--grey);
+  border-radius: 6px;
+  background: var(--white);
+}
+
+.cover-preview figcaption {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #8a7f78;
+}
+
+/* ---------- Videoliste ---------- */
+
+.video-limit {
+  margin-top: 16px;
+  max-width: 420px;
+}
+
+.video-list {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.video-list li {
+  border: 1px solid var(--grey);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.video-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.video-info {
+  min-width: 0;
+}
+
+.video-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.video-fields {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .video-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.video-bar {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--grey);
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.video-bar span {
+  display: block;
+  height: 100%;
+  background: var(--red);
+  transition: width 0.2s;
+}
+
+.video-status {
+  margin: 8px 0 0;
+  font-size: 0.83rem;
+  color: #6f645d;
+}
+
+.video-status.is-done {
+  color: var(--ok);
+}
+
+.video-preview {
+  margin-top: 12px;
+  width: 100%;
+  max-height: 320px;
+  background: #000;
+  border-radius: 6px;
+}
+
+.btn-inline {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--red);
+  text-decoration: underline;
+  cursor: pointer;
+}
