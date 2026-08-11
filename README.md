@@ -27,14 +27,17 @@ Objektfoto und randlos statt auf Weiß. Der Grund ist die Kachel in MeisterTask,
 Explorer: Sie zeigt das erste Bild des Videos, und ohne Deckblatt ist das ein zufälliger
 Kellerausschnitt.
 
-**Verkleinert wird nur, was zu groß ist.** Es gibt keine Qualitätsstufen, sondern eine maximale
-Dateigröße:
+Die Videoseite kennt bewusst weniger Felder als die Fotoseite: **keine Terminart** (Videos
+entstehen immer beim Analysetermin), **kein Termindatum** (steht im Video) und keine
+Auftragsnummer. Kunde, Objektadresse und Mitarbeiter kommen von der gemeinsamen Eingabe.
 
-| Auswahl         | Grenze | Warum                                                               |
-| --------------- | ------ | ------------------------------------------------------------------- |
-| Bis 39 MB       | 39 MB  | **Craftboxx** lässt nur 40 MB zu – die engste Stelle im Ablauf       |
-| Bis 190 MB      | 190 MB | MeisterTask erlaubt 200 MB je Datei (Pro/Business; Basic nur 20 MB) |
-| Ohne Begrenzung | –      | wenn das Video nur in SharePoint landet                             |
+Das **Termindatum kommt aus dem Video selbst** – aus den Metadaten der Datei
+(QuickTime/MP4-Aufnahmezeitpunkt), ersatzweise aus dem Dateidatum. Aufgenommen wird beim Termin,
+also stimmt es auch dann noch, wenn die Datei zwischendurch kopiert wurde.
+
+**Verkleinert wird nur, was zu groß ist** – die Grenze liegt fest bei **39 MB**, weil
+[Craftboxx](https://craftboxx.de) nur 40 MB je Anhang zulässt. Das ist die engste Stelle im
+Ablauf; MeisterTask erlaubt ab Pro 200 MB je Datei.
 
 Passt ein Video ohnehin darunter, bleiben Auflösung (höchstens Full HD) und Bitrate erhalten,
 gedeckelt auf 10 Mbit/s. Ist es zu groß, wird die Bitrate aus Laufzeit und Grenze berechnet und
