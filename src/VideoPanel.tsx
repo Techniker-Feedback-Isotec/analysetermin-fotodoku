@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PREVIEW_SIZE, renderCover, type CoverData } from './lib/cover'
-import { fileDate, formatBytes, formatDateWeekday, formatDuration, formatPercent, sanitizeFilePart } from './lib/format'
+import {
+  fileDate,
+  formatBytes,
+  formatDateWeekday,
+  formatDuration,
+  formatPercent,
+  percentWidth,
+  sanitizeFilePart,
+} from './lib/format'
 import {
   compressVideo,
   CompressCanceledError,
@@ -539,8 +547,14 @@ export default function VideoPanel(props: VideoPanelProps) {
                 </div>
 
                 {job.status !== 'fertig' && (
-                  <div className="video-bar">
-                    <span style={{ width: formatPercent(job.progress) }} />
+                  <div
+                    className="video-bar"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(job.progress * 100)}
+                  >
+                    <span style={{ width: percentWidth(job.progress) }} />
                   </div>
                 )}
                 <p className={`video-status${job.gespeichert ? ' is-done' : ''}`}>

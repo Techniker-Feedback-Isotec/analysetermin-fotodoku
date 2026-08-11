@@ -54,7 +54,20 @@ export function formatDuration(seconds: number): string {
 }
 
 export function formatPercent(value: number): string {
-  return `${Math.round(Math.min(1, Math.max(0, value)) * 100)} %`
+  return `${percentOf(value)} %`
+}
+
+/**
+ * Breitenangabe fuer CSS: "44%" ohne Leerzeichen. Mit dem Leerzeichen der
+ * deutschen Schreibweise waere es ungueltiges CSS - der Balken bliebe dann
+ * stumm auf voller Breite stehen.
+ */
+export function percentWidth(value: number): string {
+  return `${percentOf(value)}%`
+}
+
+function percentOf(value: number): number {
+  return Math.round(Math.min(1, Math.max(0, value)) * 100)
 }
 
 export function initialsOf(name: string): string {
