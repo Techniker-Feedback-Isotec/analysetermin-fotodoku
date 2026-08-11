@@ -163,9 +163,11 @@
   .mini .m-logo { width: 20mm; }
   .hl { background: #fde8e8; outline: 0.4mm solid var(--red); }
 
-  /* verkleinerte Vorschau (proportional skaliert) */
+  /* verkleinerte Vorschauen (proportional skaliert) */
   .mini-wrap { width: 44.6mm; height: 63.1mm; flex: 0 0 auto; }
   .mini-wrap .mini { transform: scale(0.72); transform-origin: top left; }
+  .mini-wrap-l { width: 52.7mm; height: 74.5mm; flex: 0 0 auto; }
+  .mini-wrap-l .mini { transform: scale(0.85); transform-origin: top left; }
 
   /* Seiten-Schema */
   .flowset { margin-bottom: 3.5mm; }
@@ -274,8 +276,9 @@
           <span>
             <span class="t">Objektfoto hinzufügen</span><br />
             <span class="d">Genau ein Gebäudefoto – ziehen oder auswählen. Es erscheint groß auf dem
-            Deckblatt. <strong>Kunde</strong> und <strong>Objektadresse</strong> sind optional und
-            werden nur gedruckt, wenn du sie ausfüllst.</span>
+            Deckblatt. <strong>Kunde</strong>, <strong>Objektadresse</strong> und
+            <strong>Termindatum</strong> sind optional und werden nur gedruckt, wenn du sie
+            ausfüllst.</span>
           </span>
         </li>
         <li>
@@ -301,8 +304,8 @@
         <b>Dateiname</b> entsteht automatisch:<br />
         <strong>ISOTEC_Terminart_Fotodokumentation_Kunde_Datum.pdf</strong><br />
         z. B. <em>ISOTEC_Reklamation_Fotodokumentation_Familie Mustermann_2026-08-05.pdf</em><br />
-        Ohne Kundenangabe entfällt dieser Teil. Das Datum ist das Aufnahmedatum der Fotos,
-        nicht der Tag der Erstellung.
+        Ohne Kundenangabe entfällt dieser Teil. Das Datum ist das Aufnahmedatum der Fotos
+        (oder dein manuell eingetragenes Termindatum), nicht der Tag der Erstellung.
       </div>
       <div class="tip">
         <b>Extra Komprimierung</b> ist voreingestellt und sorgt dafür, dass die PDF
@@ -352,6 +355,10 @@
         <td class="yes">ja</td><td class="yes">ja</td>
       </tr>
       <tr>
+        <td>Termindatum <em>(optional)</em></td>
+        <td class="yes">ja</td><td class="yes">ja</td>
+      </tr>
+      <tr>
         <td>Auftragsnummer <em>(optional)</em></td>
         <td class="no">–</td><td class="yes">ja</td>
       </tr>
@@ -382,7 +389,7 @@
   <div style="display:flex; gap:7mm; align-items:flex-start; margin-top:3mm">
 
     <div>
-      <div class="mini">
+      <div class="mini-wrap-l"><div class="mini">
         <img class="m-hero" src="team.jpg" alt="" />
         <div class="m-band"></div>
         <div class="m-body">
@@ -408,12 +415,12 @@
           <img class="m-person" src="person.png" alt="" />
           <img class="m-logo" src="logo.png" alt="" />
         </div>
-      </div>
-      <p class="caption" style="width:62mm">Analysetermin – ohne Auftragsnummer.</p>
+      </div></div>
+      <p class="caption" style="width:52.7mm">Analysetermin – ohne Auftragsnummer.</p>
     </div>
 
     <div>
-      <div class="mini">
+      <div class="mini-wrap-l"><div class="mini">
         <img class="m-hero" src="team.jpg" alt="" />
         <div class="m-band"></div>
         <div class="m-body">
@@ -440,8 +447,8 @@
           <img class="m-person" src="person.png" alt="" />
           <img class="m-logo" src="logo.png" alt="" />
         </div>
-      </div>
-      <p class="caption" style="width:62mm">Reklamation – mit Auftragsnummer (rot markiert).</p>
+      </div></div>
+      <p class="caption" style="width:52.7mm">Reklamation – mit Auftragsnummer (rot markiert).</p>
     </div>
 
   </div>
@@ -627,7 +634,8 @@
       </div>
       <div class="tip">
         <b>Kein Aufnahmedatum im Foto?</b> Dann erscheint der Hinweis „Dateidatum" – das Tool nutzt
-        ersatzweise das Datum der Datei. Prüfe in diesem Fall die Reihenfolge kurz von Hand.
+        ersatzweise das Datum der Datei. Prüfe in diesem Fall die Reihenfolge kurz von Hand und
+        trage bei Bedarf das <strong>Termindatum</strong> in Schritt 3 selbst ein.
       </div>
     </div>
     <div>

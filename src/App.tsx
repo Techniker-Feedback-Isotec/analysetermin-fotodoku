@@ -192,6 +192,8 @@ export default function App() {
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [addressInput, setAddressInput] = useState('')
+  /** Optionales Termindatum (JJJJ-MM-TT); ueberschreibt die automatische Erkennung */
+  const [terminDateInput, setTerminDateInput] = useState('')
   // Nur bei Terminart "Reklamation" sichtbar und nur dann in der PDF
   const [orderNumber, setOrderNumber] = useState('')
   const [assessment, setAssessment] = useState('')
@@ -413,7 +415,7 @@ export default function App() {
 
   // Termindatum automatisch aus den Aufnahmedaten der Fotos:
   // immer das NEUESTE Foto, ein einzelnes Datum
-  const terminDate = useMemo(() => {
+  const autoTerminDate = useMemo(() => {
     if (included.length === 0) return null
     let max = -Infinity
     for (const p of included) {
@@ -422,6 +424,15 @@ export default function App() {
     return max
   }, [included])
 
+  // Manuelle Eingabe hat Vorrang (12 Uhr mittags, damit Zeitzonen das Datum nicht kippen)
+  const manualTerminDate = useMemo(() => {
+    const m = terminDateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!m) return null
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0)
+    return Number.isNaN(d.getTime()) ? null : d.getTime()
+  }, [terminDateInput])
+
+  const terminDate = manualTerminDate ?? autoTerminDate
   const terminLabel = terminDate != null ? formatDateWeekday(terminDate) : null
 
   // ---------- PDF ----------
@@ -806,6 +817,20 @@ export default function App() {
                 placeholder="z. B. Musterstraße, Krefeld"
               />
             </div>
+            <div className="field">
+              <label htmlFor="termindate-input">Termindatum (optional)</label>
+              <input
+                id="termindate-input"
+                type="date"
+                className="custom-name-input"
+                value={terminDateInput}
+                onChange={(e) => setTerminDateInput(e.target.value)}
+              />
+              <p className="field-hint">
+                Leer lassen = Datum kommt automatisch aus den Fotos. Nur ausfüllen, wenn das
+                erkannte Datum nicht stimmt.
+              </p>
+            </div>
             {isReklamation && (
               <>
                 <div className="field">
@@ -1023,7 +1048,8 @@ export default function App() {
           </h2>
           {terminLabel && (
             <p className="termin-line">
-              Termin (aus den Foto-Aufnahmedaten): <strong>{terminLabel}</strong>
+              Termin {manualTerminDate != null ? '(manuell eingetragen)' : '(aus den Foto-Aufnahmedaten)'}:{' '}
+              <strong>{terminLabel}</strong>
             </p>
           )}
           <label className="checkbox checkbox-center">

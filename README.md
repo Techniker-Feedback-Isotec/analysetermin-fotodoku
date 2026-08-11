@@ -19,8 +19,9 @@ keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf 
   ISOTEC-Logo, Mitarbeiter (Name + rundes Foto), Objektfoto und Termindatum –
   das Termindatum ist **automatisch das neueste Aufnahmedatum der Fotos** und steckt
   auch im PDF-Dateinamen; jede Fotoseite trägt zusätzlich ein kleines ISOTEC-Logo
-- **Optionale Felder „Kunde" und „Objektadresse"** – erscheinen nur auf dem Deckblatt,
-  wenn sie ausgefüllt sind
+- **Optionale Felder „Kunde", „Objektadresse" und „Termindatum"** – erscheinen nur auf dem
+  Deckblatt, wenn sie ausgefüllt sind; ein eingetragenes Termindatum überschreibt die
+  automatische Erkennung aus den Fotos (auch im Dateinamen)
 - **Optionale Textseite nach dem Deckblatt**: bei Reklamation „Beurteilung" (Fachliche
   Beurteilung + Auftragsnummer auf dem Deckblatt), bei Analysetermin „Zusammenfassung" –
   jeweils mit Vermerk, wer den Text wann verfasst hat; leer = keine Extra-Seite
