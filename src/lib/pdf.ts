@@ -31,6 +31,8 @@ export interface PdfInputs {
   customerName: string | null
   /** Auftragsnummer (nur bei Reklamation, optional), oder null */
   orderNumber: string | null
+  /** Gewaehlte Gewerke fuer den Block "Sanierungskonzept"; leer = kein Block */
+  gewerke: string[]
   /**
    * Optionale Textseite direkt nach dem Deckblatt (Fliesstext), z. B.
    * "Fachliche Beurteilung" (Reklamation) oder "Zusammenfassung" (Analysetermin).
@@ -251,6 +253,44 @@ export async function buildPdf(
     // Unten links: rundes Vertrieblerfoto (oder Initialen-Kreis)
     const d = 88
     const circleY = 44
+
+    // Sanierungskonzept: die gewaehlten Gewerke, nur wenn welche gewaehlt sind.
+    // Der Block sitzt unter dem Infoblock und muss ueber dem runden Foto enden.
+    if (inputs.gewerke.length > 0) {
+      cursor -= 28
+      page.drawText('Sanierungskonzept', { x: margin, y: cursor, size: 12, font: bold, color: BROWN })
+      cursor -= 18
+
+      // Nur die linke Spalte nutzen, rechts steht das Objektfoto.
+      const spaltenBereich = W - margin - objBoxW - 12 - margin
+      const spalten = inputs.gewerke.length > 4 ? 2 : 1
+      const zeilen = Math.ceil(inputs.gewerke.length / spalten)
+      const spaltenBreite = spaltenBereich / spalten
+
+      // Zeilenabstand an den Platz bis zum runden Foto anpassen.
+      const platz = cursor - (circleY + d + 12)
+      const schritt = Math.min(15, Math.max(9.5, platz / zeilen))
+
+      // Schrift so weit verkleinern, dass der laengste Eintrag in seine Spalte passt.
+      let size = Math.min(10.5, schritt - 3.5)
+      const laengster = inputs.gewerke.reduce((a, b) => (a.length >= b.length ? a : b), '')
+      while (size > 7.5 && regular.widthOfTextAtSize(`• ${toWinAnsi(laengster)}`, size) > spaltenBreite - 8) {
+        size -= 0.5
+      }
+
+      inputs.gewerke.forEach((gewerk, index) => {
+        const spalte = Math.floor(index / zeilen)
+        const zeile = index % zeilen
+        page.drawText(`• ${toWinAnsi(gewerk)}`, {
+          x: margin + spalte * spaltenBreite,
+          y: cursor - zeile * schritt,
+          size,
+          font: regular,
+          color: BROWN,
+        })
+      })
+      cursor -= zeilen * schritt
+    }
     if (inputs.salespersonImage) {
       const spImg = await embed(doc, inputs.salespersonImage)
       page.drawImage(spImg, { x: margin, y: circleY, width: d, height: d })

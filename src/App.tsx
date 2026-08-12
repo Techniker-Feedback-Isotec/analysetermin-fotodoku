@@ -25,6 +25,8 @@ import {
 import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
 import VideoPanel from './VideoPanel'
+import MultiSelect from './MultiSelect'
+import { GEWERKE } from './data/gewerke'
 
 // ---------- Typen ----------
 
@@ -199,6 +201,8 @@ export default function App() {
   const [terminDateInput, setTerminDateInput] = useState('')
   // Nur bei Terminart "Reklamation" sichtbar und nur dann in der PDF
   const [orderNumber, setOrderNumber] = useState('')
+  /** Gewerke des Sanierungskonzepts; leer = kein Block auf dem Deckblatt */
+  const [gewerke, setGewerke] = useState<string[]>([])
   const [assessment, setAssessment] = useState('')
   // Nur bei Terminart "Analysetermin" sichtbar und nur dann in der PDF
   const [summary, setSummary] = useState('')
@@ -525,6 +529,7 @@ export default function App() {
             objectAddress,
             customerName: customerName.trim() || null,
             orderNumber: isReklamation ? orderNumber.trim() || null : null,
+            gewerke,
             textPage: hasAssessment
               ? {
                   title: 'Fachliche Beurteilung',
@@ -878,6 +883,21 @@ export default function App() {
                   onChange={(e) => setOrderNumber(e.target.value)}
                   placeholder="z. B. AB-2026-0815"
                 />
+              </div>
+            )}
+            {modus === 'foto' && (
+              <div className="field">
+                <label id="gewerke-label">Sanierungskonzept, Gewerke (optional)</label>
+                <MultiSelect
+                  label="Gewerke des Sanierungskonzepts"
+                  options={GEWERKE}
+                  selected={gewerke}
+                  onChange={setGewerke}
+                  placeholder="Gewerke auswählen …"
+                />
+                <p className="field-hint">
+                  Erscheint als Block „Sanierungskonzept" auf dem Deckblatt. Ohne Auswahl entfällt der Block.
+                </p>
               </div>
             )}
             {isReklamation && modus === 'foto' && (
