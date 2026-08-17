@@ -165,6 +165,7 @@ select,
   background: var(--white);
   color: inherit;
   min-width: 260px;
+  max-width: 100%;
 }
 
 .custom-name-input {
@@ -924,4 +925,71 @@ input[type='checkbox'] {
 
 .ergebnis .field-hint {
   margin-top: 10px;
+}
+
+/* ---------- Seitliches Verrutschen unterbinden ---------- */
+
+/*
+ * Auf dem Handy liess sich die Seite nach links und rechts schieben, weil ein
+ * einzelnes Element breiter war als das Display. "clip" statt "hidden", weil
+ * hidden einen Scroll-Container erzeugt und damit die oben stehende Kopfzeile
+ * (position: sticky) ausser Kraft setzen wuerde. overscroll-behavior-x stoppt
+ * zusaetzlich die Wischgeste, mit der Safari sonst zur vorigen Seite springt.
+ */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+
+/* Nichts darf breiter werden als sein Platz */
+img,
+video,
+canvas,
+table {
+  max-width: 100%;
+}
+
+/* Reiter: duerfen schrumpfen, auf schmalen Displays mit kurzer Beschriftung */
+.modus-tab {
+  min-width: 0;
+}
+
+.tab-kurz {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .tab-lang {
+    display: none;
+  }
+
+  .tab-kurz {
+    display: inline;
+  }
+
+  .modus-tabs {
+    gap: 6px;
+  }
+}
+
+/*
+ * Schmale Displays: Eingabefelder duerfen unter ihre Wunschbreite von 260 Pixeln
+ * schrumpfen. Ohne das ragen sie aus der Karte heraus, und genau dadurch liess
+ * sich die Seite seitlich verschieben. Flex- und Grid-Elemente brauchen dafuer
+ * zusaetzlich min-width: 0, sonst halten sie die Breite ihres Inhalts.
+ */
+@media (max-width: 520px) {
+  .field,
+  .salesperson-row .field {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  select,
+  .custom-name-input {
+    min-width: 0;
+    width: 100%;
+  }
 }

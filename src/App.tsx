@@ -679,7 +679,9 @@ export default function App() {
             className={`modus-tab${modus === 'foto' ? ' is-active' : ''}`}
             onClick={() => setModus('foto')}
           >
-            Fotodokumentation
+            {/* Auf schmalen Displays passen die langen Woerter nicht nebeneinander */}
+            <span className="tab-lang">Fotodokumentation</span>
+            <span className="tab-kurz">Fotos</span>
           </button>
           <button
             type="button"
@@ -688,7 +690,8 @@ export default function App() {
             className={`modus-tab${modus === 'video' ? ' is-active' : ''}`}
             onClick={() => setModus('video')}
           >
-            Videodokumentation
+            <span className="tab-lang">Videodokumentation</span>
+            <span className="tab-kurz">Videos</span>
           </button>
         </div>
 
