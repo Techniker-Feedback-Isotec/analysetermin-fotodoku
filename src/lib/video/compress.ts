@@ -9,6 +9,8 @@ import {
   Output,
   Quality,
   VideoSample,
+  canEncodeAudio,
+  canEncodeVideo,
   getFirstEncodableVideoCodec,
   type VideoCodec,
 } from 'mediabunny'
@@ -29,21 +31,35 @@ import {
  */
 
 /** Groessengrenzen der Systeme, in die die Videos anschliessend wandern. */
+/**
+ * Groessengrenzen der Systeme, in die die Videos anschliessend wandern.
+ *
+ * `limit` ist die echte Grenze des Zielsystems, `plan` das Ziel, mit dem
+ * gerechnet wird. Der Abstand dazwischen ist Absicht: Der Encoder trifft eine
+ * Vorgabe nie auf das Byte genau, und bei kurzen, bewegten Aufnahmen lag er in
+ * Tests deutlich darueber. Gewarnt wird erst, wenn `limit` gerissen ist.
+ *
+ * Alles in glatten Millionen Bytes: Craftboxx nennt 40 MB und meint damit sehr
+ * wahrscheinlich Dezimal-Megabyte, nicht 40 MiB.
+ */
 export const SIZE_LIMITS = {
   craftboxx: {
-    label: 'Bis 39 MB',
+    label: 'Bis 40 MB',
     hint: 'passt in Craftboxx und MeisterTask',
-    bytes: 39 * 1024 * 1024,
+    plan: 36_000_000,
+    limit: 40_000_000,
   },
   meistertask: {
-    label: 'Bis 190 MB',
+    label: 'Bis 200 MB',
     hint: 'nur MeisterTask (Pro/Business)',
-    bytes: 190 * 1024 * 1024,
+    plan: 180_000_000,
+    limit: 200_000_000,
   },
   keine: {
     label: 'Ohne Begrenzung',
     hint: 'bestmögliche Qualität',
-    bytes: 0,
+    plan: 0,
+    limit: 0,
   },
 } as const
 
@@ -65,8 +81,15 @@ export const COVER_SECONDS = 5
  */
 const COVER_FRAMES = 10
 
-/** Tonspur des Ergebnisses; fliesst in die Berechnung der Zielgroesse ein. */
+/** Bitrate, mit der wir Ton neu kodieren (nur mit Deckblatt noetig). */
 const AUDIO_BITRATE = 96_000
+
+/**
+ * Annahme fuer durchgereichten Ton. Handys nehmen mit deutlich mehr als
+ * 96 kbit/s auf; wird zu niedrig gerechnet, reisst das Ergebnis die
+ * Groessengrenze und es braucht einen zweiten Durchgang.
+ */
+const AUDIO_BITRATE_DURCHGEREICHT = 192_000
 
 /** Darunter wird das Bild unbrauchbar - dann lieber die Groessengrenze reissen. */
 const MIN_VIDEO_BITRATE = 350_000
@@ -125,6 +148,29 @@ export class CompressCanceledError extends Error {
   }
 }
 
+export interface Geraetecheck {
+  /** Browser beherrscht WebCodecs überhaupt */
+  webcodecs: boolean
+  /** H.264 lässt sich erzeugen (Bild) */
+  h264: boolean
+  /** AAC lässt sich erzeugen (Ton). Ohne das gibt es kein Deckblatt. */
+  aac: boolean
+}
+
+/**
+ * Was kann dieses Gerät wirklich? Wird in der Oberfläche angezeigt, damit bei
+ * einem Problem nicht geraten werden muss, woran es lag.
+ */
+export async function geraetecheck(): Promise<Geraetecheck> {
+  const webcodecs = typeof window !== 'undefined' && 'VideoEncoder' in window && 'VideoDecoder' in window
+  if (!webcodecs) return { webcodecs: false, h264: false, aac: false }
+  const [h264, aac] = await Promise.all([
+    canEncodeVideo('avc', { width: 1280, height: 720 }).catch(() => false),
+    canEncodeAudio('aac').catch(() => false),
+  ])
+  return { webcodecs, h264, aac }
+}
+
 export function isVideoFile(file: File): boolean {
   if (file.type.toLowerCase().startsWith('video/')) return true
   return /\.(mp4|mov|m4v|avi|mkv|webm|3gp|mpg|mpeg)$/i.test(file.name)
@@ -136,6 +182,16 @@ export function isVideoFile(file: File): boolean {
  */
 function bitrateQuality(bitsPerSecond: number): Quality {
   return new Quality({ bitrate: Math.round(bitsPerSecond), bitrateMode: 'variable' })
+}
+
+/**
+ * Fuer das Bild: konstante Bitrate. Mit variabler Bitrate lag das Ergebnis bei
+ * bewegtem Material regelmaessig 15 Prozent ueber der Vorgabe und riss damit
+ * die Groessengrenze. Planbare Groesse ist hier wichtiger als das letzte
+ * Quaentchen Qualitaet in ruhigen Szenen.
+ */
+function videoQuality(bitsPerSecond: number): Quality {
+  return new Quality({ bitrate: Math.round(bitsPerSecond), bitrateMode: 'constant' })
 }
 
 /** Liest Laenge und Bildgroesse, ohne die Datei zu verarbeiten. */
@@ -182,8 +238,10 @@ export function targetSize(width: number, height: number, maxEdge: number): { wi
 }
 
 export interface CompressOptions {
-  /** Obergrenze der fertigen Datei in Bytes; 0 = keine Begrenzung. */
+  /** Planungsziel in Bytes, mit Reserve zur echten Grenze; 0 = keine Begrenzung. */
   targetBytes: number
+  /** Echte Grenze des Zielsystems in Bytes; erst darueber wird gewarnt. */
+  limitBytes: number
   onProgress?: (fraction: number) => void
   signal?: AbortSignal
   /**
@@ -232,8 +290,11 @@ function planEncoding(args: {
   targetBytes: number
   width: number
   height: number
+  /** Platz, den die Tonspur im Ergebnis belegen wird */
+  audioBitrate: number
 }): EncodingPlan {
-  const sourceBitrate = args.durationSeconds > 0 ? (args.fileBytes * 8) / args.durationSeconds - AUDIO_BITRATE : 0
+  const sourceBitrate =
+    args.durationSeconds > 0 ? (args.fileBytes * 8) / args.durationSeconds - args.audioBitrate : 0
   const cap = qualityCap(Math.min(args.width, MAX_EDGE), Math.min(args.height, MAX_EDGE))
   const beste = Math.max(MIN_VIDEO_BITRATE, Math.min(sourceBitrate, cap))
 
@@ -241,8 +302,9 @@ function planEncoding(args: {
     return { bitrate: beste, maxEdge: MAX_EDGE, verkleinert: false }
   }
 
-  // 8 Prozent Abschlag fuer Containerdaten und die Ungenauigkeit des Encoders.
-  const budget = (args.targetBytes * 8 * 0.92) / args.totalDuration - AUDIO_BITRATE
+  // 12 Prozent Abschlag fuer Containerdaten und die Ungenauigkeit des Encoders:
+  // bei bewegtem Material liegt eine variable Bitrate spuerbar ueber dem Ziel.
+  const budget = (args.targetBytes * 8 * 0.88) / args.totalDuration - args.audioBitrate
 
   if (budget >= beste) {
     // Es passt ohnehin: volle Qualitaet, keine Verkleinerung der Aufloesung.
@@ -278,7 +340,49 @@ export async function compressVideo(file: File, options: CompressOptions): Promi
     }
 
     const sourceDuration = (await input.getDurationFromMetadata()) ?? (await input.computeDuration())
-    const totalDuration = sourceDuration + (options.cover ? COVER_SECONDS : 0)
+
+    /**
+     * Das Deckblatt verschiebt Bild und Ton um fünf Sekunden. Für den Ton
+     * bedeutet das zwingend eine Neukodierung, denn eine unveränderte Tonspur
+     * kann mediabunny nur eins zu eins durchreichen. Kann das Gerät kein AAC
+     * erzeugen, würde die Tonspur wegfallen und die ganze Umwandlung wäre
+     * hinfällig. Dann lieber ohne Deckblatt verkleinern: eine kleine Datei ohne
+     * Vorspann ist mehr wert als eine riesige mit.
+     */
+    let coverErlaubt = Boolean(options.cover)
+    let coverHinweis: string | undefined
+    const audioTrack = await input.getPrimaryAudioTrack()
+    if (coverErlaubt && audioTrack) {
+      // Mit genau den Werten fragen, die die Umwandlung anschliessend verwendet.
+      // Eine Abfrage mit Standardwerten koennte anders ausfallen als die
+      // Entscheidung, die mediabunny spaeter selbst trifft.
+      const tonGeht = await canEncodeAudio('aac', {
+        numberOfChannels: audioTrack.numberOfChannels,
+        sampleRate: audioTrack.sampleRate,
+        quality: bitrateQuality(AUDIO_BITRATE),
+      }).catch(() => false)
+      if (!tonGeht) {
+        coverErlaubt = false
+        coverHinweis = 'Ohne Deckblatt, weil dieses Gerät keinen Ton neu kodieren kann.'
+      }
+    }
+
+    const totalDuration = sourceDuration + (coverErlaubt ? COVER_SECONDS : 0)
+
+    /**
+     * Platz fuer die Tonspur. Mit Deckblatt kodieren wir sie selbst und kennen
+     * die Bitrate. Ohne Deckblatt wird sie unveraendert durchgereicht, dann
+     * wird sie gemessen statt geschaetzt: Handyaufnahmen liegen teils weit
+     * ueber dem, was man erwarten wuerde, und jede Fehlannahme geht direkt zu
+     * Lasten der Bildqualitaet oder reisst die Groessengrenze.
+     */
+    const audioDurchgereicht = audioTrack
+      ? await audioTrack
+          .computePacketStats(200)
+          .then((stats) => stats.averageBitrate)
+          .catch(() => AUDIO_BITRATE_DURCHGEREICHT)
+      : 0
+    const audioBitrate = !audioTrack ? 0 : coverErlaubt ? AUDIO_BITRATE : audioDurchgereicht
 
     let plan = planEncoding({
       fileBytes: file.size,
@@ -287,6 +391,7 @@ export async function compressVideo(file: File, options: CompressOptions): Promi
       targetBytes: options.targetBytes,
       width: videoTrack.displayWidth,
       height: videoTrack.displayHeight,
+      audioBitrate,
     })
 
     let attempt = 0
@@ -300,13 +405,47 @@ export async function compressVideo(file: File, options: CompressOptions): Promi
       const codec = await getFirstEncodableVideoCodec(['avc'], {
         width: size.width,
         height: size.height,
-        quality: bitrateQuality(plan.bitrate),
+        quality: videoQuality(plan.bitrate),
       })
       if (!codec) {
         return { ...original, note: 'Dieser Browser kann kein H.264 erzeugen - das Original bleibt unveraendert.' }
       }
 
-      const pass = await runConversion({ input, options, size, codec, bitrate: plan.bitrate })
+      /**
+       * Das Deckblatt ist das einzige, wofuer der Ton neu kodiert werden muss.
+       * Scheitert daran die ganze Umwandlung, wird ohne Deckblatt weitergemacht:
+       * Dann wird der Ton unveraendert durchgereicht und braucht gar keinen
+       * Encoder. Ein verkleinertes Video ohne Vorspann ist deutlich mehr wert
+       * als ein unveraendertes mit.
+       */
+      let pass: PassResult
+      if (coverErlaubt) {
+        try {
+          pass = await runConversion({ input, options, size, codec, bitrate: plan.bitrate, coverErlaubt: true })
+        } catch {
+          pass = { kind: 'failed', note: 'Ton konnte nicht neu kodiert werden.' }
+        }
+        if (pass.kind === 'failed') {
+          coverErlaubt = false
+          coverHinweis = 'Ohne Deckblatt, weil dieses Gerät den Ton nicht neu kodieren kann.'
+          // Neu rechnen: ohne Deckblatt ist das Video kuerzer, und der
+          // durchgereichte Ton braucht mehr Platz als ein neu kodierter.
+          plan = planEncoding({
+            fileBytes: file.size,
+            durationSeconds: sourceDuration,
+            totalDuration: sourceDuration,
+            targetBytes: options.targetBytes,
+            width: videoTrack.displayWidth,
+            height: videoTrack.displayHeight,
+            audioBitrate: audioDurchgereicht,
+          })
+          attempt-- // dieser Anlauf zaehlt nicht als Korrekturdurchgang
+          continue
+        }
+      } else {
+        pass = await runConversion({ input, options, size, codec, bitrate: plan.bitrate, coverErlaubt: false })
+      }
+
       if (pass.kind === 'abort') throw new CompressCanceledError()
       if (pass.kind === 'failed') return { ...original, note: pass.note }
 
@@ -325,7 +464,7 @@ export async function compressVideo(file: File, options: CompressOptions): Promi
     }
 
     const buffer = best.buffer
-    const zuGross = options.targetBytes > 0 && buffer.byteLength > options.targetBytes
+    const zuGross = options.limitBytes > 0 && buffer.byteLength > options.limitBytes
 
     // Nur zurueck zum Original, wenn das Ergebnis groesser ist *und* die Grenze
     // reisst - sonst waere das Deckblatt umsonst gewesen.
@@ -342,6 +481,7 @@ export async function compressVideo(file: File, options: CompressOptions): Promi
       height: best.height,
       verkleinert: plan.verkleinert,
       ueberGrenze: zuGross,
+      note: coverHinweis,
     }
   } finally {
     input.dispose()
@@ -357,8 +497,9 @@ async function runConversion(args: {
   size: { width: number; height: number }
   codec: VideoCodec
   bitrate: number
+  coverErlaubt: boolean
 }): Promise<PassResult> {
-  const { input, options, size, codec, bitrate } = args
+  const { input, options, size, codec, bitrate, coverErlaubt } = args
 
   const output = new Output({
     // "in-memory" schreibt die Sprungmarken an den Dateianfang. Nur so laesst
@@ -369,7 +510,7 @@ async function runConversion(args: {
 
   // Deckblatt vorbereiten. Schlaegt das Zeichnen fehl, laeuft die
   // Komprimierung ohne Vorspann weiter - das Video ist wichtiger.
-  const coverImage = options.cover ? await drawCoverSafely(options.cover, size) : null
+  const coverImage = coverErlaubt && options.cover ? await drawCoverSafely(options.cover, size) : null
   let coverWritten = false
 
   const conversion = await Conversion.init({
@@ -381,7 +522,7 @@ async function runConversion(args: {
       height: size.height,
       fit: 'contain',
       frameRate: TARGET_FPS,
-      quality: bitrateQuality(bitrate),
+      quality: videoQuality(bitrate),
       keyFrameInterval: KEYFRAME_INTERVAL,
       // Drehung fest ins Bild rechnen statt sie als Metadatum mitzugeben -
       // sonst zeigen manche Player quer gefilmte Videos verdreht an.
@@ -403,16 +544,21 @@ async function runConversion(args: {
           }
         : undefined,
     },
-    audio: {
-      codec: 'aac',
-      quality: bitrateQuality(AUDIO_BITRATE),
-      process: coverImage
-        ? (sample) => {
+    // Ohne Deckblatt bleibt die Tonspur unangetastet und wird eins zu eins
+    // durchgereicht. Wichtig: Schon die Angabe einer Tonqualität erzwingt bei
+    // mediabunny eine Neukodierung, und die scheitert auf Geräten, die kein AAC
+    // erzeugen können (etwa Safari auf dem iPhone). Das Video bliebe dann
+    // unverkleinert. Durchreichen ist ausserdem schneller und verlustfrei.
+    audio: coverImage
+      ? {
+          codec: 'aac',
+          quality: bitrateQuality(AUDIO_BITRATE),
+          process: (sample) => {
             sample.setTimestamp(sample.timestamp + COVER_SECONDS)
             return sample
-          }
-        : undefined,
-    },
+          },
+        }
+      : {},
     showWarnings: false,
   })
 

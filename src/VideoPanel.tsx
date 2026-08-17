@@ -9,13 +9,16 @@ import {
   percentWidth,
   sanitizeFilePart,
 } from './lib/format'
+import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
 import {
   compressVideo,
   CompressCanceledError,
+  geraetecheck,
   isVideoFile,
   probeVideo,
   SIZE_LIMITS,
   type CompressResult,
+  type Geraetecheck,
   type VideoInfo,
 } from './lib/video/compress'
 
@@ -32,7 +35,7 @@ import {
 const TERMINART = 'Analysetermin'
 
 /** Feste Groessengrenze: Craftboxx laesst 40 MB zu, das ist die engste Stelle. */
-const TARGET_BYTES = SIZE_LIMITS.craftboxx.bytes
+const ZIEL = SIZE_LIMITS.craftboxx
 
 type JobStatus = 'pruefung' | 'wartet' | 'laeuft' | 'fertig'
 
@@ -104,16 +107,8 @@ function makeUnique(name: string, taken: Set<string>): string {
   return name
 }
 
-function saveBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 20_000)
-}
+/** Auf dem Handy kann geteilt werden, am Rechner wird heruntergeladen. */
+const KANN_TEILEN = typTeilbar('video/mp4', 'video.mp4')
 
 function savedPercent(before: number, after: number): string {
   if (!before) return '0 %'
@@ -130,7 +125,7 @@ function describeError(error: unknown): string {
 function describeResult(originalBytes: number, result: CompressResult): string {
   if (!result.compressed) return result.note ?? 'Original bleibt unverändert.'
   const groessen = `${formatBytes(originalBytes)} → ${formatBytes(result.blob.size)}`
-  if (result.ueberGrenze) return `${groessen} – passt trotzdem nicht unter 39 MB, das Video ist sehr lang.`
+  if (result.ueberGrenze) return `${groessen} – passt trotzdem nicht unter 40 MB, das Video ist sehr lang.`
   if (result.verkleinert)
     return `${groessen} (${savedPercent(originalBytes, result.blob.size)} kleiner), Deckblatt ergänzt`
   return `${groessen} – Qualität unverändert, Deckblatt ergänzt`
@@ -147,6 +142,17 @@ export default function VideoPanel(props: VideoPanelProps) {
   const coverCanvas = useRef<HTMLCanvasElement>(null)
 
   const compressionAvailable = canCompress()
+  const [check, setCheck] = useState<Geraetecheck | null>(null)
+
+  useEffect(() => {
+    let abgebrochen = false
+    void geraetecheck().then((ergebnis) => {
+      if (!abgebrochen) setCheck(ergebnis)
+    })
+    return () => {
+      abgebrochen = true
+    }
+  }, [])
 
   /** Deckblatt-Angaben ohne Datum - das steckt im jeweiligen Video. */
   const coverBase = useMemo(
@@ -235,7 +241,8 @@ export default function VideoPanel(props: VideoPanelProps) {
       const usedCover = coverForRef.current(next.datumMs)
       try {
         const result = await compressVideo(next.file, {
-          targetBytes: TARGET_BYTES,
+          targetBytes: ZIEL.plan,
+          limitBytes: ZIEL.limit,
           signal: controller.signal,
           onProgress: (fraction) => updateJob(next.id, { progress: fraction }),
           onPhase: (text) => updateJob(next.id, { statusText: text }),
@@ -367,20 +374,45 @@ export default function VideoPanel(props: VideoPanelProps) {
     return map
   }, [jobs])
 
-  const saveAll = useCallback(() => {
-    const fertige = jobs.filter((job) => job.status === 'fertig')
-    fertige.forEach((job, index) => {
-      // Kleiner Abstand: sonst unterdrueckt der Browser die weiteren Downloads.
-      window.setTimeout(() => {
-        saveBlob(job.result?.blob ?? job.file, fileNames.get(job.id) ?? job.file.name)
-        updateJob(job.id, { gespeichert: true })
-      }, index * 700)
-    })
-    props.onToast(
-      'success',
-      `${fertige.length} Video${fertige.length === 1 ? ' wird' : 's werden'} gespeichert – danach ablegen bzw. in MeisterTask anhängen.`,
-    )
-  }, [jobs, fileNames, updateJob, props])
+  const dateiVon = useCallback(
+    (job: Job): File => {
+      const blob = job.result?.blob ?? job.file
+      const name = fileNames.get(job.id) ?? job.file.name
+      return new File([blob], name, { type: blob.type || 'video/mp4' })
+    },
+    [fileNames],
+  )
+
+  /** Teilen-Blatt des Geräts: dort führt "Video sichern" in die Fotomediathek. */
+  const teile = useCallback(
+    async (auswahl: Job[]) => {
+      if (auswahl.length === 0) return
+      const ergebnis = await teileDateien(auswahl.map(dateiVon), 'Videodokumentation')
+      if (ergebnis === 'geteilt') {
+        auswahl.forEach((job) => updateJob(job.id, { gespeichert: true }))
+      } else if (ergebnis === 'nicht moeglich') {
+        props.onToast('error', 'Teilen hat nicht geklappt, das Video wird stattdessen heruntergeladen.')
+        auswahl.forEach((job) => {
+          speichereDatei(job.result?.blob ?? job.file, fileNames.get(job.id) ?? job.file.name)
+          updateJob(job.id, { gespeichert: true })
+        })
+      }
+    },
+    [dateiVon, fileNames, updateJob, props],
+  )
+
+  const speichere = useCallback(
+    (auswahl: Job[]) => {
+      auswahl.forEach((job, index) => {
+        // Kleiner Abstand: sonst unterdrueckt der Browser die weiteren Downloads.
+        window.setTimeout(() => {
+          speichereDatei(job.result?.blob ?? job.file, fileNames.get(job.id) ?? job.file.name)
+          updateJob(job.id, { gespeichert: true })
+        }, index * 700)
+      })
+    },
+    [fileNames, updateJob],
+  )
 
   // Beim Verlassen laufende Vorgaenge stoppen und Vorschau-URLs freigeben.
   const jobsRef = useRef(jobs)
@@ -399,6 +431,7 @@ export default function VideoPanel(props: VideoPanelProps) {
 
   const fertige = jobs.filter((job) => job.status === 'fertig')
   const busy = jobs.some((job) => job.status !== 'fertig')
+  const nichtVerkleinert = fertige.filter((job) => job.result && !job.result.compressed)
   const veraltet = jobs.filter(
     (job) => job.status === 'fertig' && job.coverKey && job.coverKey !== coverKeyFor(job.datumMs),
   )
@@ -428,7 +461,7 @@ export default function VideoPanel(props: VideoPanelProps) {
         </h2>
         <p className="section-hint">
           Alles läuft im Browser: Deckblatt davorsetzen, Drehung korrigieren – und verkleinern <strong>nur,
-          wenn das Video über 39 MB liegt</strong> (Grenze von Craftboxx). Was ohnehin passt, behält seine
+          wenn das Video über 40 MB liegt</strong> (Grenze von Craftboxx). Was ohnehin passt, behält seine
           Qualität.
         </p>
 
@@ -437,6 +470,23 @@ export default function VideoPanel(props: VideoPanelProps) {
             Dieser Browser beherrscht keine Videoumwandlung (WebCodecs fehlt). Die Videos lassen sich trotzdem
             speichern, bleiben aber unverändert groß und ohne Deckblatt. Abhilfe: aktuelles Safari (iOS 17+),
             Chrome oder Edge.
+          </p>
+        )}
+
+        {nichtVerkleinert.length > 0 && (
+          <p className="hint-warn">
+            {nichtVerkleinert.length === 1 ? 'Ein Video wurde' : `${nichtVerkleinert.length} Videos wurden`} nicht
+            verkleinert: {nichtVerkleinert[0].result?.note ?? 'Grund unbekannt.'}
+          </p>
+        )}
+
+        {check && (
+          <p className="field-hint">
+            Dieses Gerät: Videoumwandlung {check.webcodecs ? 'ja' : 'nein'} · Bild (H.264){' '}
+            {check.h264 ? 'ja' : 'nein'} · Ton (AAC) {check.aac ? 'ja' : 'nein'}
+            {check.webcodecs && check.h264 && !check.aac
+              ? ' — ohne Ton-Kodierung entfällt das Deckblatt, verkleinert wird trotzdem.'
+              : ''}
           </p>
         )}
 
@@ -508,6 +558,16 @@ export default function VideoPanel(props: VideoPanelProps) {
                     </p>
                   </div>
                   <div className="video-actions">
+                    {job.status === 'fertig' && KANN_TEILEN && (
+                      <button type="button" className="btn-primary btn-small" onClick={() => void teile([job])}>
+                        In Fotos sichern
+                      </button>
+                    )}
+                    {job.status === 'fertig' && !KANN_TEILEN && (
+                      <button type="button" className="btn-secondary btn-small" onClick={() => speichere([job])}>
+                        Speichern
+                      </button>
+                    )}
                     <button type="button" className="btn-secondary btn-small" onClick={() => togglePreview(job.id)}>
                       {job.previewUrl ? 'Vorschau zu' : '▶ Ansehen'}
                     </button>
@@ -580,11 +640,24 @@ export default function VideoPanel(props: VideoPanelProps) {
             {formatBytes(totalResult)}
           </p>
         )}
-        <button type="button" className="btn-primary" disabled={busy || fertige.length === 0} onClick={saveAll}>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={busy || fertige.length === 0}
+          onClick={() => (KANN_TEILEN ? void teile(fertige) : speichere(fertige))}
+        >
           {busy
             ? 'Verarbeitung läuft …'
-            : `Alle ${fertige.length} Video${fertige.length === 1 ? '' : 's'} speichern`}
+            : KANN_TEILEN
+              ? `Alle ${fertige.length} Video${fertige.length === 1 ? '' : 's'} sichern oder teilen`
+              : `Alle ${fertige.length} Video${fertige.length === 1 ? '' : 's'} speichern`}
         </button>
+        {KANN_TEILEN && (
+          <p className="field-hint">
+            Es öffnet sich das Teilen-Fenster des Geräts. „Video sichern" legt die Datei in der Fotomediathek
+            ab, darüber lässt sie sich auch direkt an MeisterTask übergeben.
+          </p>
+        )}
         {jobs.length === 0 && <p className="field-hint">Noch keine Videos ausgewählt.</p>}
       </section>
     </>

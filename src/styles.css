@@ -897,3 +897,31 @@ input[type='checkbox'] {
   cursor: not-allowed;
   text-decoration: none;
 }
+
+/* ---------- Ergebniskarte (fertige PDF) ---------- */
+
+.ergebnis {
+  margin-top: 16px;
+  border: 1px solid var(--grey);
+  border-left: 4px solid var(--ok);
+  border-radius: 8px;
+  background: var(--light);
+  padding: 14px;
+  text-align: left;
+}
+
+.ergebnis-name {
+  margin: 0 0 10px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.ergebnis-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ergebnis .field-hint {
+  margin-top: 10px;
+}

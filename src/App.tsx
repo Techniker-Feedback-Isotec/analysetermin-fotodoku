@@ -27,6 +27,10 @@ import logoPngUrl from './assets/isotec-logo.png'
 import VideoPanel from './VideoPanel'
 import MultiSelect from './MultiSelect'
 import { GEWERKE } from './data/gewerke'
+import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
+
+/** Auf dem Handy kann die PDF geteilt werden, am Rechner wird heruntergeladen. */
+const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
 
 // ---------- Typen ----------
 
@@ -203,6 +207,8 @@ export default function App() {
   const [orderNumber, setOrderNumber] = useState('')
   /** Gewerke des Sanierungskonzepts; leer = kein Block auf dem Deckblatt */
   const [gewerke, setGewerke] = useState<string[]>([])
+  /** Zuletzt erstellte PDF, damit sie geteilt oder erneut gespeichert werden kann */
+  const [fertigePdf, setFertigePdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [assessment, setAssessment] = useState('')
   // Nur bei Terminart "Analysetermin" sichtbar und nur dann in der PDF
   const [summary, setSummary] = useState('')
@@ -595,14 +601,11 @@ export default function App() {
         ]
           .filter((part) => part !== '')
           .join('_') + '.pdf'
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = fileName
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      // Auf dem Handy nicht sofort herunterladen: Ein Download landet dort
+      // unauffindbar unter "Dateien / Downloads". Stattdessen erscheint ein
+      // Teilen-Knopf, denn navigator.share braucht einen eigenen Klick.
+      setFertigePdf({ blob, fileName })
+      if (!PDF_TEILBAR) speichereDatei(blob, fileName)
       pushToast(
         'success',
         `PDF erstellt: ${fileName} (${formatBytes(blob.size)}, ${pageCount - fehlerhafteFotos.size} Seiten)`,
@@ -1135,6 +1138,47 @@ export default function App() {
           </button>
           {!canCreate && !busy && missingHints.length > 0 && (
             <p className="hint-missing">Noch offen: {missingHints.join(' · ')}</p>
+          )}
+          {fertigePdf && (
+            <div className="ergebnis">
+              <p className="ergebnis-name">
+                {fertigePdf.fileName} ({formatBytes(fertigePdf.blob.size)})
+              </p>
+              <div className="ergebnis-knoepfe">
+                {PDF_TEILBAR && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() =>
+                      void teileDateien(
+                        [new File([fertigePdf.blob], fertigePdf.fileName, { type: 'application/pdf' })],
+                        'Fotodokumentation',
+                      ).then((ergebnis) => {
+                        if (ergebnis === 'nicht moeglich') {
+                          pushToast('error', 'Teilen hat nicht geklappt, die PDF wird stattdessen gespeichert.')
+                          speichereDatei(fertigePdf.blob, fertigePdf.fileName)
+                        }
+                      })
+                    }
+                  >
+                    PDF teilen
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => speichereDatei(fertigePdf.blob, fertigePdf.fileName)}
+                >
+                  Speichern
+                </button>
+              </div>
+              {PDF_TEILBAR && (
+                <p className="field-hint">
+                  Über „PDF teilen" öffnet sich das Teilen-Fenster des Geräts, darüber geht die Datei direkt an
+                  MeisterTask oder in die Dateien.
+                </p>
+              )}
+            </div>
           )}
           {progress && (
             <div className="progress" role="status" aria-live="polite">
