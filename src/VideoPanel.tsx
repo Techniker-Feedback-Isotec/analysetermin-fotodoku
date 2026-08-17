@@ -146,6 +146,19 @@ export default function VideoPanel(props: VideoPanelProps) {
 
   const compressionAvailable = canCompress()
   const [check, setCheck] = useState<Geraetecheck | null>(null)
+  /** Kurze Erfolgsmeldung nach dem Sichern; verschwindet von selbst wieder. */
+  const [banner, setBannerText] = useState<string | null>(null)
+  const bannerTimer = useRef<number | null>(null)
+
+  const setBanner = useCallback((text: string) => {
+    setBannerText(text)
+    if (bannerTimer.current) window.clearTimeout(bannerTimer.current)
+    bannerTimer.current = window.setTimeout(() => setBannerText(null), 8000)
+  }, [])
+
+  useEffect(() => () => {
+    if (bannerTimer.current) window.clearTimeout(bannerTimer.current)
+  }, [])
 
   useEffect(() => {
     let abgebrochen = false
@@ -386,23 +399,25 @@ export default function VideoPanel(props: VideoPanelProps) {
     [fileNames],
   )
 
-  /** Teilen-Blatt des Geräts: dort führt "Video sichern" in die Fotomediathek. */
-  const teile = useCallback(
+  /**
+   * In die Fotomediathek sichern.
+   *
+   * Technisch laeuft das ueber die Teilen-Schnittstelle des Geraets, denn einen
+   * direkten Weg in die Fotos gibt es im Browser nicht. Nach aussen heisst das
+   * bewusst nur "In Fotos sichern": Wer ein Analysevideo ablegt, will es in der
+   * Mediathek haben und nicht zwischen einem Dutzend Zielen waehlen.
+   */
+  const sichereInFotos = useCallback(
     async (auswahl: Job[]) => {
       if (auswahl.length === 0) return
       const ergebnis = await teileDateien(auswahl.map(dateiVon), 'Videodokumentation')
       if (ergebnis === 'geteilt') {
         auswahl.forEach((job) => updateJob(job.id, { gespeichert: true }))
-        props.onToast(
-          'success',
-          auswahl.length === 1
-            ? 'Video übergeben. Mit „Video sichern" liegt es in der Fotomediathek.'
-            : `${auswahl.length} Videos übergeben. Mit „Video sichern" liegen sie in der Fotomediathek.`,
-        )
+        setBanner(auswahl.length === 1 ? 'In Fotos gesichert' : `${auswahl.length} Videos in Fotos gesichert`)
       } else if (ergebnis === 'abgebrochen') {
-        props.onToast('info', 'Teilen abgebrochen, es wurde nichts gesichert.')
+        props.onToast('info', 'Abgebrochen, es wurde nichts gesichert.')
       } else {
-        props.onToast('error', 'Teilen hat nicht geklappt, das Video wird stattdessen heruntergeladen.')
+        props.onToast('error', 'Sichern hat nicht geklappt, das Video wird stattdessen heruntergeladen.')
         auswahl.forEach((job) => {
           speichereDatei(job.result?.blob ?? job.file, fileNames.get(job.id) ?? job.file.name)
           updateJob(job.id, { gespeichert: true })
@@ -415,9 +430,8 @@ export default function VideoPanel(props: VideoPanelProps) {
   const speichere = useCallback(
     (auswahl: Job[]) => {
       if (auswahl.length > 0) {
-        props.onToast(
-          'success',
-          `${auswahl.length} Video${auswahl.length === 1 ? '' : 's'} gespeichert – im Ordner Downloads.`,
+        setBanner(
+          `${auswahl.length} Video${auswahl.length === 1 ? '' : 's'} gespeichert${auswahl.length === 1 ? '' : ''} – im Ordner Downloads`,
         )
       }
       auswahl.forEach((job, index) => {
@@ -575,16 +589,6 @@ export default function VideoPanel(props: VideoPanelProps) {
                     </p>
                   </div>
                   <div className="video-actions">
-                    {job.status === 'fertig' && KANN_TEILEN && (
-                      <button type="button" className="btn-primary btn-small" onClick={() => void teile([job])}>
-                        In Fotos sichern
-                      </button>
-                    )}
-                    {job.status === 'fertig' && !KANN_TEILEN && (
-                      <button type="button" className="btn-secondary btn-small" onClick={() => speichere([job])}>
-                        Speichern
-                      </button>
-                    )}
                     <button type="button" className="btn-secondary btn-small" onClick={() => togglePreview(job.id)}>
                       {job.previewUrl ? 'Vorschau zu' : '▶ Ansehen'}
                     </button>
@@ -649,7 +653,7 @@ export default function VideoPanel(props: VideoPanelProps) {
 
       <section className="card card-action" aria-labelledby="sec-video-save">
         <h2 id="sec-video-save">
-          <span className="step">5</span> Videos speichern
+          <span className="step">5</span> {KANN_TEILEN ? 'In Fotos sichern' : 'Videos speichern'}
         </h2>
         {jobs.length > 0 && (
           <p className="section-hint">
@@ -657,23 +661,29 @@ export default function VideoPanel(props: VideoPanelProps) {
             {formatBytes(totalResult)}
           </p>
         )}
+
+        {banner && (
+          <p className="erfolg-banner" role="status">
+            <span aria-hidden="true">✓</span> {banner}
+          </p>
+        )}
+
         <button
           type="button"
           className="btn-primary"
           disabled={busy || fertige.length === 0}
-          onClick={() => (KANN_TEILEN ? void teile(fertige) : speichere(fertige))}
+          onClick={() => (KANN_TEILEN ? void sichereInFotos(fertige) : speichere(fertige))}
         >
           {busy
             ? 'Verarbeitung läuft …'
             : KANN_TEILEN
-              ? `Alle ${fertige.length} Video${fertige.length === 1 ? '' : 's'} sichern oder teilen`
-              : `Alle ${fertige.length} Video${fertige.length === 1 ? '' : 's'} speichern`}
+              ? fertige.length > 1
+                ? `Alle ${fertige.length} Videos in Fotos sichern`
+                : 'In Fotos sichern'
+              : `${fertige.length} Video${fertige.length === 1 ? '' : 's'} speichern`}
         </button>
-        {KANN_TEILEN && (
-          <p className="field-hint">
-            Es öffnet sich das Teilen-Fenster des Geräts. „Video sichern" legt die Datei in der Fotomediathek
-            ab, darüber lässt sie sich auch direkt an MeisterTask übergeben.
-          </p>
+        {KANN_TEILEN && jobs.length > 0 && (
+          <p className="field-hint">Im Auswahlfenster des Geräts auf „Video sichern" tippen.</p>
         )}
         {jobs.length === 0 && <p className="field-hint">Noch keine Videos ausgewählt.</p>}
       </section>

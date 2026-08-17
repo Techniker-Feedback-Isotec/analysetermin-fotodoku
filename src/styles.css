@@ -993,3 +993,24 @@ table {
     width: 100%;
   }
 }
+
+/* Kurze Erfolgsmeldung nach dem Sichern */
+.erfolg-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #b7dcb9;
+  border-left: 4px solid var(--ok);
+  border-radius: 8px;
+  background: #eef7ef;
+  color: #1f5c22;
+  font-weight: 600;
+  text-align: left;
+}
+
+.erfolg-banner span {
+  font-size: 1.15rem;
+  line-height: 1;
+}
