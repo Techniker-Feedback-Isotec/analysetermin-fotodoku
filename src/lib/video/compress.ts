@@ -82,7 +82,7 @@ export const COVER_SECONDS = 5
  * Sekunden Laufzeit bringt manche Player durcheinander; mehrere gleiche Bilder
  * kosten dank Bewegungskompensation praktisch nichts.
  */
-const COVER_FRAMES = 10
+const COVER_FRAMES = 5
 
 /** Bitrate, mit der wir Ton neu kodieren (nur mit Deckblatt noetig). */
 const AUDIO_BITRATE = 96_000
@@ -409,12 +409,14 @@ export async function compressVideo(file: File, options: CompressOptions): Promi
       if (coverErlaubt) {
         try {
           pass = await runConversion({ input, options, size, codec, bitrate: plan.bitrate, coverErlaubt: true })
-        } catch {
-          pass = { kind: 'failed', note: 'Ton konnte nicht neu kodiert werden.' }
+        } catch (fehler) {
+          pass = { kind: 'failed', note: kurzeMeldung(fehler) }
         }
         if (pass.kind === 'failed') {
           coverErlaubt = false
-          coverHinweis = 'Ohne Deckblatt, weil dieses Gerät den Ton nicht neu kodieren kann.'
+          // Den tatsaechlichen Grund mitgeben. Frueher stand hier pauschal der
+          // Ton, was in die Irre fuehrt, wenn etwas anderes schiefgegangen ist.
+          coverHinweis = `ohne Deckblatt (${pass.note})`
           // Neu rechnen: ohne Deckblatt ist das Video kuerzer, und der
           // durchgereichte Ton braucht mehr Platz als ein neu kodierter.
           plan = planEncoding({
@@ -510,7 +512,7 @@ async function runConversion(args: {
 
   // Deckblatt vorbereiten. Schlaegt das Zeichnen fehl, laeuft die
   // Komprimierung ohne Vorspann weiter - das Video ist wichtiger.
-  const coverImage = coverErlaubt && options.cover ? await drawCoverSafely(options.cover, size) : null
+  const coverImage = coverErlaubt && options.cover ? await zeichneDeckblatt(options.cover, size) : null
   let coverWritten = false
 
   const conversion = await Conversion.init({
@@ -638,13 +640,35 @@ function extensionOf(fileName: string): string {
   return match ? match[1].toLowerCase() : 'mp4'
 }
 
-async function drawCoverSafely(
+/**
+ * Deckblatt zeichnen und in eine ImageBitmap ueberfuehren. Aus der Bitmap
+ * lassen sich die Standbilder anschliessend ohne erneutes Auslesen der
+ * Zeichenflaeche erzeugen, was Speicher spart.
+ *
+ * Wirft absichtlich weiter: Der Aufrufer wiederholt dann ohne Deckblatt und
+ * kann den echten Grund anzeigen.
+ */
+async function zeichneDeckblatt(
   cover: NonNullable<CompressOptions['cover']>,
   size: { width: number; height: number },
-): Promise<CanvasImageSource | null> {
+): Promise<CanvasImageSource> {
+  const gezeichnet = await cover(size.width, size.height)
+  if (typeof createImageBitmap !== 'function') return gezeichnet
   try {
-    return await cover(size.width, size.height)
+    return await createImageBitmap(gezeichnet as ImageBitmapSource)
   } catch {
-    return null
+    return gezeichnet
   }
+}
+
+/** Fehlermeldung auf eine Laenge kuerzen, die in die Statuszeile passt. */
+function kurzeMeldung(fehler: unknown): string {
+  const text =
+    fehler instanceof Error
+      ? fehler.message
+      : fehler && typeof fehler === 'object' && 'message' in fehler
+        ? String((fehler as { message: unknown }).message)
+        : String(fehler)
+  const sauber = text.replace(/\s+/g, ' ').trim()
+  return sauber.length > 140 ? `${sauber.slice(0, 140)} …` : sauber
 }
