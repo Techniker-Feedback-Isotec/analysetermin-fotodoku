@@ -13,21 +13,25 @@
 
 /** Grundsätzliche Unterstützung, unabhängig von der konkreten Datei. */
 export function teilenMoeglich(): boolean {
-  return (
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function'
-  )
+  return typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 }
 
-/** Prüft mit einer Platzhalterdatei, ob dieser Dateityp geteilt werden darf. */
+/**
+ * Prüft mit einer Platzhalterdatei, ob dieser Dateityp geteilt werden darf.
+ *
+ * Kann der Browser teilen, kennt aber canShare nicht, wird der Knopf trotzdem
+ * angeboten: Ein Teilen-Versuch, der scheitert, faellt auf das Herunterladen
+ * zurueck. Ein fehlender Knopf waere schlimmer, denn dann fuehrt auf dem Handy
+ * kein Weg in die Fotomediathek.
+ */
 export function typTeilbar(mimeType: string, dateiname: string): boolean {
   if (!teilenMoeglich()) return false
+  if (typeof navigator.canShare !== 'function') return true
   try {
     const probe = new File([new Blob(['0'], { type: mimeType })], dateiname, { type: mimeType })
     return navigator.canShare({ files: [probe] })
   } catch {
-    return false
+    return true
   }
 }
 
@@ -36,7 +40,7 @@ export type TeilenErgebnis = 'geteilt' | 'abgebrochen' | 'nicht moeglich'
 export async function teileDateien(files: File[], titel: string): Promise<TeilenErgebnis> {
   if (!teilenMoeglich()) return 'nicht moeglich'
   try {
-    if (!navigator.canShare({ files })) return 'nicht moeglich'
+    if (typeof navigator.canShare === 'function' && !navigator.canShare({ files })) return 'nicht moeglich'
     await navigator.share({ files, title: titel })
     return 'geteilt'
   } catch (error) {

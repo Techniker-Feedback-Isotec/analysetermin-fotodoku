@@ -126,9 +126,12 @@ function describeResult(originalBytes: number, result: CompressResult): string {
   if (!result.compressed) return result.note ?? 'Original bleibt unverändert.'
   const groessen = `${formatBytes(originalBytes)} → ${formatBytes(result.blob.size)}`
   if (result.ueberGrenze) return `${groessen} – passt trotzdem nicht unter 40 MB, das Video ist sehr lang.`
+  // Ein Hinweis vom Umwandler geht vor: er nennt zum Beispiel, warum das
+  // Deckblatt ausnahmsweise fehlt.
+  const deckblatt = result.note ?? 'Deckblatt ergänzt'
   if (result.verkleinert)
-    return `${groessen} (${savedPercent(originalBytes, result.blob.size)} kleiner), Deckblatt ergänzt`
-  return `${groessen} – Qualität unverändert, Deckblatt ergänzt`
+    return `${groessen} (${savedPercent(originalBytes, result.blob.size)} kleiner), ${deckblatt}`
+  return `${groessen} – Qualität unverändert, ${deckblatt}`
 }
 
 export default function VideoPanel(props: VideoPanelProps) {
@@ -390,7 +393,15 @@ export default function VideoPanel(props: VideoPanelProps) {
       const ergebnis = await teileDateien(auswahl.map(dateiVon), 'Videodokumentation')
       if (ergebnis === 'geteilt') {
         auswahl.forEach((job) => updateJob(job.id, { gespeichert: true }))
-      } else if (ergebnis === 'nicht moeglich') {
+        props.onToast(
+          'success',
+          auswahl.length === 1
+            ? 'Video übergeben. Mit „Video sichern" liegt es in der Fotomediathek.'
+            : `${auswahl.length} Videos übergeben. Mit „Video sichern" liegen sie in der Fotomediathek.`,
+        )
+      } else if (ergebnis === 'abgebrochen') {
+        props.onToast('info', 'Teilen abgebrochen, es wurde nichts gesichert.')
+      } else {
         props.onToast('error', 'Teilen hat nicht geklappt, das Video wird stattdessen heruntergeladen.')
         auswahl.forEach((job) => {
           speichereDatei(job.result?.blob ?? job.file, fileNames.get(job.id) ?? job.file.name)
@@ -403,6 +414,12 @@ export default function VideoPanel(props: VideoPanelProps) {
 
   const speichere = useCallback(
     (auswahl: Job[]) => {
+      if (auswahl.length > 0) {
+        props.onToast(
+          'success',
+          `${auswahl.length} Video${auswahl.length === 1 ? '' : 's'} gespeichert – im Ordner Downloads.`,
+        )
+      }
       auswahl.forEach((job, index) => {
         // Kleiner Abstand: sonst unterdrueckt der Browser die weiteren Downloads.
         window.setTimeout(() => {
@@ -411,7 +428,7 @@ export default function VideoPanel(props: VideoPanelProps) {
         }, index * 700)
       })
     },
-    [fileNames, updateJob],
+    [fileNames, updateJob, props],
   )
 
   // Beim Verlassen laufende Vorgaenge stoppen und Vorschau-URLs freigeben.

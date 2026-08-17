@@ -4,6 +4,8 @@ import {
   BufferTarget,
   Conversion,
   ConversionCanceledError,
+  EncodedAudioPacketSource,
+  EncodedPacketSink,
   Input,
   Mp4OutputFormat,
   Output,
@@ -12,6 +14,7 @@ import {
   canEncodeAudio,
   canEncodeVideo,
   getFirstEncodableVideoCodec,
+  type InputAudioTrack,
   type VideoCodec,
 } from 'mediabunny'
 
@@ -342,30 +345,14 @@ export async function compressVideo(file: File, options: CompressOptions): Promi
     const sourceDuration = (await input.getDurationFromMetadata()) ?? (await input.computeDuration())
 
     /**
-     * Das Deckblatt verschiebt Bild und Ton um fünf Sekunden. Für den Ton
-     * bedeutet das zwingend eine Neukodierung, denn eine unveränderte Tonspur
-     * kann mediabunny nur eins zu eins durchreichen. Kann das Gerät kein AAC
-     * erzeugen, würde die Tonspur wegfallen und die ganze Umwandlung wäre
-     * hinfällig. Dann lieber ohne Deckblatt verkleinern: eine kleine Datei ohne
-     * Vorspann ist mehr wert als eine riesige mit.
+     * Das Deckblatt verschiebt Bild und Ton um fünf Sekunden. Die Tonspur wird
+     * dafür auf Paketebene selbst durchgereicht (siehe runConversion), es
+     * braucht also keinen Ton-Encoder. Sollte es trotzdem klemmen, wiederholt
+     * die Schleife unten einmal ohne Deckblatt.
      */
     let coverErlaubt = Boolean(options.cover)
     let coverHinweis: string | undefined
     const audioTrack = await input.getPrimaryAudioTrack()
-    if (coverErlaubt && audioTrack) {
-      // Mit genau den Werten fragen, die die Umwandlung anschliessend verwendet.
-      // Eine Abfrage mit Standardwerten koennte anders ausfallen als die
-      // Entscheidung, die mediabunny spaeter selbst trifft.
-      const tonGeht = await canEncodeAudio('aac', {
-        numberOfChannels: audioTrack.numberOfChannels,
-        sampleRate: audioTrack.sampleRate,
-        quality: bitrateQuality(AUDIO_BITRATE),
-      }).catch(() => false)
-      if (!tonGeht) {
-        coverErlaubt = false
-        coverHinweis = 'Ohne Deckblatt, weil dieses Gerät keinen Ton neu kodieren kann.'
-      }
-    }
 
     const totalDuration = sourceDuration + (coverErlaubt ? COVER_SECONDS : 0)
 
@@ -501,12 +488,25 @@ async function runConversion(args: {
 }): Promise<PassResult> {
   const { input, options, size, codec, bitrate, coverErlaubt } = args
 
-  const output = new Output({
-    // "in-memory" schreibt die Sprungmarken an den Dateianfang. Nur so laesst
-    // sich das Video sofort abspielen, ohne es ganz zu laden.
-    format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
-    target: new BufferTarget(),
-  })
+  // "in-memory" schreibt die Sprungmarken an den Dateianfang. Nur so laesst
+  // sich das Video sofort abspielen, ohne es ganz zu laden.
+  const format = new Mp4OutputFormat({ fastStart: 'in-memory' })
+  const output = new Output({ format, target: new BufferTarget() })
+
+  /**
+   * Die Tonspur reichen wir selbst Paket fuer Paket durch, statt sie mediabunny
+   * zu ueberlassen.
+   *
+   * Der Grund: Fuer das Deckblatt muss der Ton um fuenf Sekunden nach hinten,
+   * und mediabunny kann Zeitstempel nur veraendern, indem es die Spur neu
+   * kodiert. Geraete ohne AAC-Encoder (Safari auf dem iPhone) scheitern daran,
+   * die Tonspur faellt weg und damit die ganze Umwandlung. Auf Paketebene
+   * genuegt es, den Zeitstempel umzuschreiben - kein Encoder noetig, kein
+   * Qualitaetsverlust, und das Deckblatt bleibt auch dort erhalten.
+   */
+  const audioTrack = await input.getPrimaryAudioTrack()
+  const tonCodec = audioTrack?.codec ?? null
+  const tonSelbst = Boolean(tonCodec && format.getSupportedAudioCodecs().includes(tonCodec))
 
   // Deckblatt vorbereiten. Schlaegt das Zeichnen fehl, laeuft die
   // Komprimierung ohne Vorspann weiter - das Video ist wichtiger.
@@ -544,21 +544,21 @@ async function runConversion(args: {
           }
         : undefined,
     },
-    // Ohne Deckblatt bleibt die Tonspur unangetastet und wird eins zu eins
-    // durchgereicht. Wichtig: Schon die Angabe einer Tonqualität erzwingt bei
-    // mediabunny eine Neukodierung, und die scheitert auf Geräten, die kein AAC
-    // erzeugen können (etwa Safari auf dem iPhone). Das Video bliebe dann
-    // unverkleinert. Durchreichen ist ausserdem schneller und verlustfrei.
-    audio: coverImage
-      ? {
-          codec: 'aac',
-          quality: bitrateQuality(AUDIO_BITRATE),
-          process: (sample) => {
-            sample.setTimestamp(sample.timestamp + COVER_SECONDS)
-            return sample
-          },
-        }
-      : {},
+    audio: tonSelbst
+      ? { discard: true }
+      : coverImage
+        ? {
+            codec: 'aac',
+            quality: bitrateQuality(AUDIO_BITRATE),
+            process: (sample) => {
+              sample.setTimestamp(sample.timestamp + COVER_SECONDS)
+              return sample
+            },
+          }
+        : {},
+    // Nur wenn wir die Tonspur selbst beisteuern, muessen wir den Ausgang auch
+    // selbst starten und abschliessen.
+    composable: tonSelbst,
     showWarnings: false,
   })
 
@@ -568,8 +568,12 @@ async function runConversion(args: {
 
   // Der gesprochene Sanierungsvorschlag ist der halbe Inhalt: lieber die
   // grosse Originaldatei als ein kleines Video ohne Ton.
-  if (conversion.discardedTracks.some((entry) => entry.track.isAudioTrack())) {
-    return { kind: 'failed', note: 'Der Ton liesse sich nicht uebernehmen - das Original bleibt unveraendert.' }
+  const verworfenerTon = conversion.discardedTracks.find((entry) => entry.track.isAudioTrack())
+  if (!tonSelbst && verworfenerTon) {
+    return {
+      kind: 'failed',
+      note: `Der Ton liesse sich nicht uebernehmen (${verworfenerTon.reason}) - das Original bleibt unveraendert.`,
+    }
   }
 
   conversion.onProgress = (fraction) => options.onProgress?.(fraction)
@@ -578,7 +582,18 @@ async function runConversion(args: {
   options.signal?.addEventListener('abort', onAbort, { once: true })
 
   try {
-    await conversion.execute()
+    if (tonSelbst && audioTrack && tonCodec) {
+      const tonQuelle = new EncodedAudioPacketSource(tonCodec)
+      output.addAudioTrack(tonQuelle)
+      await output.start()
+      await Promise.all([
+        conversion.execute(),
+        pumpeTon(audioTrack, tonQuelle, coverImage ? COVER_SECONDS : 0, options.signal),
+      ])
+      await output.finalize()
+    } else {
+      await conversion.execute()
+    }
   } catch (error) {
     if (error instanceof ConversionCanceledError || options.signal?.aborted) return { kind: 'abort' }
     throw error
@@ -591,6 +606,31 @@ async function runConversion(args: {
     return { kind: 'failed', note: 'Die Umwandlung lieferte kein Ergebnis - das Original bleibt unveraendert.' }
   }
   return { kind: 'ok', buffer }
+}
+
+/**
+ * Reicht die Tonspur unveraendert in den Ausgang und verschiebt dabei nur die
+ * Zeitstempel um `versatz` Sekunden (Platz fuer das Deckblatt).
+ */
+async function pumpeTon(
+  track: InputAudioTrack,
+  ziel: EncodedAudioPacketSource,
+  versatz: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  const sink = new EncodedPacketSink(track)
+  const decoderConfig = await track.getDecoderConfig()
+  const meta = decoderConfig ? { decoderConfig } : undefined
+  const start = await track.getFirstTimestamp()
+  let erstes = true
+
+  for await (const packet of sink.packets()) {
+    if (signal?.aborted) break
+    const timestamp = Math.max(0, packet.timestamp - Math.max(0, start)) + versatz
+    await ziel.add(packet.clone({ timestamp }), erstes ? meta : undefined)
+    erstes = false
+  }
+  ziel.close()
 }
 
 function extensionOf(fileName: string): string {
