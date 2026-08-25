@@ -201,6 +201,8 @@ export default function App() {
   const [objectPhoto, setObjectPhoto] = useState<PreparedImage | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [addressInput, setAddressInput] = useState('')
+  /** Nur bei Reklamation: Anschrift des Kunden, wenn sie vom Objekt abweicht */
+  const [customerAddressInput, setCustomerAddressInput] = useState('')
   /** Optionales Termindatum (JJJJ-MM-TT); ueberschreibt die automatische Erkennung */
   const [terminDateInput, setTerminDateInput] = useState('')
   // Nur bei Terminart "Reklamation" sichtbar und nur dann in der PDF
@@ -534,6 +536,7 @@ export default function App() {
             objectImage: objImage,
             objectAddress,
             customerName: customerName.trim() || null,
+            customerAddress: isReklamation ? customerAddressInput.trim() || null : null,
             orderNumber: isReklamation ? orderNumber.trim() || null : null,
             gewerke,
             textPage: hasAssessment
@@ -850,6 +853,19 @@ export default function App() {
                 placeholder="z. B. Familie Mustermann"
               />
             </div>
+            {isReklamation && modus === 'foto' && (
+              <div className="field">
+                <label htmlFor="customeraddress-input">Kundenadresse (optional)</label>
+                <input
+                  id="customeraddress-input"
+                  type="text"
+                  className="custom-name-input"
+                  value={customerAddressInput}
+                  onChange={(e) => setCustomerAddressInput(e.target.value)}
+                  placeholder="nur wenn abweichend vom Objekt"
+                />
+              </div>
+            )}
             <div className="field">
               <label htmlFor="address-input">Objektadresse (optional)</label>
               <input

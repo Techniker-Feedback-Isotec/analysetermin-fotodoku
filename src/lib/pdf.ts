@@ -29,6 +29,8 @@ export interface PdfInputs {
   objectAddress: string | null
   /** Kundenname (optionale Eingabe), oder null */
   customerName: string | null
+  /** Anschrift des Kunden (nur bei Reklamation, optional), oder null */
+  customerAddress: string | null
   /** Auftragsnummer (nur bei Reklamation, optional), oder null */
   orderNumber: string | null
   /** Gewaehlte Gewerke fuer den Block "Sanierungskonzept"; leer = kein Block */
@@ -219,6 +221,16 @@ export async function buildPdf(
     cursor -= 21
     if (inputs.customerName) {
       page.drawText(`Kunde: ${inputs.customerName}`, {
+        x: margin,
+        y: cursor,
+        size: 11,
+        font: regular,
+        color: BROWN,
+      })
+      cursor -= 18
+    }
+    if (inputs.customerAddress) {
+      page.drawText('Kundenadresse: ' + toWinAnsi(inputs.customerAddress), {
         x: margin,
         y: cursor,
         size: 11,
