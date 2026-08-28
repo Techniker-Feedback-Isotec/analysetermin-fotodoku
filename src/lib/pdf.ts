@@ -168,8 +168,12 @@ export async function buildPdf(
     drawTracked(page, 'ABDICHTUNGSTECHNIK DIPL.-ING. MORSCHECK GMBH', margin, cursor, bold, 9, RED, 1.6)
     cursor -= 33
     page.drawText(inputs.terminType, { x: margin, y: cursor, size: 30, font: bold, color: BROWN })
-    cursor -= 25
-    page.drawText('Fotodokumentation', { x: margin, y: cursor, size: 16, font: regular, color: MUTED })
+    // Bei der Prinzipskizze ist die Terminart selbst der Titel, die Unterzeile
+    // "Fotodokumentation" entfaellt dort auf Wunsch der Vertriebler.
+    if (inputs.terminType !== 'Prinzipskizze') {
+      cursor -= 25
+      page.drawText('Fotodokumentation', { x: margin, y: cursor, size: 16, font: regular, color: MUTED })
+    }
     cursor -= 19
     page.drawLine({
       start: { x: margin, y: cursor },

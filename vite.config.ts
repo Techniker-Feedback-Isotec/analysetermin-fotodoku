@@ -6,6 +6,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ command }) => ({
   plugins: [react()],
   base: command === 'build' ? process.env.BASE_PATH ?? '/analysetermin-fotodoku/' : '/',
+  // PORT setzt die Claude-Code-Vorschau, wenn 5173 schon belegt ist.
+  server: { port: Number(process.env.PORT) || 5173 },
   build: {
     rollupOptions: {
       output: {

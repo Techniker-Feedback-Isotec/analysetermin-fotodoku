@@ -86,9 +86,10 @@ const EXTRA_LADDER: Array<{ maxEdge: number; quality: number }> = [
 const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 
 // Prinzipskizze: Fotostrecke einer Skizze bzw. eines Konzepts. Nutzt dieselben
-// gemeinsamen Felder (Kunde, Objektadresse, Termindatum, Gewerke); die
-// Sonderfelder von Analysetermin (Zusammenfassung) und Reklamation
-// (Kundenadresse, Auftragsnummer, Beurteilung) bleiben diesen vorbehalten.
+// gemeinsamen Felder (Kunde, Objektadresse, Termindatum, Gewerke) und wie der
+// Analysetermin die Zusammenfassung; auf dem Deckblatt entfaellt die Unterzeile
+// "Fotodokumentation". Die Sonderfelder der Reklamation (Kundenadresse,
+// Auftragsnummer, Beurteilung) bleiben dieser vorbehalten.
 const TERMINARTEN = ['Analysetermin', 'Reklamation', 'Prinzipskizze']
 
 const ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif'
@@ -464,8 +465,9 @@ export default function App() {
 
   const isReklamation = terminType === 'Reklamation'
   const isAnalyse = terminType === 'Analysetermin'
+  const isPrinzipskizze = terminType === 'Prinzipskizze'
   const hasAssessment = isReklamation && assessment.trim() !== ''
-  const hasSummary = isAnalyse && summary.trim() !== ''
+  const hasSummary = (isAnalyse || isPrinzipskizze) && summary.trim() !== ''
   const pageCount = included.length + 1 + (hasAssessment || hasSummary ? 1 : 0)
 
   const missingHints: string[] = []
@@ -601,16 +603,21 @@ export default function App() {
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       // ISOTEC_Terminart_Fotodokumentation_[Kunde]_Datum.pdf
       // Kunde nur, wenn ausgefuellt. Datum = Termindatum (neuestes Foto), nicht heute.
-      const fileName =
-        [
-          'ISOTEC',
-          sanitizeFilePart(terminType),
-          'Fotodokumentation',
-          sanitizeFilePart(customerName),
-          fileDate(new Date(terminDate)),
-        ]
-          .filter((part) => part !== '')
-          .join('_') + '.pdf'
+      // Prinzipskizze weicht ab: "ISOTEC Prinzipskizze_Objektadresse.pdf",
+      // die Adresse entfaellt bei leerem Feld.
+      const fileName = isPrinzipskizze
+        ? ['ISOTEC Prinzipskizze', sanitizeFilePart(addressInput)]
+            .filter((part) => part !== '')
+            .join('_') + '.pdf'
+        : [
+            'ISOTEC',
+            sanitizeFilePart(terminType),
+            'Fotodokumentation',
+            sanitizeFilePart(customerName),
+            fileDate(new Date(terminDate)),
+          ]
+            .filter((part) => part !== '')
+            .join('_') + '.pdf'
       // Auf dem Handy nicht sofort herunterladen: Ein Download landet dort
       // unauffindbar unter "Dateien / Downloads". Stattdessen erscheint ein
       // Teilen-Knopf, denn navigator.share braucht einen eigenen Klick.
@@ -647,6 +654,7 @@ export default function App() {
     customerName,
     addressInput,
     isReklamation,
+    isPrinzipskizze,
     orderNumber,
     hasAssessment,
     assessment,
@@ -947,7 +955,7 @@ export default function App() {
                 </div>
               </>
             )}
-            {isAnalyse && modus === 'foto' && (
+            {(isAnalyse || isPrinzipskizze) && modus === 'foto' && (
               <div className="field">
                 <label htmlFor="summary-input">Zusammenfassung (optional)</label>
                 <textarea
