@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SALESPEOPLE } from './data/salespeople'
-import { readExif } from './lib/exif'
+import { readExif, takenAtFromFileName } from './lib/exif'
 import { heicToJpegBlob, isHeic } from './lib/heic'
 import { sha256Hex } from './lib/hash'
 import {
@@ -44,7 +44,7 @@ interface PreparedImage {
   /** EXIF-Orientation der workingBlob (nach HEIC-Konvertierung immer 1) */
   orientation: number
   takenAt: number
-  dateSource: 'exif' | 'file'
+  dateSource: 'exif' | 'name' | 'file'
   thumbUrl: string
   convertedFromHeic: boolean
 }
@@ -138,6 +138,9 @@ async function prepareImage(file: File): Promise<PreparedImage> {
     }
   }
 
+  // Ohne EXIF-Datum: Aufnahmezeit aus dem Dateinamen versuchen.
+  const nameAt = exif.takenAt == null ? takenAtFromFileName(file.name) : null
+
   if (thumbUrl === null) {
     thumbUrl = await makeThumbnailUrl(workingBlob, orientation, 512)
   }
@@ -147,8 +150,8 @@ async function prepareImage(file: File): Promise<PreparedImage> {
     workingBlob,
     sourceType: file.type || (convertedFromHeic ? 'image/heic' : ''),
     orientation,
-    takenAt: exif.takenAt ?? file.lastModified,
-    dateSource: exif.takenAt != null ? 'exif' : 'file',
+    takenAt: exif.takenAt ?? nameAt ?? file.lastModified,
+    dateSource: exif.takenAt != null ? 'exif' : nameAt != null ? 'name' : 'file',
     thumbUrl,
     convertedFromHeic,
   }
@@ -1076,6 +1079,11 @@ export default function App() {
                       <p className="file-name">{p.fileName}</p>
                       <p className="file-meta">
                         {formatDateTime(p.takenAt)}
+                        {p.dateSource === 'name' && (
+                          <span className="badge" title="Kein EXIF-Datum gefunden - Aufnahmezeit aus dem Dateinamen gelesen">
+                            Dateiname
+                          </span>
+                        )}
                         {p.dateSource === 'file' && (
                           <span className="badge badge-warn" title="Kein EXIF-Datum gefunden – Dateidatum wird verwendet">
                             Dateidatum
