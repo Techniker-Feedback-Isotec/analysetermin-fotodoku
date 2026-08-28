@@ -85,7 +85,11 @@ const EXTRA_LADDER: Array<{ maxEdge: number; quality: number }> = [
 
 const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 
-const TERMINARTEN = ['Analysetermin', 'Reklamation']
+// Prinzipskizze: Fotostrecke einer Skizze bzw. eines Konzepts. Nutzt dieselben
+// gemeinsamen Felder (Kunde, Objektadresse, Termindatum, Gewerke); die
+// Sonderfelder von Analysetermin (Zusammenfassung) und Reklamation
+// (Kundenadresse, Auftragsnummer, Beurteilung) bleiben diesen vorbehalten.
+const TERMINARTEN = ['Analysetermin', 'Reklamation', 'Prinzipskizze']
 
 const ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif'
 
