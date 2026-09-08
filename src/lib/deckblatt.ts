@@ -1,23 +1,20 @@
 import { PDFDocument, PDFFont, PDFImage, PDFPage, rgb } from 'pdf-lib'
-import { initialsOf } from './format'
 
 /**
- * Gemeinsames Deckblatt fuer Fotodokumentation, Prinzipskizze und
- * Sanierungsvorschau (Vorgabe Yann, 08.09.2026).
+ * Gemeinsames Deckblatt fuer Fotodokumentation, Prinzipskizze,
+ * Sanierungsvorschau und die Angebotsmappe.
  *
- * Zwei Dinge muessen sofort erkennbar sein: **das Objekt** (grosses Foto ueber
- * die volle Breite) und **die Art des Dokuments** (grosse Ueberschrift). Alles
- * andere ordnet sich darunter ein.
+ * Leitgedanke: weniger ist mehr (Yann, 08.09.2026). Auf dem Blatt stehen nur
+ * drei Dinge - das Objekt als grosses Foto, die Art des Dokuments als grosse
+ * Ueberschrift und die wenigen Angaben zum Kunden. Der Mitarbeiter wird nicht
+ * namentlich genannt: Wer eine Visitenkarte hat, dessen Karte liegt unten
+ * rechts auf dem Blatt und traegt Name, Rolle, Anschrift und Kontakt. Wer
+ * keine hat, bekommt dort das Logo.
  *
  * Gegen Ueberschneidungen ist das Blatt durchgehend gemessen statt geraten:
- * - Die Angaben stehen in einer eigenen Textspalte, die rechts 150 Punkt frei
- *   laesst. Dort und nur dort stehen Portraitkreis und Logo, deshalb kann kein
- *   langer Kundenname und keine lange Anschrift hineinlaufen.
- * - Lange Werte werden umbrochen, nicht abgeschnitten; jede Zeile bekommt die
- *   Hoehe, die sie wirklich braucht.
- * - Die Hoehe des Objektfotos ergibt sich aus dem Platz, der nach allen
- *   Angaben uebrig ist. Viele Angaben lassen das Foto kleiner werden, statt
- *   den Text ins Foto oder unter das Blatt zu schieben.
+ * Lange Werte werden umbrochen, jede Zeile bekommt die Hoehe, die sie
+ * braucht, und die Hoehe des Objektfotos ergibt sich aus dem Platz, der nach
+ * allen Angaben uebrig bleibt.
  */
 
 const RED = rgb(213 / 255, 19 / 255, 23 / 255)
@@ -26,11 +23,12 @@ const GREY = rgb(224 / 255, 224 / 255, 224 / 255)
 const LIGHT = rgb(244 / 255, 244 / 255, 244 / 255)
 const MUTED = rgb(138 / 255, 127 / 255, 120 / 255)
 
-const A4: [number, number] = [595.28, 841.89]
+export const A4: [number, number] = [595.28, 841.89]
 const RAND = 48
-/** Rechts freigehaltene Spalte fuer Portraitkreis und Logo */
-const RECHTE_SPALTE = 150
 const FIRMA = 'ABDICHTUNGSTECHNIK DIPL.-ING. MORSCHECK GMBH'
+
+/** Breite der Visitenkarte auf dem Blatt (rund 8 cm, also fast Originalgroesse) */
+const KARTE_BREITE = 230
 
 export interface DeckblattBild {
   bytes: Uint8Array
@@ -50,12 +48,9 @@ export interface DeckblattDaten {
   unterzeile?: string | null
   /** Objektfoto, gross oben auf dem Blatt */
   objekt?: DeckblattBild | null
-  /** Rundes Mitarbeiterfoto; ohne das erscheinen die Initialen */
-  portrait?: DeckblattBild | null
-  mitarbeiter?: string | null
+  /** Visitenkarte des Mitarbeiters; ohne Karte steht unten das Logo */
+  visitenkarte?: DeckblattBild | null
   zeilen: DeckblattZeile[]
-  /** Block "Sanierungskonzept"; leer = kein Block */
-  gewerke?: string[]
   /** Kasten mit rotem Rand am Fuss, etwa der KI-Hinweis der Sanierungsvorschau */
   hinweis?: { titel: string; text: string } | null
   logo: DeckblattBild
@@ -84,7 +79,7 @@ export function winAnsi(text: string): string {
 }
 
 /** Bricht Text wortweise um; ueberlange Woerter werden hart getrennt. */
-function umbrechen(text: string, font: PDFFont, size: number, maxBreite: number): string[] {
+export function umbrechen(text: string, font: PDFFont, size: number, maxBreite: number): string[] {
   const zeilen: string[] = []
   let aktuell = ''
   for (const wort of text.split(/\s+/).filter(Boolean)) {
@@ -112,7 +107,8 @@ function eingepasst(breite: number, hoehe: number, maxB: number, maxH: number) {
   return { w: breite * faktor, h: hoehe * faktor }
 }
 
-function gesperrt(
+/** Text mit weiten Buchstabenabstaenden, wie in der ISOTEC-Bildsprache. */
+export function gesperrt(
   page: PDFPage,
   text: string,
   x: number,
@@ -129,7 +125,7 @@ function gesperrt(
   }
 }
 
-function einbetten(doc: PDFDocument, bild: DeckblattBild): Promise<PDFImage> {
+export function einbetten(doc: PDFDocument, bild: DeckblattBild): Promise<PDFImage> {
   return bild.format === 'png' ? doc.embedPng(bild.bytes) : doc.embedJpg(bild.bytes)
 }
 
@@ -142,24 +138,25 @@ export async function zeichneDeckblatt(
   const page = doc.addPage(A4)
   const logo = await einbetten(doc, daten.logo)
   const objekt = daten.objekt ? await einbetten(doc, daten.objekt) : null
-  const portrait = daten.portrait ? await einbetten(doc, daten.portrait) : null
+  const karte = daten.visitenkarte ? await einbetten(doc, daten.visitenkarte) : null
 
-  const textBreite = W - 2 * RAND - RECHTE_SPALTE
+  const textBreite = W - 2 * RAND
   const logoBreite = 150
   const logoHoehe = logoBreite * (logo.height / logo.width)
+  const karteHoehe = karte ? KARTE_BREITE * (karte.height / karte.width) : 0
 
   // ---------- messen ----------
   const titel = winAnsi(daten.titel)
-  let titelGroesse = 42
-  while (titelGroesse > 22 && bold.widthOfTextAtSize(titel, titelGroesse) > W - 2 * RAND) {
+  let titelGroesse = 44
+  while (titelGroesse > 22 && bold.widthOfTextAtSize(titel, titelGroesse) > textBreite) {
     titelGroesse -= 1
   }
   const unterzeile = daten.unterzeile ? winAnsi(daten.unterzeile) : null
 
   const LABEL_BREITE = 104
-  const WERT_GROESSE = 10.5
-  const ZEILE = 14
-  const ZEILEN_ABSTAND = 7
+  const WERT_GROESSE = 11
+  const ZEILE = 15
+  const ZEILEN_ABSTAND = 8
   const zeilen = daten.zeilen
     .filter((z) => z.wert.trim() !== '')
     .map((z) => ({
@@ -168,28 +165,21 @@ export async function zeichneDeckblatt(
     }))
   const zeilenHoehe = zeilen.reduce((summe, z) => summe + z.teile.length * ZEILE + ZEILEN_ABSTAND, 0)
 
-  const gewerke = (daten.gewerke ?? []).filter((g) => g.trim() !== '')
-  const gewerkeSpalten = gewerke.length > 5 ? 2 : 1
-  const gewerkeZeilen = Math.ceil(gewerke.length / gewerkeSpalten)
-  const GEWERK_SCHRITT = 13
-  const gewerkeHoehe = gewerke.length > 0 ? 29 + gewerkeZeilen * GEWERK_SCHRITT : 0
-
   const HINWEIS_GROESSE = 9
   const HINWEIS_SCHRITT = 12.5
   const hinweisZeilen = daten.hinweis
-    ? umbrechen(winAnsi(daten.hinweis.text), regular, HINWEIS_GROESSE, W - 2 * RAND - 32)
+    ? umbrechen(winAnsi(daten.hinweis.text), regular, HINWEIS_GROESSE, textBreite - 32)
     : []
   const hinweisHoehe = daten.hinweis ? 36 + hinweisZeilen.length * HINWEIS_SCHRITT + 12 : 0
 
-  const kopfHoehe = 30 + titelGroesse + 8 + (unterzeile ? 22 : 0) + 20
-  const inhaltHoehe = kopfHoehe + 22 + zeilenHoehe + gewerkeHoehe + (daten.hinweis ? hinweisHoehe + 14 : 0)
-  const fussHoehe = 44 + logoHoehe + 18
+  const kopfHoehe = 30 + titelGroesse + 10 + (unterzeile ? 22 : 0) + 22
+  const inhaltHoehe = kopfHoehe + 24 + zeilenHoehe + (daten.hinweis ? hinweisHoehe + 18 : 0)
+  const fussHoehe = 44 + (karte ? karteHoehe : logoHoehe) + 30
 
-  // Das Objektfoto bekommt allen Platz, der uebrig bleibt - mindestens 210,
-  // hoechstens 430 Punkt (rund die Haelfte der Seite). Ohne Objektfoto (in der
-  // Sanierungsvorschau moeglich) entfaellt der Bereich ganz, statt eine leere
-  // graue Flaeche zu zeigen; das rote Band sitzt dann oben am Blatt.
-  const heroHoehe = objekt ? Math.max(210, Math.min(430, H - inhaltHoehe - fussHoehe)) : 0
+  // Das Objektfoto bekommt allen Platz, der uebrig bleibt. Ohne Objektfoto
+  // entfaellt der Bereich ganz, statt eine leere graue Flaeche zu zeigen; das
+  // rote Band sitzt dann oben am Blatt.
+  const heroHoehe = objekt ? Math.max(230, Math.min(470, H - inhaltHoehe - fussHoehe)) : 0
 
   // ---------- zeichnen ----------
   const heroY = H - heroHoehe
@@ -209,54 +199,17 @@ export async function zeichneDeckblatt(
 
   let y = heroY - bandHoehe - 30
   gesperrt(page, FIRMA, RAND, y, bold, 9, RED, 1.6)
-  y -= titelGroesse + 8
+  y -= titelGroesse + 10
   page.drawText(titel, { x: RAND, y, size: titelGroesse, font: bold, color: BROWN })
   if (unterzeile) {
     y -= 22
     page.drawText(unterzeile, { x: RAND, y, size: 15, font: regular, color: MUTED })
   }
-  y -= 20
+  y -= 22
   page.drawLine({ start: { x: RAND, y }, end: { x: W - RAND, y }, thickness: 0.75, color: GREY })
 
-  // Portraitkreis in der rechten Spalte, oben neben den Angaben
-  const angabenOben = y - 22
-  const d = 88
-  const kreisY = Math.max(44 + logoHoehe + 16, angabenOben + 6 - d)
-  const kreisX = W - RAND - d
-  if (portrait) {
-    page.drawImage(portrait, { x: kreisX, y: kreisY, width: d, height: d })
-    page.drawEllipse({
-      x: kreisX + d / 2,
-      y: kreisY + d / 2,
-      xScale: d / 2,
-      yScale: d / 2,
-      borderColor: RED,
-      borderWidth: 2,
-    })
-  } else if (daten.mitarbeiter) {
-    page.drawEllipse({
-      x: kreisX + d / 2,
-      y: kreisY + d / 2,
-      xScale: d / 2,
-      yScale: d / 2,
-      color: LIGHT,
-      borderColor: RED,
-      borderWidth: 2,
-    })
-    const initialen = initialsOf(daten.mitarbeiter) || '?'
-    const size = 30
-    const breite = bold.widthOfTextAtSize(initialen, size)
-    page.drawText(initialen, {
-      x: kreisX + (d - breite) / 2,
-      y: kreisY + d / 2 - size * 0.36,
-      size,
-      font: bold,
-      color: RED,
-    })
-  }
-
-  // Angaben: Beschriftung grau, Wert fett - beides in der linken Textspalte
-  y = angabenOben
+  // Angaben: Beschriftung grau, Wert fett
+  y -= 24
   for (const zeile of zeilen) {
     page.drawText(zeile.label, { x: RAND, y, size: 9, font: regular, color: MUTED })
     zeile.teile.forEach((teil, i) => {
@@ -271,38 +224,14 @@ export async function zeichneDeckblatt(
     y -= zeile.teile.length * ZEILE + ZEILEN_ABSTAND
   }
 
-  if (gewerke.length > 0) {
-    y -= 14
-    page.drawText('Sanierungskonzept', { x: RAND, y, size: 10.5, font: bold, color: BROWN })
-    y -= 15
-    const spaltenBreite = textBreite / gewerkeSpalten
-    const laengster = gewerke.reduce((a, b) => (a.length >= b.length ? a : b), '')
-    let groesse = 9.5
-    while (groesse > 7 && regular.widthOfTextAtSize(`• ${winAnsi(laengster)}`, groesse) > spaltenBreite - 10) {
-      groesse -= 0.25
-    }
-    gewerke.forEach((gewerk, i) => {
-      const spalte = Math.floor(i / gewerkeZeilen)
-      const zeile = i % gewerkeZeilen
-      page.drawText(`• ${winAnsi(gewerk)}`, {
-        x: RAND + spalte * spaltenBreite,
-        y: y - zeile * GEWERK_SCHRITT,
-        size: groesse,
-        font: regular,
-        color: BROWN,
-      })
-    })
-    y -= gewerkeZeilen * GEWERK_SCHRITT
-  }
-
   if (daten.hinweis) {
     const hoehe = 36 + hinweisZeilen.length * HINWEIS_SCHRITT + 12
-    // Nie unter das Logo rutschen, auch wenn die Angaben lang sind.
-    const kastenY = Math.max(44 + logoHoehe + 20, y - 14 - hoehe)
+    // Nie in den Fussbereich rutschen, auch wenn die Angaben lang sind.
+    const kastenY = Math.max(44 + (karte ? karteHoehe : logoHoehe) + 24, y - 14 - hoehe)
     page.drawRectangle({
       x: RAND,
       y: kastenY,
-      width: W - 2 * RAND,
+      width: textBreite,
       height: hoehe,
       borderColor: RED,
       borderWidth: 1.2,
@@ -325,6 +254,21 @@ export async function zeichneDeckblatt(
     })
   }
 
-  page.drawImage(logo, { x: W - RAND - logoBreite, y: 44, width: logoBreite, height: logoHoehe })
+  // Unten rechts die Visitenkarte, sonst das Logo. Die Karte traegt Logo,
+  // Name, Rolle und Kontakt - deshalb steht beides nie zusammen auf dem Blatt.
+  if (karte) {
+    const x = W - RAND - KARTE_BREITE
+    page.drawImage(karte, { x, y: 44, width: KARTE_BREITE, height: karteHoehe })
+    page.drawRectangle({
+      x,
+      y: 44,
+      width: KARTE_BREITE,
+      height: karteHoehe,
+      borderColor: GREY,
+      borderWidth: 0.75,
+    })
+  } else {
+    page.drawImage(logo, { x: W - RAND - logoBreite, y: 44, width: logoBreite, height: logoHoehe })
+  }
   return page
 }

@@ -2,8 +2,8 @@ import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf
 import type { OptimizedImage } from './image'
 import type { Reichtext, TextAbsatz, TextStueck } from './richtext'
 import type { LegendenGruppe } from '../data/legende'
-import { zeichneDeckblatt } from './deckblatt'
-import { formatDateShort, formatDateTime } from './format'
+import { zeichneDeckblatt, type DeckblattBild } from './deckblatt'
+import { formatDateTime } from './format'
 
 // ISOTEC-Farben (Corporate Design Handbuch 2.0)
 const RED = rgb(213 / 255, 19 / 255, 23 / 255) // #D51317
@@ -30,9 +30,10 @@ export interface PdfPhoto {
 export interface PdfInputs {
   /** Terminart, wird zur Deckblatt-Ueberschrift: Analysetermin / Reklamation */
   terminType: string
+  /** Nur noch fuer den Vermerk unter der Textseite, nicht mehr auf dem Deckblatt */
   salespersonName: string
-  /** Rund zugeschnittenes Mitarbeiterfoto (PNG mit Alpha), oder null fuer Initialen */
-  salespersonImage: OptimizedImage | null
+  /** Visitenkarte des Mitarbeiters fuer das Deckblatt, oder null */
+  visitenkarte: DeckblattBild | null
   objectImage: OptimizedImage
   /**
    * Anschrift unter dem Objektfoto, oder null. Liegt das Objekt beim Kunden,
@@ -45,8 +46,6 @@ export interface PdfInputs {
   customerAddress: string | null
   /** Auftragsnummer (nur bei Reklamation, optional), oder null */
   orderNumber: string | null
-  /** Gewaehlte Gewerke fuer den Block "Sanierungskonzept"; leer = kein Block */
-  gewerke: string[]
   /**
    * Optionale Textseite direkt nach dem Deckblatt (Fliesstext), z. B.
    * "Fachliche Beurteilung" (Reklamation) oder "Zusammenfassung" (Analysetermin).
@@ -171,6 +170,10 @@ export async function buildPdf(
   // ---------- Deckblatt ----------
   // Aufbau, Masse und der Schutz vor Ueberschneidungen stehen in
   // lib/deckblatt.ts; dasselbe Deckblatt benutzt die Sanierungsvorschau.
+  // Weniger ist mehr (Yann, 08.09.2026): Auf dem Deckblatt stehen nur das
+  // Objektfoto, die Art des Dokuments und die Angaben zum Kunden. Der
+  // Mitarbeiter erscheint als Visitenkarte, nicht namentlich.
+  const istSkizze = inputs.terminType === 'Prinzipskizze'
   await zeichneDeckblatt(
     doc,
     { regular, bold },
@@ -178,25 +181,17 @@ export async function buildPdf(
       titel: inputs.terminType,
       // Bei der Prinzipskizze ist die Terminart selbst der Titel, die Unterzeile
       // "Fotodokumentation" entfaellt dort auf Wunsch der Vertriebler.
-      unterzeile: inputs.terminType === 'Prinzipskizze' ? null : 'Fotodokumentation',
+      unterzeile: istSkizze ? null : 'Fotodokumentation',
       objekt: { bytes: inputs.objectImage.bytes, format: inputs.objectImage.format },
-      portrait: inputs.salespersonImage
-        ? { bytes: inputs.salespersonImage.bytes, format: inputs.salespersonImage.format }
-        : null,
-      mitarbeiter: inputs.salespersonName,
+      visitenkarte: inputs.visitenkarte,
       zeilen: [
-        { label: 'Mitarbeiter', wert: inputs.salespersonName },
         { label: 'Kunde', wert: inputs.customerName ?? '' },
         { label: 'Kundenadresse', wert: inputs.customerAddress ?? '' },
         { label: 'Objekt', wert: inputs.objectAddress ?? '' },
         { label: 'Auftragsnummer', wert: inputs.orderNumber ?? '' },
-        { label: 'Termin', wert: inputs.terminLabel },
-        {
-          label: 'Umfang',
-          wert: `${inputs.photoCount} ${inputs.photoCount === 1 ? 'Foto' : 'Fotos'}, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
-        },
+        // Das Termindatum steht nur auf der Fotodokumentation.
+        { label: 'Termin', wert: istSkizze ? '' : inputs.terminLabel },
       ],
-      gewerke: inputs.gewerke,
       logo: { bytes: inputs.logoPng, format: 'png' },
     },
   )

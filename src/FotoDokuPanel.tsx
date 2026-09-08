@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { optimizeCircle, type OptimizedImage } from './lib/image'
+import { visitenkarteVon } from './data/visitenkarten'
+import type { DeckblattBild } from './lib/deckblatt'
 import type { PdfPhoto } from './lib/pdf'
 import { formatBytes, formatDateShort, formatDateTime, formatDateWeekday, fileDate, sanitizeFilePart } from './lib/format'
 import {
@@ -209,16 +210,17 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
         import('./lib/pdf'),
         fetch(logoPngUrl).then((r) => r.arrayBuffer()),
       ])
-      let spImage: OptimizedImage | null = null
-      if (mitarbeiter.foto) {
+      // Visitenkarte statt Mitarbeiterfoto; wer keine hat, bekommt das Logo.
+      let karte: DeckblattBild | null = null
+      const karteUrl = visitenkarteVon(mitarbeiter.name)
+      if (karteUrl) {
         try {
-          const res = await fetch(mitarbeiter.foto)
-          const type = res.headers.get('content-type') ?? ''
-          if (res.ok && type.startsWith('image/')) {
-            spImage = await optimizeCircle(await res.blob(), 1, 360)
+          const antwort = await fetch(karteUrl)
+          if (antwort.ok) {
+            karte = { bytes: new Uint8Array(await antwort.arrayBuffer()), format: 'jpeg' }
           }
         } catch {
-          // Platzhalter mit Initialen wird verwendet
+          // Ohne Karte steht unten das Logo.
         }
       }
 
@@ -266,13 +268,12 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
           {
             terminType,
             salespersonName: mitarbeiter.name,
-            salespersonImage: spImage,
+            visitenkarte: karte,
             objectImage: objImage,
             objectAddress,
             customerName: kunde.kunde.trim() || null,
             customerAddress: kunde.kundenadresse.trim() || null,
             orderNumber: isReklamation ? kunde.auftragsnummer.trim() || null : null,
-            gewerke: kunde.gewerke,
             drawingPage: istSkizze ? { title: 'Bauzeichnungen', legende } : null,
             textPage: hasAssessment
               ? {
@@ -368,7 +369,6 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
     canCreate,
     objectPhoto,
     included,
-    mitarbeiter.foto,
     mitarbeiter.name,
     terminType,
     terminDate,
@@ -378,7 +378,6 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
     kunde.objektadresse,
     kunde.kundenadresse,
     kunde.auftragsnummer,
-    kunde.gewerke,
     isReklamation,
     istSkizze,
     legende,

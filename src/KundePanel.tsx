@@ -3,9 +3,24 @@ import { SALESPEOPLE } from './data/salespeople'
 import { GEWERKE } from './data/gewerke'
 import MultiSelect from './MultiSelect'
 import { ACCEPT, isSupported, prepareImage } from './lib/bilder'
-import { formatBytes, formatDateTime, initialsOf } from './lib/format'
+import { logoBild, objektBild, visitenkarteBild } from './lib/deckblattbilder'
+import { formatBytes, formatDateTime, initialsOf, sanitizeFilePart } from './lib/format'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
-import { CUSTOM_VALUE, mitarbeiterVon, type Dokument, type Kundendaten, type ToastFn } from './kunde'
+import {
+  CUSTOM_VALUE,
+  mitarbeiterVon,
+  objektadresseText,
+  type Dokument,
+  type DokumentFn,
+  type Kundendaten,
+  type ToastFn,
+} from './kunde'
+
+/**
+ * Reihenfolge der Unterlagen in der Angebotsmappe (Yann, 08.09.2026): erst die
+ * Prinzipskizze, dann die Sanierungsvorschau, zuletzt die Fotodokumentation.
+ */
+const MAPPEN_REIHENFOLGE = ['Prinzipskizze', 'Sanierungsvorschau', 'Fotodokumentation']
 
 /** Am Rechner wird heruntergeladen, am Handy zusaetzlich geteilt. */
 const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
@@ -16,6 +31,7 @@ export interface KundePanelProps {
   onChange: (aenderung: Partial<Kundendaten>) => void
   dokumente: Dokument[]
   onEntfernen: (id: string) => void
+  onDokument: DokumentFn
   onToast: ToastFn
 }
 
@@ -23,10 +39,18 @@ export interface KundePanelProps {
  * Seite "Kunde": alle Angaben zum Termin in einem Raster, rechts das
  * Objektfoto, darunter die auf den anderen Seiten erstellten Dokumente.
  */
-export default function KundePanel({ daten, onChange, dokumente, onEntfernen, onToast }: KundePanelProps) {
+export default function KundePanel({
+  daten,
+  onChange,
+  dokumente,
+  onEntfernen,
+  onDokument,
+  onToast,
+}: KundePanelProps) {
   const [spPhotoFailed, setSpPhotoFailed] = useState(false)
   const [dragOverObject, setDragOverObject] = useState(false)
   const [objektLaeuft, setObjektLaeuft] = useState(false)
+  const [mappeLaeuft, setMappeLaeuft] = useState(false)
   const objectInputRef = useRef<HTMLInputElement>(null)
 
   const mitarbeiter = mitarbeiterVon(daten)
@@ -47,6 +71,60 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
       onToast('error', err instanceof Error ? err.message : `Fehler bei ${file.name}`)
     } finally {
       setObjektLaeuft(false)
+    }
+  }
+
+  /** Die Unterlagen, die in die Mappe wandern - in fester Reihenfolge. */
+  const mappenTeile = MAPPEN_REIHENFOLGE.map((quelle) =>
+    dokumente.find((d) => d.art === 'pdf' && d.quelle === quelle),
+  ).filter((d): d is Dokument => d !== undefined)
+
+  /**
+   * Alles in einem Dokument: Deckblatt, Inhaltsverzeichnis und die Unterlagen
+   * am Stueck - zum Ausdrucken und Uebergeben.
+   */
+  async function erstelleMappe() {
+    if (mappenTeile.length === 0 || mappeLaeuft) return
+    setMappeLaeuft(true)
+    try {
+      const [{ erzeugeAngebotsmappe }, objekt, karte, logo] = await Promise.all([
+        import('./lib/mappe'),
+        objektBild(daten),
+        visitenkarteBild(mitarbeiter.name),
+        logoBild(),
+      ])
+      const teile = await Promise.all(
+        mappenTeile.map(async (d) => ({
+          titel: d.quelle,
+          bytes: new Uint8Array(await d.blob.arrayBuffer()),
+        })),
+      )
+      const bytes = await erzeugeAngebotsmappe({
+        objekt,
+        visitenkarte: karte,
+        logo,
+        zeilen: [
+          { label: 'Kunde', wert: daten.kunde.trim() },
+          { label: 'Kundenadresse', wert: daten.kundenadresse.trim() },
+          { label: 'Objekt', wert: objektadresseText(daten) },
+        ],
+        teile,
+      })
+      const name =
+        ['ISOTEC Angebotsmappe', sanitizeFilePart(daten.kunde)].filter((t) => t !== '').join('_') + '.pdf'
+      onDokument(
+        'pdf:mappe',
+        'Angebotsmappe',
+        new File([bytes as BlobPart], name, { type: 'application/pdf' }),
+      )
+      onToast('success', `Angebotsmappe erstellt: ${name}`)
+    } catch (fehler) {
+      onToast(
+        'error',
+        `Angebotsmappe konnte nicht erstellt werden: ${fehler instanceof Error ? fehler.message : String(fehler)}`,
+      )
+    } finally {
+      setMappeLaeuft(false)
     }
   }
 
@@ -233,6 +311,25 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
         <div className="karte-kopf">
           <h2 id="kunde-dokumente">Erstellte Dokumente</h2>
           {dokumente.length === 0 && <p>Noch nichts erstellt. Fertige PDFs und Videos erscheinen hier.</p>}
+        </div>
+
+        <div className="mappe-zeile">
+          <div className="mappe-text">
+            <p className="mappe-titel">Angebotsmappe</p>
+            <p className="eingabe-hinweis">
+              {mappenTeile.length === 0
+                ? 'Sobald eine Unterlage fertig ist, entsteht daraus eine Mappe mit Deckblatt und Inhaltsverzeichnis.'
+                : `Deckblatt, Inhaltsverzeichnis, ${mappenTeile.map((t) => t.quelle).join(', ')}`}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={mappenTeile.length === 0 || mappeLaeuft}
+            onClick={() => void erstelleMappe()}
+          >
+            {mappeLaeuft ? 'Mappe wird erstellt …' : 'Angebotsmappe erstellen'}
+          </button>
         </div>
         {dokumente.length > 0 && (
           <ul className="dokumente">

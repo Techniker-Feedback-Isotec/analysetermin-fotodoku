@@ -145,6 +145,7 @@ export default function App() {
               onChange={aendereKunde}
               dokumente={dokumente}
               onEntfernen={entferneDokument}
+              onDokument={setzeDokument}
               onToast={pushToast}
             />
           </div>

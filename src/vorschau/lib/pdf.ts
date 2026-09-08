@@ -36,8 +36,7 @@ const HINWEIS = 'KI-Visualisierung, kein zugesichertes Sanierungsergebnis'
  */
 export type VorschauDeckblatt = {
   objekt: DeckblattBild | null
-  portrait: DeckblattBild | null
-  mitarbeiter: string
+  visitenkarte: DeckblattBild | null
   kunde: string
   kundenadresse: string
   objektadresse: string
@@ -109,7 +108,6 @@ export async function erzeugeSanierungsvorschauPdf(
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const regular = await doc.embedFont(StandardFonts.Helvetica)
   const gesamt = eintraege.length + 1
-  const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   // ---- Titelseite: das gemeinsame Deckblatt (lib/deckblatt.ts) ----
   // Gross das Objekt, gross die Art des Dokuments - wie bei Fotodokumentation
@@ -122,18 +120,11 @@ export async function erzeugeSanierungsvorschauPdf(
         titel: 'Sanierungsvorschau',
         unterzeile: 'Ihr Keller vorher und nachher',
         objekt: deckblatt.objekt,
-        portrait: deckblatt.portrait,
-        mitarbeiter: deckblatt.mitarbeiter,
+        visitenkarte: deckblatt.visitenkarte,
         zeilen: [
-          { label: 'Mitarbeiter', wert: deckblatt.mitarbeiter },
           { label: 'Kunde', wert: deckblatt.kunde },
           { label: 'Kundenadresse', wert: deckblatt.kundenadresse },
           { label: 'Objekt', wert: deckblatt.objektadresse },
-          { label: 'Erstellt am', wert: datum },
-          {
-            label: 'Umfang',
-            wert: `${eintraege.length} ${eintraege.length === 1 ? 'Foto' : 'Fotos'} im Vergleich`,
-          },
         ],
         hinweis: {
           titel: 'Wichtiger Hinweis zu den Bildern',

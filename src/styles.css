@@ -2481,3 +2481,36 @@ table {
 .footer p {
   overflow-wrap: anywhere;
 }
+
+/* Angebotsmappe: alles in einem Dokument, ueber der Liste der Unterlagen */
+.mappe-zeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--grey);
+}
+
+.mappe-text {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.mappe-titel {
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+
+.mappe-zeile .eingabe-hinweis {
+  white-space: normal;
+}
+
+/* Kurze Bestaetigung nach dem Erstellen der Vorschau-PDF */
+.pdf-fertig {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  color: var(--ok);
+}

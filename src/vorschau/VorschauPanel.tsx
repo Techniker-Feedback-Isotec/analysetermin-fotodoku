@@ -12,7 +12,7 @@ import {
 } from '../lib/share'
 import { bereiteBildVor, blobZuBase64 } from './lib/bild'
 import { optimizeWithRetry } from '../lib/bilder'
-import { optimizeCircle } from '../lib/image'
+import { visitenkarteVon } from '../data/visitenkarten'
 import { mitarbeiterVon, objektadresseText, type Kundendaten } from '../kunde'
 import type { DeckblattBild } from '../lib/deckblatt'
 import { GeminiFehler, erfasseBestand, saniereFoto } from './lib/gemini'
@@ -145,6 +145,7 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
   const [uploadHinweis, setUploadHinweis] = useState('')
   const [pdfLaeuft, setPdfLaeuft] = useState(false)
   const [pdfFehler, setPdfFehler] = useState('')
+  const [pdfFertig, setPdfFertig] = useState('')
   /**
    * Auf iPhone und iPad wird die PDF erst erzeugt und dann ueber einen eigenen
    * Knopf geteilt: Das Teilen-Blatt darf nur unmittelbar aus einem Tipp heraus
@@ -392,17 +393,16 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
    */
   async function deckblattDaten() {
     const mitarbeiter = mitarbeiterVon(kunde)
-    let portrait: DeckblattBild | null = null
-    if (mitarbeiter.foto) {
+    let karte: DeckblattBild | null = null
+    const karteUrl = visitenkarteVon(mitarbeiter.name)
+    if (karteUrl) {
       try {
-        const antwort = await fetch(mitarbeiter.foto)
-        const typ = antwort.headers.get('content-type') ?? ''
-        if (antwort.ok && typ.startsWith('image/')) {
-          const rund = await optimizeCircle(await antwort.blob(), 1, 360)
-          portrait = { bytes: rund.bytes, format: rund.format }
+        const antwort = await fetch(karteUrl)
+        if (antwort.ok) {
+          karte = { bytes: new Uint8Array(await antwort.arrayBuffer()), format: 'jpeg' }
         }
       } catch {
-        // Dann stehen die Initialen im Kreis.
+        // Ohne Karte steht unten das Logo.
       }
     }
     let objekt: DeckblattBild | null = null
@@ -416,8 +416,7 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
     }
     return {
       objekt,
-      portrait,
-      mitarbeiter: mitarbeiter.name,
+      visitenkarte: karte,
       kunde: kunde.kunde.trim(),
       kundenadresse: kunde.kundenadresse.trim(),
       objektadresse: objektadresseText(kunde),
@@ -440,6 +439,7 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
     if (eintraege.length === 0) return
     setPdfLaeuft(true)
     setPdfFehler('')
+    setPdfFertig('')
     try {
       const [{ erzeugeSanierungsvorschauPdf }, logoAntwort] = await Promise.all([
         import('./lib/pdf'),
@@ -452,8 +452,11 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
         'Sanierungsvorschau',
         new File([pdf], 'ISOTEC Sanierungsvorschau.pdf', { type: 'application/pdf' }),
       )
-      if (aufIOS) setPdfBlob(pdf)
-      else speichereDatei(pdf, 'ISOTEC Sanierungsvorschau.pdf')
+      // Nicht mehr sofort herunterladen: Die PDF liegt jetzt auf der Seite
+      // Kunde unter "Erstellte Dokumente" und geht von dort in die Mappe
+      // (Yann, 08.09.2026). Der Blob bleibt fuer den Teilen-Knopf auf dem iPhone.
+      setPdfBlob(pdf)
+      setPdfFertig('Die PDF liegt jetzt unter Kunde › Erstellte Dokumente.')
     } catch (fehler) {
       setPdfFehler(fehler instanceof Error ? fehler.message : 'PDF konnte nicht erstellt werden.')
     } finally {
@@ -471,6 +474,7 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
   // Sobald sich an den Fotos etwas aendert, passt die erzeugte PDF nicht mehr.
   useEffect(() => {
     setPdfBlob(null)
+    setPdfFertig('')
   }, [fotos])
 
   async function kopiereVerteilLink() {
@@ -710,6 +714,7 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
               )}
             </h2>
             {pdfFehler && <p className="upload-hinweis">{pdfFehler}</p>}
+            {pdfFertig && <p className="pdf-fertig">✓ {pdfFertig}</p>}
             <div className="uebersicht">
               <div className="galerie">
                 {fotos.map((foto) => {
