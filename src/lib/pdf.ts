@@ -2,13 +2,13 @@ import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf
 import type { OptimizedImage } from './image'
 import type { Reichtext, TextAbsatz, TextStueck } from './richtext'
 import type { LegendenGruppe } from '../data/legende'
-import { formatDateShort, formatDateTime, initialsOf } from './format'
+import { zeichneDeckblatt } from './deckblatt'
+import { formatDateShort, formatDateTime } from './format'
 
 // ISOTEC-Farben (Corporate Design Handbuch 2.0)
 const RED = rgb(213 / 255, 19 / 255, 23 / 255) // #D51317
 const BROWN = rgb(86 / 255, 74 / 255, 68 / 255) // #564A44
 const GREY = rgb(224 / 255, 224 / 255, 224 / 255) // #E0E0E0
-const LIGHT = rgb(244 / 255, 244 / 255, 244 / 255) // #F4F4F4
 const MUTED = rgb(138 / 255, 127 / 255, 120 / 255) // abgeschwaechtes Braun fuer Untertitel
 
 const A4: [number, number] = [595.28, 841.89]
@@ -70,8 +70,6 @@ export interface PdfInputs {
   createdAt: Date
   /** Termindatum aus den Foto-Aufnahmedaten, z. B. "Mittwoch, 6. August 2026" */
   terminLabel: string
-  /** Teamfoto (JPEG) fuer den Hero-Bereich des Deckblatts */
-  heroJpg: Uint8Array
   /** ISOTEC-Logo (PNG) */
   logoPng: Uint8Array
 }
@@ -171,198 +169,37 @@ export async function buildPdf(
   const logo = await doc.embedPng(inputs.logoPng)
 
   // ---------- Deckblatt ----------
-  {
-    const page = doc.addPage(A4)
-    const margin = 48
-
-    // Hero: Teamfoto in voller Breite, darunter rotes Band
-    const hero = await doc.embedJpg(inputs.heroJpg)
-    const heroH = W * (hero.height / hero.width)
-    page.drawImage(hero, { x: 0, y: H - heroH, width: W, height: heroH })
-    const bandH = 14
-    const bandY = H - heroH - bandH
-    page.drawRectangle({ x: 0, y: bandY, width: W, height: bandH, color: RED })
-
-    // Kicker + Titelblock
-    let cursor = bandY - 42
-    drawTracked(page, 'ABDICHTUNGSTECHNIK DIPL.-ING. MORSCHECK GMBH', margin, cursor, bold, 9, RED, 1.6)
-    cursor -= 33
-    page.drawText(inputs.terminType, { x: margin, y: cursor, size: 30, font: bold, color: BROWN })
-    // Bei der Prinzipskizze ist die Terminart selbst der Titel, die Unterzeile
-    // "Fotodokumentation" entfaellt dort auf Wunsch der Vertriebler.
-    if (inputs.terminType !== 'Prinzipskizze') {
-      cursor -= 25
-      page.drawText('Fotodokumentation', { x: margin, y: cursor, size: 16, font: regular, color: MUTED })
-    }
-    cursor -= 19
-    page.drawLine({
-      start: { x: margin, y: cursor },
-      end: { x: W - margin, y: cursor },
-      thickness: 0.75,
-      color: GREY,
-    })
-    const ruleY = cursor
-
-    // Objektfoto rechts. Die Hoehe richtet sich nach dem tatsaechlich freien Platz
-    // bis zum Logo - sonst schieben Hochkant-Fotos die Beschriftung ins Logo.
-    const logoW = 150
-    const logoH = logoW * (logo.height / logo.width)
-    const logoY = 48
-    const objBoxW = 220
-    const objTop = ruleY - 10
-    const labelH = inputs.objectAddress ? 34 : 20
-    const objBoxH = Math.max(80, objTop - (logoY + logoH + 14) - labelH)
-    const objImg = await embed(doc, inputs.objectImage)
-    const objFit = fitInto(objImg.width, objImg.height, objBoxW, objBoxH)
-    const objX = W - margin - objFit.w
-    const objY = objTop - objFit.h
-    page.drawRectangle({
-      x: objX - 4,
-      y: objY - 4,
-      width: objFit.w + 8,
-      height: objFit.h + 8,
-      color: LIGHT,
-      borderColor: GREY,
-      borderWidth: 1,
-    })
-    page.drawImage(objImg, { x: objX, y: objY, width: objFit.w, height: objFit.h })
-    page.drawText('Objekt', { x: objX, y: objY - 16, size: 9, font: regular, color: MUTED })
-    if (inputs.objectAddress) {
-      // Adresse unter der Objekt-Beschriftung. Reicht die Bildbreite nicht, darf der
-      // Text nach links bis zur Spaltenkante wandern; erst danach wird verkleinert.
-      const addr = toWinAnsi(inputs.objectAddress)
-      const colLeft = W - margin - objBoxW
-      const fullW = bold.widthOfTextAtSize(addr, 9)
-      const addrX = objX + fullW > W - margin ? Math.max(colLeft, W - margin - fullW) : objX
-      const avail = W - margin - addrX
-      const addrSize = fullW > avail ? Math.max(6.5, (9 * avail) / fullW) : 9
-      page.drawText(addr, { x: addrX, y: objY - 30, size: addrSize, font: bold, color: BROWN })
-    }
-
-    // Infoblock links
-    cursor -= 30
-    page.drawText(inputs.salespersonName, { x: margin, y: cursor, size: 14, font: bold, color: BROWN })
-    cursor -= 21
-    if (inputs.customerName) {
-      page.drawText(`Kunde: ${inputs.customerName}`, {
-        x: margin,
-        y: cursor,
-        size: 11,
-        font: regular,
-        color: BROWN,
-      })
-      cursor -= 18
-    }
-    if (inputs.customerAddress) {
-      page.drawText('Kundenadresse: ' + toWinAnsi(inputs.customerAddress), {
-        x: margin,
-        y: cursor,
-        size: 11,
-        font: regular,
-        color: BROWN,
-      })
-      cursor -= 18
-    }
-    if (inputs.orderNumber) {
-      page.drawText(`Auftragsnummer: ${toWinAnsi(inputs.orderNumber)}`, {
-        x: margin,
-        y: cursor,
-        size: 11,
-        font: regular,
-        color: BROWN,
-      })
-      cursor -= 18
-    }
-    page.drawText(`Termin: ${inputs.terminLabel}`, {
-      x: margin,
-      y: cursor,
-      size: 11,
-      font: regular,
-      color: BROWN,
-    })
-    cursor -= 18
-    page.drawText(
-      `Fotodokumentation: ${inputs.photoCount} ${inputs.photoCount === 1 ? 'Foto' : 'Fotos'}, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
-      { x: margin, y: cursor, size: 11, font: regular, color: BROWN },
-    )
-
-    // Unten links: rundes Vertrieblerfoto (oder Initialen-Kreis)
-    const d = 88
-    const circleY = 44
-
-    // Sanierungskonzept: die gewaehlten Gewerke, nur wenn welche gewaehlt sind.
-    // Der Block sitzt unter dem Infoblock und muss ueber dem runden Foto enden.
-    if (inputs.gewerke.length > 0) {
-      cursor -= 28
-      page.drawText('Sanierungskonzept', { x: margin, y: cursor, size: 12, font: bold, color: BROWN })
-      cursor -= 18
-
-      // Nur die linke Spalte nutzen, rechts steht das Objektfoto.
-      const spaltenBereich = W - margin - objBoxW - 12 - margin
-      const spalten = inputs.gewerke.length > 4 ? 2 : 1
-      const zeilen = Math.ceil(inputs.gewerke.length / spalten)
-      const spaltenBreite = spaltenBereich / spalten
-
-      // Zeilenabstand an den Platz bis zum runden Foto anpassen.
-      const platz = cursor - (circleY + d + 12)
-      const schritt = Math.min(15, Math.max(9.5, platz / zeilen))
-
-      // Schrift so weit verkleinern, dass der laengste Eintrag in seine Spalte passt.
-      let size = Math.min(10.5, schritt - 3.5)
-      const laengster = inputs.gewerke.reduce((a, b) => (a.length >= b.length ? a : b), '')
-      while (size > 7.5 && regular.widthOfTextAtSize(`• ${toWinAnsi(laengster)}`, size) > spaltenBreite - 8) {
-        size -= 0.5
-      }
-
-      inputs.gewerke.forEach((gewerk, index) => {
-        const spalte = Math.floor(index / zeilen)
-        const zeile = index % zeilen
-        page.drawText(`• ${toWinAnsi(gewerk)}`, {
-          x: margin + spalte * spaltenBreite,
-          y: cursor - zeile * schritt,
-          size,
-          font: regular,
-          color: BROWN,
-        })
-      })
-      cursor -= zeilen * schritt
-    }
-    if (inputs.salespersonImage) {
-      const spImg = await embed(doc, inputs.salespersonImage)
-      page.drawImage(spImg, { x: margin, y: circleY, width: d, height: d })
-      page.drawEllipse({
-        x: margin + d / 2,
-        y: circleY + d / 2,
-        xScale: d / 2,
-        yScale: d / 2,
-        borderColor: RED,
-        borderWidth: 2,
-      })
-    } else {
-      page.drawEllipse({
-        x: margin + d / 2,
-        y: circleY + d / 2,
-        xScale: d / 2,
-        yScale: d / 2,
-        color: LIGHT,
-        borderColor: RED,
-        borderWidth: 2,
-      })
-      const initials = initialsOf(inputs.salespersonName) || '?'
-      const size = 30
-      const tw = bold.widthOfTextAtSize(initials, size)
-      page.drawText(initials, {
-        x: margin + (d - tw) / 2,
-        y: circleY + d / 2 - size * 0.36,
-        size,
-        font: bold,
-        color: RED,
-      })
-    }
-
-    // Unten rechts: ISOTEC-Logo (inkl. Claim "IMMER BESSER.")
-    page.drawImage(logo, { x: W - margin - logoW, y: logoY, width: logoW, height: logoH })
-  }
+  // Aufbau, Masse und der Schutz vor Ueberschneidungen stehen in
+  // lib/deckblatt.ts; dasselbe Deckblatt benutzt die Sanierungsvorschau.
+  await zeichneDeckblatt(
+    doc,
+    { regular, bold },
+    {
+      titel: inputs.terminType,
+      // Bei der Prinzipskizze ist die Terminart selbst der Titel, die Unterzeile
+      // "Fotodokumentation" entfaellt dort auf Wunsch der Vertriebler.
+      unterzeile: inputs.terminType === 'Prinzipskizze' ? null : 'Fotodokumentation',
+      objekt: { bytes: inputs.objectImage.bytes, format: inputs.objectImage.format },
+      portrait: inputs.salespersonImage
+        ? { bytes: inputs.salespersonImage.bytes, format: inputs.salespersonImage.format }
+        : null,
+      mitarbeiter: inputs.salespersonName,
+      zeilen: [
+        { label: 'Mitarbeiter', wert: inputs.salespersonName },
+        { label: 'Kunde', wert: inputs.customerName ?? '' },
+        { label: 'Kundenadresse', wert: inputs.customerAddress ?? '' },
+        { label: 'Objekt', wert: inputs.objectAddress ?? '' },
+        { label: 'Auftragsnummer', wert: inputs.orderNumber ?? '' },
+        { label: 'Termin', wert: inputs.terminLabel },
+        {
+          label: 'Umfang',
+          wert: `${inputs.photoCount} ${inputs.photoCount === 1 ? 'Foto' : 'Fotos'}, erstellt am ${formatDateShort(inputs.createdAt.getTime())}`,
+        },
+      ],
+      gewerke: inputs.gewerke,
+      logo: { bytes: inputs.logoPng, format: 'png' },
+    },
+  )
 
   // ---------- Bauzeichnungen (Prinzipskizze, direkt nach dem Deckblatt) ----------
   // Die Seite bleibt bewusst leer: Dort wird der Grundriss eingefuegt. Unten

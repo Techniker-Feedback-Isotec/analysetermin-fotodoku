@@ -14,7 +14,6 @@ import {
 } from './lib/bilder'
 import type { Fotostapel } from './fotostapel'
 import { SONSTIGES, legendeFuer, ohneLegende } from './data/legende'
-import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
 import { reichtextIstLeer, type Reichtext } from './lib/richtext'
@@ -205,10 +204,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
     try {
       // 1) Statische Assets (Teamfoto, Logo) + Mitarbeiterfoto laden
       setPdfProgress({ label: 'Lade Deckblatt-Bilder …', done: 0, total: 1 })
-      const [heroJpg, logoPng] = await Promise.all([
-        fetch(teamJpgUrl).then((r) => r.arrayBuffer()),
-        fetch(logoPngUrl).then((r) => r.arrayBuffer()),
-      ])
+      const logoPng = await fetch(logoPngUrl).then((r) => r.arrayBuffer())
       let spImage: OptimizedImage | null = null
       if (mitarbeiter.foto) {
         try {
@@ -291,7 +287,6 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
             loadPhoto,
             createdAt: new Date(),
             terminLabel,
-            heroJpg: new Uint8Array(heroJpg),
             logoPng: new Uint8Array(logoPng),
           },
           (done, total) =>

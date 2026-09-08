@@ -171,7 +171,7 @@ export default function App() {
           </div>
 
           <div hidden={modus !== 'vorschau'}>
-            <VorschauPanel onDokument={setzeDokument} />
+            <VorschauPanel kunde={kunde} onDokument={setzeDokument} />
           </div>
         </main>
 

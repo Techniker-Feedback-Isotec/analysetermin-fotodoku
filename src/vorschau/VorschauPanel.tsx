@@ -11,6 +11,10 @@ import {
   teilenMoeglich,
 } from '../lib/share'
 import { bereiteBildVor, blobZuBase64 } from './lib/bild'
+import { optimizeWithRetry } from '../lib/bilder'
+import { optimizeCircle } from '../lib/image'
+import { mitarbeiterVon, objektadresseText, type Kundendaten } from '../kunde'
+import type { DeckblattBild } from '../lib/deckblatt'
 import { GeminiFehler, erfasseBestand, saniereFoto } from './lib/gemini'
 import {
   MITGELIEFERTER_SCHLUESSEL,
@@ -120,12 +124,14 @@ let demoGeladen = false
  * Vorher-Nachher, unveraendert in der Arbeitsweise. Kopf- und Fusszeile
  * kommen vom Dokumentationstool.
  */
-export default function VorschauPanel({
-  onDokument,
-}: {
+export interface VorschauPanelProps {
+  /** Angaben und Objektfoto von der Seite Kunde - fuer das Deckblatt der PDF */
+  kunde: Kundendaten
   /** Fertige PDF fuer die Sammlung auf der Seite Kunde */
   onDokument?: (schluessel: string, quelle: string, datei: File | null) => void
-} = {}) {
+}
+
+export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps) {
   const [fotos, setFotos] = useState<Foto[]>([])
   const [schluessel, setSchluessel] = useState('')
   const [einstellungenOffen, setEinstellungenOffen] = useState(false)
@@ -381,7 +387,45 @@ export default function VorschauPanel({
   }
 
   /**
-   * PDF "ISOTEC Sanierungsvorschau": Titelseite, dann je Foto eine Seite mit
+   * Angaben und Bilder fuer das gemeinsame Deckblatt. Sie kommen von der Seite
+   * Kunde, damit die Vorschau nichts doppelt abfragt.
+   */
+  async function deckblattDaten() {
+    const mitarbeiter = mitarbeiterVon(kunde)
+    let portrait: DeckblattBild | null = null
+    if (mitarbeiter.foto) {
+      try {
+        const antwort = await fetch(mitarbeiter.foto)
+        const typ = antwort.headers.get('content-type') ?? ''
+        if (antwort.ok && typ.startsWith('image/')) {
+          const rund = await optimizeCircle(await antwort.blob(), 1, 360)
+          portrait = { bytes: rund.bytes, format: rund.format }
+        }
+      } catch {
+        // Dann stehen die Initialen im Kreis.
+      }
+    }
+    let objekt: DeckblattBild | null = null
+    if (kunde.objektfoto) {
+      const bild = await optimizeWithRetry(kunde.objektfoto.workingBlob, kunde.objektfoto.orientation, {
+        maxEdge: 1800,
+        quality: 0.8,
+        sourceType: kunde.objektfoto.sourceType,
+      })
+      objekt = { bytes: bild.bytes, format: bild.format }
+    }
+    return {
+      objekt,
+      portrait,
+      mitarbeiter: mitarbeiter.name,
+      kunde: kunde.kunde.trim(),
+      kundenadresse: kunde.kundenadresse.trim(),
+      objektadresse: objektadresseText(kunde),
+    }
+  }
+
+  /**
+   * PDF "ISOTEC Sanierungsvorschau": Deckblatt, dann je Foto eine Seite mit
    * Vorher und Nachher in genau der Variante, die gerade ausgewaehlt ist.
    */
   async function erstellePdf() {
@@ -402,7 +446,7 @@ export default function VorschauPanel({
         fetch(logo),
       ])
       const logoPng = new Uint8Array(await logoAntwort.arrayBuffer())
-      const pdf = await erzeugeSanierungsvorschauPdf(eintraege, logoPng)
+      const pdf = await erzeugeSanierungsvorschauPdf(eintraege, logoPng, await deckblattDaten())
       onDokument?.(
         'pdf:vorschau',
         'Sanierungsvorschau',
