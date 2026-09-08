@@ -1,155 +1,105 @@
 # Dokumentation
 
 Statisches Web-Tool (Single-Page-App) der **Abdichtungstechnik Dipl.-Ing. Morscheck GmbH** für die
-Unterlagen vom Analysetermin – **ein Tool für Fotos und Videos**, umschaltbar über zwei Reiter:
+Unterlagen aus dem Außendienst. Fünf Seiten in einem Menüband, die Angaben zum Kunden werden
+**einmal** eingetragen und gelten für alle Unterlagen:
 
-- **Fotodokumentation:** Fotos werden komplett lokal im Browser zu einer chronologisch sortierten,
-  komprimierten PDF verarbeitet.
-- **Videodokumentation:** Videos bekommen ein Deckblatt vorangestellt, die Drehung wird korrigiert
-  und die Datei nur dann verkleinert, wenn sie über der Größengrenze liegt.
+- **Kunde:** Mitarbeiter, Kunde, Kundenadresse, Objektadresse (nur bei Abweichung), Auftragsnummer,
+  Termindatum, Sanierungskonzept (Gewerke), Objektfoto. Darunter die Sammlung aller erstellten
+  Dokumente mit Vorschau und Download sowie der Knopf für die **Angebotsmappe**.
+- **Fotodokumentation:** Terminart (Analysetermin oder Reklamation), Fotos, optionale
+  Zusammenfassung bzw. Beurteilung als formatierter Text, PDF mit einem Foto pro Seite.
+- **Videodokumentation:** Videos bekommen ein 5-Sekunden-Deckblatt vorangestellt, die Drehung
+  wird korrigiert und die Datei nur verkleinert, wenn sie über 40 MB liegt (Grenze von Craftboxx).
+- **Prinzipskizze:** eigene Bilderauswahl aus demselben Bilderstapel wie die Fotodokumentation;
+  PDF mit Deckblatt, freier Seite „Bauzeichnungen" (mit Legende der gewählten Gewerke) und Bildern.
+- **Sanierungsvorschau:** Kellerfotos werden per Google Gemini „weißsaniert" (Vorher/Nachher);
+  ursprünglich das eigenständige Tool `keller-vorher-nachher`, seit 08.09.2026 hier eingebaut.
 
-**Die Angaben zum Termin werden nur einmal eingetragen** (Terminart, Mitarbeiter, Kunde,
-Objektadresse, Termindatum, Auftragsnummer) und gelten für beide Reiter.
+Live: https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/ (Adresse und Repo-Name
+sind historisch, das Tool heißt nur noch „Dokumentation"). Die ausführliche Projektnotiz mit
+Entscheidungen und offenen Punkten liegt in Yanns Obsidian-Vault unter
+`02 Projekte/Dokumentation Analysetermin.md`.
 
-**Es werden keine Daten hochgeladen oder gespeichert** – kein Backend, keine APIs, kein Tracking,
-keine Cookies, kein localStorage. Damit ist das Tool problemlos öffentlich auf GitHub Pages hostbar.
+## Deckblatt
 
-**Kurzanleitung für die Nutzer:** [docs/Kurzanleitung_Fotodokumentation.pdf](docs/Kurzanleitung_Fotodokumentation.pdf)
-(5 Seiten, erklärt die drei Terminarten und den Aufbau der fertigen Mappen; Quelle:
-`docs/anleitung-quelle.html`, wird mit Edge/Chrome per „Als PDF drucken" erzeugt).
-Die Anleitung beschreibt noch nicht den Video-Reiter.
+Alle PDFs (Fotodokumentation, Prinzipskizze, Sanierungsvorschau, Angebotsmappe) tragen dasselbe
+Deckblatt aus `src/lib/deckblatt.ts`. Leitsatz: **weniger ist mehr.** Oben das Objektfoto über die
+volle Breite, darunter rotes Band, Firmenzeile, die Art des Dokuments als große Überschrift und
+die Angaben zum Kunden (Kunde, Kundenadresse, Objekt; Auftragsnummer bei Reklamationen; das
+Termindatum nur auf der Fotodokumentation). Unten rechts liegt die **Visitenkarte** des
+Mitarbeiters (`src/assets/visitenkarten/`); wer keine hat, bekommt dort das ISOTEC-Logo. Der
+Mitarbeiter wird sonst nicht genannt. Lange Werte werden umbrochen, die Höhe des Objektfotos
+ergibt sich aus dem Platz, der nach den Angaben übrig bleibt.
 
-## Videodokumentation
+Das Video-Deckblatt (`src/lib/cover.ts`) ist ein Canvas-Bild und zeigt weiter das runde
+Mitarbeiterfoto: Eine Visitenkarte wäre im Videobild nicht lesbar.
 
-Jedes Video beginnt mit einem **5 Sekunden langen Deckblatt** mit den Elementen des
-PDF-Deckblatts (Teamfoto, rotes Band, Terminart, Mitarbeiter mit rundem Foto, Logo) – nur ohne
-Objektfoto und randlos statt auf Weiß. Der Grund ist die Kachel in MeisterTask, Craftboxx und im
-Explorer: Sie zeigt das erste Bild des Videos, und ohne Deckblatt ist das ein zufälliger
-Kellerausschnitt.
+## Angebotsmappe
 
-Die Videoseite kennt bewusst weniger Felder als die Fotoseite: **keine Terminart** (Videos
-entstehen immer beim Analysetermin), **kein Termindatum** (steht im Video) und keine
-Auftragsnummer. Kunde, Objektadresse und Mitarbeiter kommen von der gemeinsamen Eingabe.
-
-Das **Termindatum kommt aus dem Video selbst** – aus den Metadaten der Datei
-(QuickTime/MP4-Aufnahmezeitpunkt), ersatzweise aus dem Dateidatum. Aufgenommen wird beim Termin,
-also stimmt es auch dann noch, wenn die Datei zwischendurch kopiert wurde.
-
-**Verkleinert wird nur, was zu groß ist** – die Grenze liegt fest bei **39 MB**, weil
-[Craftboxx](https://craftboxx.de) nur 40 MB je Anhang zulässt. Das ist die engste Stelle im
-Ablauf; MeisterTask erlaubt ab Pro 200 MB je Datei.
-
-Passt ein Video ohnehin darunter, bleiben Auflösung (höchstens Full HD) und Bitrate erhalten,
-gedeckelt auf 10 Mbit/s. Ist es zu groß, wird die Bitrate aus Laufzeit und Grenze berechnet und
-die Auflösung fällt auf die Stufe, die dazu noch gut aussieht (1080p ab 2,5 Mbit/s, 720p ab 1,2,
-480p ab 0,6, darunter 360p). Der Ton bleibt immer erhalten, die Drehung wird fest ins Bild
-gerechnet – quer gefilmt bleibt quer.
-
-Dateiname: `ISOTEC_Videodokumentation[_<Titel>]_<JJJJ-MM-TT>.mp4`, je Video überschreibbar.
-
-Gemessen an echtem Material: 372 MB / 3:20 Min. → 36,3 MB in 35 Sekunden; 146 MB / 1:18 Min. →
-35,4 MB in 18 Sekunden (bleibt in Full HD, weil das Budget es hergibt); 16,5 MB / 9 Sek. →
-12,4 MB bei voller Auflösung.
-
-Technisch: **WebCodecs** über [mediabunny](https://mediabunny.dev). Fehlt WebCodecs (Safari vor
-iOS 17), sagt das Tool das und die Videos lassen sich unverändert speichern.
-
-## Funktionen der Fotodokumentation
-
-- **Terminart wählbar** (Analysetermin / Reklamation) – sie wird zur
-  Überschrift des Deckblatts und steht im PDF-Dateinamen
-- **Deckblatt** im Stil der ISOTEC-Einarbeitungsmappe: Teamfoto als Hero, rotes Band,
-  ISOTEC-Logo, Mitarbeiter (Name + rundes Foto), Objektfoto und Termindatum –
-  das Termindatum ist **automatisch das neueste Aufnahmedatum der Fotos** und steckt
-  auch im PDF-Dateinamen; jede Fotoseite trägt zusätzlich ein kleines ISOTEC-Logo
-- **Optionale Felder „Kunde", „Objektadresse" und „Termindatum"** – erscheinen nur auf dem
-  Deckblatt, wenn sie ausgefüllt sind; ein eingetragenes Termindatum überschreibt die
-  automatische Erkennung aus den Fotos (auch im Dateinamen)
-- **Optionale Textseite nach dem Deckblatt**: bei Reklamation „Beurteilung" (Fachliche
-  Beurteilung + Auftragsnummer auf dem Deckblatt), bei Analysetermin „Zusammenfassung" –
-  jeweils mit Vermerk, wer den Text wann verfasst hat; leer = keine Extra-Seite
-- **Mitarbeiter-Dropdown mit Freitext-Option**: „Anderer Name (selbst eingeben) …"
-  erlaubt neue Namen ohne Foto (Initialen-Platzhalter)
-- **Exakt 1 Foto pro Seite** ab Seite 2
-- **Chronologische Sortierung**: EXIF `DateTimeOriginal` → sonst Dateidatum (`lastModified`) →
-  Tie-Breaker Dateiname. Fehlendes EXIF-Datum wird in der UI gekennzeichnet.
-- **HEIC/HEIF-Unterstützung**: Konvertierung im Browser via `heic2any` (libheif/WASM),
-  EXIF-Datum wird vor der Konvertierung aus der Originaldatei gelesen
-- **EXIF-Orientation** wird automatisch korrekt angewendet
-- **Duplikat-Erkennung** per SHA-256 über die Datei-Bytes (WebCrypto). Duplikate werden
-  standardmäßig ausgeschlossen; optional „Duplikate behalten (kennzeichnen)“
-- **Feste, qualitätsschonende Komprimierung** vor dem Einbetten (keine Auswahl nötig):
-  Downscale auf max. 2200 px Kante (nie Hochskalierung) + JPEG-Qualität 0,75.
-  PNGs mit echter Transparenz bleiben PNG.
-- **„Extra Komprimierung"** (Checkbox): komprimiert stufenweise stärker
-  (1600/0,60 → 1200/0,50 → 960/0,40 → 800/0,35), bis die PDF **unter 10 MB** liegt
-- Dateiname: `ISOTEC_<Terminart>_Fotodokumentation_<Kunde>_<JJJJ-MM-TT>.pdf`
-  (der Kunde entfällt, wenn das Feld leer ist; das Datum ist das Termindatum)
+Auf der Seite Kunde baut `src/lib/mappe.ts` aus den erstellten PDFs ein Dokument zum Ausdrucken:
+Deckblatt, Inhaltsverzeichnis (Seitenzahl und Umfang je Abschnitt), danach Prinzipskizze,
+Sanierungsvorschau und Fotodokumentation in dieser Reihenfolge, jede mit ihren eigenen Seiten
+übernommen (pdf-lib `copyPages`).
 
 ## Stack
 
-Vite + React + TypeScript · [pdf-lib](https://pdf-lib.js.org/) · [exifr](https://github.com/MikeKovarik/exifr) ·
-[heic2any](https://github.com/alexcorvi/heic2any) · WebCrypto (SHA-256)
+Vite + React 18 + TypeScript · [pdf-lib](https://pdf-lib.js.org/) · [exifr](https://github.com/MikeKovarik/exifr) ·
+[heic-to](https://github.com/hoppergee/heic-to) (zuerst, kann die HDR-HEICs neuerer iPhones) und
+[heic2any](https://github.com/alexcorvi/heic2any) (Rückfall) · [mediabunny](https://mediabunny.dev/)
+(WebCodecs, Videoumwandlung) · Google Gemini (nur Sanierungsvorschau) · WebCrypto (SHA-256 für
+Duplikate).
+
+Video- und Vorschauseite sowie pdf-lib werden erst geladen, wenn sie gebraucht werden
+(`React.lazy`, dynamischer Import). Das Startpaket liegt bei rund 260 KB.
 
 ## Entwicklung
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm run build    # Produktions-Build nach dist/
+npm run build    # tsc --noEmit && vite build -> dist/
 npm run preview  # dist/ lokal testen
 ```
 
+Die Sanierungsvorschau braucht einen Gemini-Schlüssel, der nur beim Bauen in GitHub Actions
+eingesetzt wird (siehe unten). Lokal zeigt sie deshalb „Bildbearbeitung nicht verfügbar";
+zum Ausprobieren gibt es `http://localhost:5173/#demo` mit gemalten Beispielbildern.
 
-## Vertriebler pflegen
+## Mitarbeiter pflegen
 
-Die Mitarbeiterfotos liegen im Repo unter **`src/assets/vertriebler/`**. Dateinamen sind exakt
-**„Vorname Nachname.jpg“** oder **„Vorname Nachname.png“** (Leerzeichen gehören zum Namen,
-Groß-/Kleinschreibung beibehalten), z. B. `Mike Alsdorf.png`. Aktuell enthalten:
-Mike Alsdorf, Sarah Najji, Boris Hohl, Alexander Swaghoven, Marvin Bethke, Hüseyin Manaz,
-Björn Morscheck, Gerd Kahlau, Dzevit Veliji.
+Die Auswahlliste entsteht zur Build-Zeit aus **`src/assets/vertriebler/`** (`import.meta.glob`
+in `src/data/salespeople.ts`). Dateiname ist exakt **„Vorname Nachname.jpg"** oder **„.png"**.
+Die Fotos dienen nur noch als kleines Rundbild in der App und auf dem Video-Deckblatt; 400 Pixel
+Kantenlänge reichen (rund 20 KB), größere Dateien bremsen den Seitenaufbau am Handy.
 
-**Neuen Mitarbeiter hinzufügen:**
+Die **Visitenkarten** für das Deckblatt liegen in **`src/assets/visitenkarten/`**, ebenfalls als
+„Vorname Nachname.jpg" (1000 Pixel breit, rund 80 KB). Nur wer dort eine Karte hat, erscheint auf
+dem Deckblatt; alle anderen bekommen das Logo. Aktuell: Björn Morscheck, Gerd Kahlau,
+Hüseyin Manaz, Mike Alsdorf.
 
-1. Foto als `Vorname Nachname.jpg`/`.png` in `src/assets/vertriebler/` ablegen (das Bild wird
-   auf dem Deckblatt mittig rund zugeschnitten – quadratisch/Portrait wirkt am besten)
-2. Committen und pushen – fertig.
-
-Alternativ kann im Tool jederzeit „Anderer Name (selbst eingeben) …" gewählt werden –
-dann erscheint statt des Fotos ein Initialen-Platzhalter.
-
-Die Dropdown-Liste wird **nicht manuell gepflegt**: `src/data/salespeople.ts` liest den Ordner
-zur Build-Zeit per `import.meta.glob` ein. Vite vergibt dabei gehashte ASCII-Dateinamen –
-wichtig, weil der GitHub-Pages-Build an Umlaut-Dateinamen (z. B. „Björn …", „Hüseyin …")
-scheitert; die Anzeigenamen behalten ihre Umlaute natürlich.
-
-Wird ein Foto zur Laufzeit nicht gefunden (404), zeigt die App einen Initialen-Platzhalter
-und einen Hinweis – kein Absturz.
-
-Das Teamfoto (`src/assets/team.jpg`) und das ISOTEC-Logo (`src/assets/isotec-logo.png`)
-für Deckblatt und App-Header werden mit der App gebündelt.
+Vite vergibt beim Bauen gehashte ASCII-Dateinamen, weil der GitHub-Pages-Build an Umlauten im
+Dateinamen scheitert; die Anzeigenamen behalten ihre Umlaute. Liegt ein Name in zwei Formaten
+vor, zählt nur das erste.
 
 ## Deployment auf GitHub Pages
 
-Der Workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) baut bei jedem Push
-auf `main` und deployt über `actions/deploy-pages`:
+Push auf `main` startet [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): bauen und
+`dist/` in den Branch `gh-pages` schieben (Settings → Pages → Source: „Deploy from a branch",
+`gh-pages`). Nach etwa einer Minute ist der Stand live. Der Weg über `actions/deploy-pages` blieb
+früher wiederholt in der Warteschlange hängen.
 
-1. Repo auf GitHub anlegen und pushen
-2. Im Repo unter **Settings → Pages → Source** auf **„GitHub Actions“** stellen
-3. Push auf `main` → die Seite erscheint unter `https://<user>.github.io/<repo-name>/`
+Der Workflow setzt `BASE_PATH=/<repo-name>/` für Vite und reicht das Actions-Geheimnis
+`GEMINI_SCHLUESSEL` durch. `vite.config.ts` schreibt den Schlüssel **kodiert** (umgekehrt und
+Base64) ins Programm: GitHub scannt den öffentlichen `gh-pages`-Branch nach Google-Schlüsseln und
+meldet Treffer, Google sperrt sie dann sofort (passiert am 04.09.2026). Nie einen `AIza`-Schlüssel
+im Klartext in einen öffentlichen Branch bauen. Der Schlüssel ist auf `techniker-feedback-isotec.github.io`
+beschränkt und gilt deshalb nicht auf localhost.
 
-### `base`-Konfiguration
+## Datenschutz
 
-Vite braucht auf GitHub Pages den korrekten Basispfad (`/<repo-name>/`). Der Workflow setzt dafür
-automatisch die Umgebungsvariable `BASE_PATH=/<repo-name>/` – der Repo-Name muss also nirgends
-hart gepflegt werden. Lokal (ohne `BASE_PATH`) gilt der Fallback in
-[`vite.config.ts`](vite.config.ts). Für eine User-/Org-Page (`<user>.github.io` als Repo-Name)
-`BASE_PATH=/` setzen.
-
-## Datenschutz / Sicherheit
-
-- Alle Verarbeitung (EXIF, HEIC-Konvertierung, Hashing, Komprimierung, PDF) passiert
-  ausschließlich clientseitig im Browser
-- Keine Uploads, kein Backend, keine externen Requests zur Laufzeit
-  (auch die HEIC-WASM-Bibliothek wird mit der App ausgeliefert)
-- Kein Tracking, keine Analytics, keine Cookies, kein localStorage
+- Fotodokumentation, Videodokumentation, Prinzipskizze und Angebotsmappe laufen vollständig im
+  Browser: keine Uploads, kein Backend, kein Tracking, keine Cookies, kein localStorage.
+- **Ausnahme Sanierungsvorschau:** Dort gehen die Kellerfotos zur Bearbeitung an Google Gemini.
+  Der Hinweis im Menüband wechselt auf dieser Seite entsprechend, die fertige PDF trägt einen
+  Hinweiskasten, dass es sich um KI-Visualisierungen handelt.

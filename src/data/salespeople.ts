@@ -14,9 +14,14 @@ export interface Salesperson {
   url: string
 }
 
+// Liegt ein Name in zwei Formaten vor (etwa .png und .jpg), zaehlt nur das
+// erste - sonst staende der Mitarbeiter doppelt in der Auswahl und React
+// bekaeme zwei Eintraege mit demselben Schluessel.
+const gesehen = new Set<string>()
 export const SALESPEOPLE: Salesperson[] = Object.entries(photoModules)
   .map(([path, url]) => ({
     name: (path.split('/').pop() ?? '').replace(/\.(jpe?g|png)$/i, ''),
     url,
   }))
+  .filter((s) => (gesehen.has(s.name) ? false : (gesehen.add(s.name), true)))
   .sort((a, b) => a.name.localeCompare(b.name, 'de'))
