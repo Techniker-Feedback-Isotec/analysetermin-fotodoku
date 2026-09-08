@@ -1,36 +1,110 @@
-import { defineConfig } from 'vite'
+import { readFileSync } from 'node:fs'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { erzeugeKundendienst, MeisterTaskFehler } from './server/meistertask.mjs'
+import { geminiWeiterleiten } from './server/gemini.mjs'
 
-// BASE_PATH wird im GitHub-Actions-Workflow automatisch auf "/<repo-name>/"
-// gesetzt. Lokal (dev) laeuft die App unter "/".
-//
-// GEMINI_SCHLUESSEL (Reiter Sanierungsvorschau) kommt aus dem Actions-Geheimnis
-// und wird beim Bauen KODIERT ins Programm geschrieben (Zeichen umgekehrt, dann
-// Base64). Grund: Das gebaute Programm liegt im oeffentlichen gh-pages-Branch,
-// und GitHub meldet dort gefundene Google-Schluessel automatisch an Google, das
-// sie sofort sperrt (passiert am 04.09.2026 beim Vorher-Nachher-Tool). Die
-// Kodierung verhindert nur diese automatische Erkennung, sie ist kein Schutz
-// vor Menschen, die gezielt nachsehen. Bewusst KEIN VITE_-Praefix, damit Vite
-// den Klartext nie selbst ins Programm schreibt.
-function kodiereSchluessel(klartext: string | undefined): string {
-  const wert = (klartext ?? '').trim()
-  if (!wert) return ''
-  return Buffer.from(wert.split('').reverse().join(''), 'utf8').toString('base64')
+/**
+ * Der Dev-Server traegt bei, was der Browser nicht selbst kann: die
+ * Kundensuche in MeisterTask (keine CORS-Header, Token bleibt auf dem Server)
+ * und die Weiterleitung an Google Gemini (Schluessel bleibt auf dem Server).
+ *
+ * Auf Azure uebernimmt server/index.mjs exakt dieselben Pfade – die Logik
+ * liegt deshalb in den gemeinsamen Modulen unter server/ und steht hier nicht
+ * doppelt. Die Geheimnisse kommen aus der .env.local (nicht eingecheckt):
+ * MT_TOKEN, MT_TOKEN_FELDER, GEMINI_SCHLUESSEL.
+ */
+
+/** Ein Wert aus der .env.local, einmal je Serverlauf gelesen. */
+function ausEnv(name: string): string | undefined {
+  if (process.env[name]) return process.env[name]
+  try {
+    const env = readFileSync(new URL('./.env.local', import.meta.url), 'utf8')
+    return new RegExp(`^${name}=(.+)$`, 'm').exec(env)?.[1]?.trim()
+  } catch {
+    return undefined
+  }
 }
 
-export default defineConfig(({ command }) => ({
-  plugins: [react()],
-  base: command === 'build' ? process.env.BASE_PATH ?? '/analysetermin-fotodoku/' : '/',
+function apiRouten(): Plugin {
+  const mtToken = ausEnv('MT_TOKEN')
+  const feldToken = ausEnv('MT_TOKEN_FELDER')
+  const gemini = ausEnv('GEMINI_SCHLUESSEL')
+  const kunden = erzeugeKundendienst({ token: mtToken, feldToken })
+
+  return {
+    name: 'dokumentation-api',
+    configureServer(server) {
+      server.middlewares.use('/api', async (req, res) => {
+        const url = new URL(req.url ?? '/', 'http://intern')
+        const json = (status: number, daten: unknown) => {
+          res.statusCode = status
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(JSON.stringify(daten))
+        }
+        try {
+          // In der Entwicklung gibt es keine Anmeldung: Yann sitzt davor.
+          if (url.pathname === '/ich') {
+            json(200, {
+              email: 'feyen@isotec-morscheck.de',
+              name: 'Yann Feyen',
+              anmeldung: 'entwicklung',
+              meistertask: Boolean(mtToken),
+              gemini: Boolean(gemini),
+            })
+            return
+          }
+          if (url.pathname === '/kunden') {
+            json(200, await kunden.kundenliste(url.searchParams.get('mitarbeiter') ?? ''))
+            return
+          }
+          const kunde = /^\/kunden\/(\d+)$/.exec(url.pathname)
+          if (kunde) {
+            const projekt = Number(url.searchParams.get('projekt')) || undefined
+            json(200, await kunden.kundendaten(Number(kunde[1]), projekt))
+            return
+          }
+          const art = /^\/gemini\/(bild|bestand)$/.exec(url.pathname)
+          if (art) {
+            let rumpf = ''
+            for await (const teil of req) rumpf += teil
+            const { status, text } = await geminiWeiterleiten(
+              art[1] as 'bild' | 'bestand',
+              rumpf,
+              gemini,
+            )
+            res.statusCode = status
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(text)
+            return
+          }
+          json(404, { fehler: 'Unbekannter Pfad.' })
+        } catch (err) {
+          if (err instanceof MeisterTaskFehler) {
+            json(err.status === 429 ? 429 : 502, { fehler: err.message })
+            return
+          }
+          json(500, { fehler: String(err) })
+        }
+      })
+    },
+  }
+}
+
+export default defineConfig(() => ({
+  plugins: [react(), apiRouten()],
+  // Auf Azure laeuft die App unter "/". Die alte GitHub-Pages-Adresse leitet
+  // nur noch um; BASE_PATH bleibt fuer den Fall, dass ein Unterpfad noetig wird.
+  base: process.env.BASE_PATH ?? '/',
   // PORT setzt die Claude-Code-Vorschau, wenn 5173 schon belegt ist.
   server: { port: Number(process.env.PORT) || 5173 },
-  define: {
-    __GEMINI_SCHLUESSEL_KODIERT__: JSON.stringify(kodiereSchluessel(process.env.GEMINI_SCHLUESSEL)),
-  },
   build: {
     rollupOptions: {
       output: {
-        // Asset-Dateinamen ASCII-sicher machen: Der GitHub-Pages-Build scheitert
-        // an Umlauten in Dateinamen (z. B. "Björn Morscheck.png").
+        // Asset-Dateinamen ASCII-sicher machen (Mitarbeiterfotos heissen
+        // "Björn Morscheck.png"), damit kein Werkzeug in der Kette an Umlauten
+        // im Dateinamen scheitert.
         assetFileNames: (info) => {
           const original = info.names?.[0] ?? 'asset'
           const base = original.replace(/\.[^.]+$/, '')

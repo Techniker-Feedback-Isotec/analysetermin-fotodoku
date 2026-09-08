@@ -16,14 +16,6 @@ import { visitenkarteVon } from '../data/visitenkarten'
 import { mitarbeiterVon, objektadresseText, type Kundendaten } from '../kunde'
 import type { DeckblattBild } from '../lib/deckblatt'
 import { GeminiFehler, erfasseBestand, saniereFoto } from './lib/gemini'
-import {
-  MITGELIEFERTER_SCHLUESSEL,
-  leseEigenenSchluessel,
-  leseSchluessel,
-  speichereSchluessel,
-  uebernimmSchluesselAusLink,
-  verteilLink,
-} from './lib/schluessel'
 
 /**
  * Je Foto lassen sich zwei Optionen anhaken (Yann, 05.09.2026):
@@ -67,8 +59,8 @@ type Foto = {
   name: string
   vorherUrl: string
   vorherBlob: Blob
-  /** Zustand des Vorher-Bilds: wird gelesen, wartet auf Schluessel, oder bereit. */
-  status: 'liest' | 'wartet' | 'bereit' | 'lesefehler'
+  /** Zustand des Vorher-Bilds: wird gelesen oder bereit. */
+  status: 'liest' | 'bereit' | 'lesefehler'
   fehler?: string
   /** Ergebnisse je Kombination, Schluessel siehe kombination(). */
   ergebnisse: Record<string, Ergebnis>
@@ -129,15 +121,15 @@ export interface VorschauPanelProps {
   kunde: Kundendaten
   /** Fertige PDF fuer die Sammlung auf der Seite Kunde */
   onDokument?: (schluessel: string, quelle: string, datei: File | null) => void
+  /**
+   * Ob der Server einen Gemini-Schluessel hat (aus /api/ich); null = noch
+   * unbekannt. Der Schluessel liegt seit dem Umzug nach Azure nur dort.
+   */
+  geminiVerfuegbar: boolean | null
 }
 
-export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps) {
+export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: VorschauPanelProps) {
   const [fotos, setFotos] = useState<Foto[]>([])
-  const [schluessel, setSchluessel] = useState('')
-  const [einstellungenOffen, setEinstellungenOffen] = useState(false)
-  const [schluesselEntwurf, setSchluesselEntwurf] = useState('')
-  const [eigener, setEigener] = useState('')
-  const [linkKopiert, setLinkKopiert] = useState(false)
   const [auswahlId, setAuswahlId] = useState<string | null>(null)
   const [gesichert, setGesichert] = useState(false)
   const [zeigeIndex, setZeigeIndex] = useState<number | null>(null)
@@ -155,22 +147,13 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
   const aufIOS = istIOS()
   const dateiFeld = useRef<HTMLInputElement>(null)
-  const schluesselRef = useRef('')
-  schluesselRef.current = schluessel
   // Laufende Verarbeitungen brauchen den aktuellen Stand (z. B. den Bestand).
   const fotosRef = useRef<Foto[]>([])
   fotosRef.current = fotos
 
   useEffect(() => {
+    // #demo laedt gemalte Beispielbilder, ohne Google zu bemuehen.
     const demo = window.location.hash.includes('demo')
-    // Die Einstellungen stehen absichtlich nicht in der Oberfläche: Im Einsatz
-    // soll niemand am Schlüssel drehen. Erreichbar nur über #einstellungen.
-    const einstellungen = window.location.hash.includes('einstellungen')
-    uebernimmSchluesselAusLink()
-    setSchluessel(leseSchluessel())
-    setEigener(leseEigenenSchluessel())
-    setSchluesselEntwurf(leseEigenenSchluessel())
-    if (einstellungen) setEinstellungenOffen(true)
     if (demo && !demoGeladen) {
       demoGeladen = true
       void (async () => {
@@ -227,10 +210,6 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
    * einen zweiten Versuch; der Bestand wird je Foto nur einmal ermittelt.
    */
   async function verarbeite(id: string, vorherBlob: Blob, optionen: Optionen, entfernt: number[]) {
-    if (!schluesselRef.current) {
-      aktualisiere(id, { status: 'wartet' })
-      return
-    }
     const kombi = kombination(optionen, entfernt)
     setzeErgebnis(id, kombi, { status: 'laeuft' })
     try {
@@ -240,7 +219,7 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
         // Bildauftrag, damit Fenster und Rohre nicht verschwinden oder entstehen.
         let bestand = fotosRef.current.find((f) => f.id === id)?.bestand ?? ''
         if (!bestand) {
-          bestand = await erfasseBestand(base64, schluesselRef.current)
+          bestand = await erfasseBestand(base64)
           if (bestand) aktualisiere(id, { bestand })
         }
         // Abgewaehlte Zeilen wandern aus der Pflichtliste in den Entfernen-Block.
@@ -257,28 +236,11 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
           entfernen,
         }
         try {
-          return await saniereFoto(base64, schluesselRef.current, auftrag)
+          return await saniereFoto(base64, auftrag)
         } catch (fehler) {
           if (fehler instanceof GeminiFehler && fehler.wiederholbar) {
             await new Promise((r) => setTimeout(r, 4000))
-            return await saniereFoto(base64, schluesselRef.current, auftrag)
-          }
-          // Ein auf diesem Geraet hinterlegter Schluessel, den Google ablehnt
-          // (z. B. der gesperrte vom 04.09.2026), wird verworfen; danach gilt
-          // wieder der mitgelieferte, und der Versuch wird damit wiederholt.
-          if (
-            fehler instanceof GeminiFehler &&
-            fehler.schluesselAbgelehnt &&
-            leseEigenenSchluessel() &&
-            MITGELIEFERTER_SCHLUESSEL &&
-            schluesselRef.current !== MITGELIEFERTER_SCHLUESSEL
-          ) {
-            speichereSchluessel('')
-            setEigener('')
-            setSchluesselEntwurf('')
-            setSchluessel(MITGELIEFERTER_SCHLUESSEL)
-            schluesselRef.current = MITGELIEFERTER_SCHLUESSEL
-            return await saniereFoto(base64, MITGELIEFERTER_SCHLUESSEL, auftrag)
+            return await saniereFoto(base64, auftrag)
           }
           throw fehler
         }
@@ -365,26 +327,6 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
       for (const e of Object.values(foto?.ergebnisse ?? {})) if (e.url) URL.revokeObjectURL(e.url)
       return liste.filter((f) => f.id !== id)
     })
-  }
-
-  function speichereEinstellungen() {
-    const eingabe = schluesselEntwurf.trim()
-    speichereSchluessel(eingabe)
-    setEigener(eingabe)
-    // Ohne eigene Eingabe gilt wieder der mitgelieferte Schluessel.
-    const wert = eingabe || MITGELIEFERTER_SCHLUESSEL
-    setSchluessel(wert)
-    setEinstellungenOffen(false)
-    // Alles, was auf den Schluessel gewartet hat, jetzt anstossen.
-    if (wert) {
-      schluesselRef.current = wert
-      for (const foto of fotos) {
-        if (foto.status === 'wartet') {
-          aktualisiere(foto.id, { status: 'bereit' })
-          void verarbeite(foto.id, foto.vorherBlob, foto.optionen, foto.entfernt)
-        }
-      }
-    }
   }
 
   /**
@@ -476,16 +418,6 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
     setPdfBlob(null)
     setPdfFertig('')
   }, [fotos])
-
-  async function kopiereVerteilLink() {
-    try {
-      await navigator.clipboard.writeText(verteilLink(schluessel))
-      setLinkKopiert(true)
-      window.setTimeout(() => setLinkKopiert(false), 2500)
-    } catch {
-      /* Zwischenablage nicht verfuegbar */
-    }
-  }
 
   // Im Fenster gezeigt wird das gewaehlte Foto, sonst das erste mit fertigem
   // Ergebnis, sonst das erste bereite. Die Vollbildansicht kennt nur fertige.
@@ -600,58 +532,9 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
   return (
     <>
       <div className="vorschau">
-        {einstellungenOffen && (
-          <section className="card">
-            <h2>Einstellungen (nur Verwaltung)</h2>
-            <p className="section-hint">
-              Diese Seite ist absichtlich nicht verlinkt und nur über <code>#einstellungen</code> in
-              der Adresse erreichbar. Der Schlüssel wird mit dem Programm ausgeliefert: Wer die
-              Seite öffnet, kann sofort arbeiten, ohne etwas einzurichten. Das Feld unten
-              überschreibt ihn nur auf diesem Gerät, leer lassen und speichern nimmt wieder den
-              mitgelieferten. Bildmodell ist das Pro-Modell von Gemini; die Kosten je Foto
-              liegen etwa beim Dreifachen des Flash-Modells, der Verbrauch ist in AI Studio
-              einsehbar.
-            </p>
-            <p className="section-hint">
-              Gerade in Benutzung:{' '}
-              <strong>
-                {eigener
-                  ? 'eigener Schlüssel dieses Geräts'
-                  : MITGELIEFERTER_SCHLUESSEL
-                    ? 'mitgelieferter Schlüssel'
-                    : 'keiner – diese Fassung wurde ohne Schlüssel gebaut'}
-              </strong>
-            </p>
-            <div className="zeile">
-              <input
-                className="feld"
-                type="text"
-                inputMode="text"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="API-Schlüssel einfügen"
-                value={schluesselEntwurf}
-                onChange={(e) => setSchluesselEntwurf(e.target.value)}
-              />
-              <button className="btn btn-rot" onClick={speichereEinstellungen}>
-                Speichern
-              </button>
-            </div>
-            {schluessel && (
-              <p className="section-hint" style={{ marginTop: 12 }}>
-                Für die Kollegen genügt die normale Adresse, der Schlüssel ist schon drin. Nur wenn
-                ein einzelnes Gerät einen anderen Schlüssel bekommen soll:{' '}
-                <button className="btn btn-rand btn-klein" onClick={kopiereVerteilLink}>
-                  {linkKopiert ? '✓ Link kopiert' : 'Link mit Schlüssel kopieren'}
-                </button>
-              </p>
-            )}
-          </section>
-        )}
-
-        {!schluessel && !einstellungenOffen && (
+        {geminiVerfuegbar === false && (
           <section className="card hinweis-warn">
-            Die Bildbearbeitung ist gerade nicht verfügbar, dieser Fassung fehlt der Zugang zu
+            Die Bildbearbeitung ist gerade nicht verfügbar, auf dem Server fehlt der Zugang zu
             Google. Bitte bei Yann melden. Fotos lassen sich schon auswählen, bearbeitet wird
             aber nichts.
           </section>
@@ -748,9 +631,6 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
                             <span className="dreher" />
                             {foto.status === 'liest' ? 'Wird gelesen …' : statustext(foto)}
                           </span>
-                        )}
-                        {foto.status === 'wartet' && (
-                          <span className="kachel-schleier">Wartet auf Schlüssel</span>
                         )}
                         {(foto.status === 'lesefehler' || ergebnis?.status === 'fehler') && (
                           <span className="kachel-schleier kachel-fehler">

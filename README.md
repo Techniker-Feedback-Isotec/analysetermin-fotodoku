@@ -1,12 +1,15 @@
 # Dokumentation
 
-Statisches Web-Tool (Single-Page-App) der **Abdichtungstechnik Dipl.-Ing. Morscheck GmbH** für die
-Unterlagen aus dem Außendienst. Fünf Seiten in einem Menüband, die Angaben zum Kunden werden
-**einmal** eingetragen und gelten für alle Unterlagen:
+Web-Tool (Single-Page-App mit kleinem Node-Server) der **Abdichtungstechnik Dipl.-Ing. Morscheck
+GmbH** für die Unterlagen aus dem Außendienst. Fünf Seiten in einem Menüband, die Angaben zum
+Kunden werden **einmal** eingetragen und gelten für alle Unterlagen:
 
-- **Kunde:** Mitarbeiter, Kunde, Kundenadresse, Objektadresse (nur bei Abweichung), Auftragsnummer,
-  Termindatum, Sanierungskonzept (Gewerke), Objektfoto. Darunter die Sammlung aller erstellten
-  Dokumente mit Vorschau und Download sowie der Knopf für die **Angebotsmappe**.
+- **Kunde:** Mitarbeiter (nach der Anmeldung vorgewählt), Kunde, Kundenadresse, Objektadresse (nur
+  bei Abweichung), Baujahr, Auftragsnummer, Termindatum, Sanierungskonzept (Gewerke), Objektfoto.
+  Das Feld Kunde ist zugleich die **Suche in MeisterTask**: Es durchsucht das Ersttermine-Board
+  des Mitarbeiters (Spalten Phase 0 und Auftragsbesprechungen) und übernimmt Name, Anschriften
+  und Baujahr aus der gewählten Aufgabe. Darunter die Sammlung aller erstellten Dokumente mit
+  Vorschau und Download sowie der Knopf für die **Angebotsmappe**.
 - **Fotodokumentation:** Terminart (Analysetermin oder Reklamation), Fotos, optionale
   Zusammenfassung bzw. Beurteilung als formatierter Text, PDF mit einem Foto pro Seite.
 - **Videodokumentation:** Videos bekommen ein 5-Sekunden-Deckblatt vorangestellt, die Drehung
@@ -16,10 +19,11 @@ Unterlagen aus dem Außendienst. Fünf Seiten in einem Menüband, die Angaben zu
 - **Sanierungsvorschau:** Kellerfotos werden per Google Gemini „weißsaniert" (Vorher/Nachher);
   ursprünglich das eigenständige Tool `keller-vorher-nachher`, seit 08.09.2026 hier eingebaut.
 
-Live: https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/ (Adresse und Repo-Name
-sind historisch, das Tool heißt nur noch „Dokumentation"). Die ausführliche Projektnotiz mit
-Entscheidungen und offenen Punkten liegt in Yanns Obsidian-Vault unter
-`02 Projekte/Dokumentation Analysetermin.md`.
+Live: https://isotec-dokumentation.azurewebsites.net (Anmeldung mit dem ISOTEC-Konto, seit
+08.09.2026; Betrieb siehe [`docs/AZURE.md`](docs/AZURE.md)). Die alte GitHub-Pages-Adresse
+leitet nur noch um. Der Repo-Name ist historisch, das Tool heißt nur noch „Dokumentation". Die
+ausführliche Projektnotiz mit Entscheidungen und offenen Punkten liegt in Yanns Obsidian-Vault
+unter `02 Projekte/Dokumentation Analysetermin.md`.
 
 ## Deckblatt
 
@@ -62,9 +66,11 @@ npm run build    # tsc --noEmit && vite build -> dist/
 npm run preview  # dist/ lokal testen
 ```
 
-Die Sanierungsvorschau braucht einen Gemini-Schlüssel, der nur beim Bauen in GitHub Actions
-eingesetzt wird (siehe unten). Lokal zeigt sie deshalb „Bildbearbeitung nicht verfügbar";
-zum Ausprobieren gibt es `http://localhost:5173/#demo` mit gemalten Beispielbildern.
+Der Dev-Server bedient `/api/*` selbst (`vite.config.ts`, gemeinsame Module unter `server/`) und
+liest die Geheimnisse aus `.env.local` (nicht eingecheckt): `MT_TOKEN` und `MT_TOKEN_FELDER` für
+die Kundensuche, `GEMINI_SCHLUESSEL` für die Sanierungsvorschau. Ohne Gemini-Schlüssel zeigt die
+Vorschau „nicht eingerichtet"; `http://localhost:5173/#demo` lädt gemalte Beispielbilder. Als
+angemeldet gilt lokal immer Yann (`/api/ich`).
 
 ## Mitarbeiter pflegen
 
@@ -82,24 +88,23 @@ Vite vergibt beim Bauen gehashte ASCII-Dateinamen, weil der GitHub-Pages-Build a
 Dateinamen scheitert; die Anzeigenamen behalten ihre Umlaute. Liegt ein Name in zwei Formaten
 vor, zählt nur das erste.
 
-## Deployment auf GitHub Pages
+## Server und Deployment (Azure)
 
-Push auf `main` startet [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): bauen und
-`dist/` in den Branch `gh-pages` schieben (Settings → Pages → Source: „Deploy from a branch",
-`gh-pages`). Nach etwa einer Minute ist der Stand live. Der Weg über `actions/deploy-pages` blieb
-früher wiederholt in der Warteschlange hängen.
+`server/index.mjs` liefert `dist/` aus (gzip, ETag) und bedient vier Dinge, die der Browser nicht
+selbst kann: `/api/ich` (wer ist angemeldet, aus den Easy-Auth-Kopfzeilen), `/api/kunden` und
+`/api/kunden/<id>` (Kundensuche in MeisterTask, `server/meistertask.mjs`) und `/api/gemini/*`
+(Weiterleitung an Google, `server/gemini.mjs`). Die Token und der Google-Schlüssel liegen als
+Anwendungseinstellungen auf dem Server und verlassen ihn nie; der Browser kennt keinen Schlüssel
+mehr. Bauen und Ausliefern immer in PowerShell, Befehle in [`docs/AZURE.md`](docs/AZURE.md).
 
-Der Workflow setzt `BASE_PATH=/<repo-name>/` für Vite und reicht das Actions-Geheimnis
-`GEMINI_SCHLUESSEL` durch. `vite.config.ts` schreibt den Schlüssel **kodiert** (umgekehrt und
-Base64) ins Programm: GitHub scannt den öffentlichen `gh-pages`-Branch nach Google-Schlüsseln und
-meldet Treffer, Google sperrt sie dann sofort (passiert am 04.09.2026). Nie einen `AIza`-Schlüssel
-im Klartext in einen öffentlichen Branch bauen. Der Schlüssel ist auf `techniker-feedback-isotec.github.io`
-beschränkt und gilt deshalb nicht auf localhost.
+Der GitHub-Workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) baut nichts
+mehr, sondern legt auf `gh-pages` nur noch eine Umleitung nach Azure ab.
 
 ## Datenschutz
 
-- Fotodokumentation, Videodokumentation, Prinzipskizze und Angebotsmappe laufen vollständig im
-  Browser: keine Uploads, kein Backend, kein Tracking, keine Cookies, kein localStorage.
+- Fotos, Videos und PDFs bleiben im Browser: kein Upload, kein Tracking, kein localStorage.
+- Die Anmeldung läuft über das ISOTEC-Konto (Microsoft Entra, Sitzungscookie von Easy Auth,
+  acht Stunden). Kundendaten werden aus MeisterTask **gelesen**, nichts wird dorthin geschrieben.
 - **Ausnahme Sanierungsvorschau:** Dort gehen die Kellerfotos zur Bearbeitung an Google Gemini.
   Der Hinweis im Menüband wechselt auf dieser Seite entsprechend, die fertige PDF trägt einen
   Hinweiskasten, dass es sich um KI-Visualisierungen handelt.

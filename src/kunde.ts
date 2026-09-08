@@ -28,10 +28,14 @@ export interface Kundendaten {
   termindatum: string
   /** Landet nur bei Reklamationen in der PDF */
   auftragsnummer: string
+  /** Baujahr des Objekts, frei ("1971", "190x"); kommt meist aus MeisterTask */
+  baujahr: string
   /** Gewerke des Sanierungskonzepts; leer = kein Block auf dem Deckblatt */
   gewerke: string[]
   /** Objektfoto fuer das Deckblatt der PDF-Dokumente */
   objektfoto: PreparedImage | null
+  /** Die MeisterTask-Aufgabe, aus der die Angaben uebernommen wurden, oder null */
+  meistertask: { id: number; token: string; titel: string } | null
 }
 
 export const LEERE_KUNDENDATEN: Kundendaten = {
@@ -42,8 +46,49 @@ export const LEERE_KUNDENDATEN: Kundendaten = {
   objektadresse: '',
   termindatum: '',
   auftragsnummer: '',
+  baujahr: '',
   gewerke: [],
   objektfoto: null,
+  meistertask: null,
+}
+
+/** Fuer den Vergleich zweier Anschriften: klein, ohne Satzzeichen und doppelte Leerzeichen. */
+const glatt = (s: string) => s.toLowerCase().replace(/[,\n]/g, ' ').replace(/\s+/g, ' ').trim()
+
+/**
+ * Die Anschriften aus einer MeisterTask-Aufgabe in die Regel des Werkzeugs
+ * uebersetzen: Kundenadresse immer, Objektadresse nur bei Abweichung (Yann,
+ * 08.09.2026). Im Board ist oft nur "Anschrift (OBJEKT)" gefuellt – dann ist
+ * das die Kundenadresse.
+ */
+export function anschriftenAus(kundenadresse: string, objektadresse: string): Pick<Kundendaten, 'kundenadresse' | 'objektadresse'> {
+  const kunde = kundenadresse.trim() || objektadresse.trim()
+  const objekt = objektadresse.trim()
+  return {
+    kundenadresse: kunde,
+    objektadresse: objekt && glatt(objekt) !== glatt(kunde) ? objekt : '',
+  }
+}
+
+/**
+ * Welcher Eintrag der Mitarbeiterliste zur angemeldeten Person gehoert.
+ * Zuerst der Anzeigename aus dem Konto ("Yann Feyen"), sonst der Nachname vor
+ * dem @ der Mailadresse (feyen@…). Die Mailadressen anderer Systeme passen
+ * nicht immer zur Anmelde-Mail, deshalb nie nur auf die Mail bauen.
+ */
+export function mitarbeiterFuerAnmeldung(ich: { name: string | null; email: string | null }): string | null {
+  const namen = SALESPEOPLE.map((s) => s.name)
+  if (ich.name) {
+    const gesucht = glatt(ich.name)
+    const treffer = namen.find((n) => glatt(n) === gesucht)
+    if (treffer) return treffer
+  }
+  const lokal = ich.email?.split('@')[0]?.toLowerCase()
+  if (lokal) {
+    const treffer = namen.filter((n) => glatt(n).split(' ').pop() === lokal)
+    if (treffer.length === 1) return treffer[0]
+  }
+  return null
 }
 
 export interface Mitarbeiter {

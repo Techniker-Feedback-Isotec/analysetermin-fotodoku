@@ -1,29 +1,19 @@
 /**
  * Anbindung an Google Gemini.
  *
- * Der Aufruf geht direkt aus dem Browser an die Google-API, es gibt keinen
- * eigenen Server. Der Schluessel kommt aus schluessel.ts.
+ * Der Aufruf geht seit dem 08.09.2026 nicht mehr direkt an Google, sondern an
+ * den eigenen Server (/api/gemini/bild und /api/gemini/bestand, siehe
+ * server/gemini.mjs). Dort liegen Modellnamen und Schluessel; der Browser
+ * kennt keinen Schluessel mehr. Googles Antwort kommt unveraendert zurueck,
+ * deshalb gilt die Fehlerbehandlung unten weiter.
+ *
+ * Bildmodell: seit 05.09.2026 das Pro-Modell (Entscheidung Yann), weil das
+ * Flash-Modell unter dem weissen Putz das Ziegelmuster durchscheinen liess.
+ * Bestandsaufnahme: ein Textmodell mit Bildverstaendnis listet auf, was auf
+ * dem Foto fest vorhanden ist; die Liste geht als Pflichtbestand in den
+ * Bildauftrag ("Hebel 1", Yann 05.09.2026).
  */
-
-/**
- * Bildmodell. Seit 05.09.2026 das Pro-Modell (Entscheidung Yann): Das
- * Flash-Modell liess unter dem weissen Putz das Ziegelmuster durchscheinen
- * und hielt Vorgaben zu Fenstern und Rohren schlechter ein. Pro kostet etwa
- * das Dreifache je Bild, dafuer folgt es dem Auftrag deutlich strenger.
- * Vorgaenger: 'gemini-2.5-flash-image'.
- */
-const MODELL = 'gemini-3-pro-image'
-const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODELL}:generateContent`
-
-/**
- * Textmodell mit Bildverstaendnis fuer die Bestandsaufnahme vor der
- * Bearbeitung (Yanns Entscheidung vom 05.09.2026, "Hebel 1"): Es listet auf,
- * was auf dem Foto fest vorhanden ist, und diese Liste geht als Pflichtbestand
- * in den Bildauftrag. So ist das Bildmodell auf DIESES Foto festgenagelt statt
- * auf allgemeine Regeln. Kostet unter einem Cent je Foto.
- */
-const BESTAND_MODELL = 'gemini-3.8-flash'
-const BESTAND_URL = `https://generativelanguage.googleapis.com/v1beta/models/${BESTAND_MODELL}:generateContent`
+import { ApiFehler, geminiAnfrage } from '../../lib/api'
 
 const BESTAND_PROMPT = [
   'Du siehst das Foto eines Kellerraums. Erstelle eine nüchterne Bestandsliste aller fest vorhandenen Elemente, damit ein Bildbearbeitungsprogramm sie unverändert erhalten kann.',
@@ -232,39 +222,29 @@ export type SanierOptionen = {
 }
 
 /** Schickt das Vorher-Bild (JPEG, Base64) an Gemini und liefert das Nachher-Bild. */
-export async function saniereFoto(
-  base64Jpeg: string,
-  schluessel: string,
-  optionen: SanierOptionen = {},
-): Promise<Blob> {
+export async function saniereFoto(base64Jpeg: string, optionen: SanierOptionen = {}): Promise<Blob> {
   let antwort: Response
   try {
-    antwort = await fetch(URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': schluessel,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { inlineData: { mimeType: 'image/jpeg', data: base64Jpeg } },
-              {
-                text: prompt(
-                  optionen.bestand,
-                  optionen.bodenHellgrau ?? false,
-                  optionen.moeblieren ?? false,
-                  optionen.entfernen ?? [],
-                ),
-              },
-            ],
-          },
-        ],
-      }),
+    antwort = await geminiAnfrage('bild', {
+      contents: [
+        {
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: base64Jpeg } },
+            {
+              text: prompt(
+                optionen.bestand,
+                optionen.bodenHellgrau ?? false,
+                optionen.moeblieren ?? false,
+                optionen.entfernen ?? [],
+              ),
+            },
+          ],
+        },
+      ],
     })
-  } catch {
-    throw new GeminiFehler('Keine Verbindung zu Google. Internetverbindung prüfen.', true)
+  } catch (fehler) {
+    if (fehler instanceof ApiFehler) throw new GeminiFehler(fehler.message, false)
+    throw new GeminiFehler('Keine Verbindung zum Server. Internetverbindung prüfen.', true)
   }
 
   if (!antwort.ok) {
@@ -274,6 +254,10 @@ export async function saniereFoto(
       detail = json.error?.message ?? ''
     } catch {
       /* Rumpf war kein JSON */
+    }
+    if (antwort.status === 503) {
+      // Der eigene Server hat keinen Schluessel (server/gemini.mjs)
+      throw new GeminiFehler(detail || 'Die Bildbearbeitung ist auf dem Server nicht eingerichtet.', false, true)
     }
     if (antwort.status === 400 || antwort.status === 401 || antwort.status === 403) {
       // Googles Text mitgeben: "reported as leaked" heisst gesperrt, "not valid"
@@ -326,15 +310,13 @@ export async function saniereFoto(
  * mit einer Zeile je Element oder einen leeren Text, wenn der Aufruf scheitert.
  * Wirft absichtlich nie, denn die Bearbeitung soll auch ohne Bestand laufen.
  */
-export async function erfasseBestand(base64Jpeg: string, schluessel: string): Promise<string> {
+export async function erfasseBestand(base64Jpeg: string): Promise<string> {
   const abbruch = new AbortController()
   const wecker = window.setTimeout(() => abbruch.abort(), 25_000)
   try {
-    const antwort = await fetch(BESTAND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': schluessel },
-      signal: abbruch.signal,
-      body: JSON.stringify({
+    const antwort = await geminiAnfrage(
+      'bestand',
+      {
         contents: [
           {
             parts: [
@@ -346,8 +328,9 @@ export async function erfasseBestand(base64Jpeg: string, schluessel: string): Pr
         // Nuechtern und wiederholbar, keine Kreativitaet. Genug Platz, damit
         // die Liste nicht mitten in den Rohren abbricht.
         generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
-      }),
-    })
+      },
+      abbruch.signal,
+    )
     if (!antwort.ok) return ''
     const json = (await antwort.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>

@@ -3,8 +3,10 @@ import KundePanel from './KundePanel'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
 import { useFotostapel } from './fotostapel'
+import { abmelden, ladeIch, type Ich } from './lib/api'
 import {
   LEERE_KUNDENDATEN,
+  mitarbeiterFuerAnmeldung,
   mitarbeiterVon,
   objektadresseEcht,
   type Dokument,
@@ -29,7 +31,7 @@ const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 const VideoPanel = lazy(() => import('./VideoPanel'))
 const VorschauPanel = lazy(() => import('./vorschau/VorschauPanel'))
 
-const START_MODUS: Modus = /vorschau|einstellungen|demo/.test(window.location.hash) ? 'vorschau' : 'kunde'
+const START_MODUS: Modus = /vorschau|demo/.test(window.location.hash) ? 'vorschau' : 'kunde'
 
 let toastCounter = 0
 
@@ -43,7 +45,7 @@ let toastCounter = 0
  * gesammelt auf der Seite Kunde.
  */
 export default function App() {
-  // Die Sanierungsvorschau hat eigene Links (#einstellungen, #demo), die sie direkt oeffnen.
+  // Die Sanierungsvorschau hat einen eigenen Link (#demo), der sie direkt oeffnet.
   const [modus, setModus] = useState<Modus>(START_MODUS)
   /** Seiten, die schon einmal offen waren - nur die werden (und bleiben) eingehaengt */
   const [geoeffnet, setGeoeffnet] = useState<Partial<Record<Modus, boolean>>>({ [START_MODUS]: true })
@@ -53,6 +55,8 @@ export default function App() {
   const [kunde, setKunde] = useState<Kundendaten>(LEERE_KUNDENDATEN)
   const [dokumente, setDokumente] = useState<Dokument[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
+  /** Wer angemeldet ist und was der Server kann (MeisterTask, Gemini); null bis zur Antwort */
+  const [ich, setIch] = useState<Ich | null>(null)
 
   const aendereKunde = useCallback((aenderung: Partial<Kundendaten>) => {
     setKunde((bisher) => ({ ...bisher, ...aenderung }))
@@ -64,6 +68,29 @@ export default function App() {
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, 7000)
+  }, [])
+
+  /**
+   * Die Anmeldung lesen und den eigenen Mitarbeiter vorwaehlen: Wer sich mit
+   * seinem ISOTEC-Konto anmeldet und in der Mitarbeiterliste steht, ist
+   * gleich ausgewaehlt (Yann, 08.09.2026). Die Auswahl bleibt aenderbar.
+   */
+  useEffect(() => {
+    let abgebrochen = false
+    ladeIch()
+      .then((antwort) => {
+        if (abgebrochen) return
+        setIch(antwort)
+        const name = mitarbeiterFuerAnmeldung(antwort)
+        if (name) setKunde((bisher) => (bisher.mitarbeiterAuswahl ? bisher : { ...bisher, mitarbeiterAuswahl: name }))
+      })
+      .catch(() => {
+        // Ohne Antwort bleibt alles bedienbar, nur ohne Vorauswahl und Suche.
+        if (!abgebrochen) setIch({ email: null, name: null, anmeldung: 'entwicklung', meistertask: false, gemini: false })
+      })
+    return () => {
+      abgebrochen = true
+    }
   }, [])
 
   /**
@@ -122,18 +149,29 @@ export default function App() {
         modus={modus}
         onWechsel={setModus}
         fuss={
-          modus === 'vorschau' ? (
-            // Die Sanierungsvorschau schickt die Fotos zur Bearbeitung an Google.
-            <p className="privacy-note">
-              <span aria-hidden="true">☁</span> Fotos werden zur Bearbeitung an Google Gemini
-              übertragen.
-            </p>
-          ) : (
-            <p className="privacy-note">
-              <span aria-hidden="true">🔒</span> Alle Dateien bleiben lokal im Browser – es wird nichts
-              hochgeladen.
-            </p>
-          )
+          <>
+            {modus === 'vorschau' ? (
+              // Die Sanierungsvorschau schickt die Fotos zur Bearbeitung an Google.
+              <p className="privacy-note">
+                <span aria-hidden="true">☁</span> Fotos werden zur Bearbeitung an Google Gemini
+                übertragen.
+              </p>
+            ) : (
+              <p className="privacy-note">
+                <span aria-hidden="true">🔒</span> Fotos und Videos bleiben im Browser. Kundendaten
+                kommen aus MeisterTask.
+              </p>
+            )}
+            {ich?.anmeldung === 'easyauth' && (
+              <p className="privacy-note sidebar-konto">
+                {ich.name ?? ich.email ?? 'Angemeldet'}
+                {' · '}
+                <button type="button" className="link-knopf" onClick={abmelden}>
+                  Abmelden
+                </button>
+              </p>
+            )}
+          </>
         }
       />
 
@@ -147,6 +185,7 @@ export default function App() {
               onEntfernen={entferneDokument}
               onDokument={setzeDokument}
               onToast={pushToast}
+              ich={ich}
             />
           </div>
 
@@ -190,7 +229,7 @@ export default function App() {
           <div hidden={modus !== 'vorschau'}>
             {geoeffnet.vorschau && (
               <Suspense fallback={<p className="lade-hinweis">Sanierungsvorschau wird geladen …</p>}>
-                <VorschauPanel kunde={kunde} onDokument={setzeDokument} />
+                <VorschauPanel kunde={kunde} onDokument={setzeDokument} geminiVerfuegbar={ich ? ich.gemini : null} />
               </Suspense>
             )}
           </div>
@@ -200,12 +239,13 @@ export default function App() {
           <div className="container">
             {modus === 'vorschau' ? (
               <p>
-                {COMPANY} · Fotos gehen zur Bearbeitung an Google Gemini, sonst keine Uploads, kein
-                Tracking, keine Cookies
+                {COMPANY} · Fotos gehen zur Bearbeitung an Google Gemini · Anmeldung über das
+                ISOTEC-Konto, kein Tracking
               </p>
             ) : (
               <p>
-                Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies
+                Fotos und Videos werden lokal im Browser verarbeitet · Anmeldung über das ISOTEC-Konto,
+                kein Tracking
                 <br />
                 PDF: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;TT.MM.JJJJ&gt;.pdf ·
                 Video: ISOTEC_Videodokumentation_&lt;Titel&gt;_&lt;TT.MM.JJJJ&gt;.mp4

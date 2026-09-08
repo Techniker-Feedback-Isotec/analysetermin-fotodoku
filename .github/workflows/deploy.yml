@@ -1,9 +1,10 @@
-name: Deploy to GitHub Pages
+name: Umleitung nach Azure auf GitHub Pages
 
-# Deploy-Weg: dist/ wird in den Branch "gh-pages" gepusht, GitHub Pages ist auf
-# diesen Branch konfiguriert (Settings -> Pages -> Source: Deploy from a branch).
-# Der fruehere Weg ueber actions/deploy-pages blieb wiederholt in der
-# Pages-Warteschlange haengen ("deployment_queued" -> Timeout).
+# Seit dem 08.09.2026 laeuft das Werkzeug auf Azure
+# (https://isotec-dokumentation.azurewebsites.net, siehe docs/AZURE.md).
+# GitHub Pages baut nichts mehr, sondern haelt unter der alten Adresse nur
+# eine Umleitung vor, damit Lesezeichen und auf dem Startbildschirm abgelegte
+# Apps der Kollegen weiter ankommen. Der Anker (#demo) bleibt erhalten.
 
 on:
   push:
@@ -18,39 +19,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-deploy:
+  umleitung:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build (base = /<repo-name>/)
-        run: npm run build
-        env:
-          BASE_PATH: /${{ github.event.repository.name }}/
-          # Gemini-Schluessel fuer den Reiter Sanierungsvorschau. Er steht NICHT
-          # im Quelltext, sondern als Actions-Geheimnis, und laesst sich dort
-          # austauschen, ohne etwas am Programm zu aendern. vite.config.ts
-          # schreibt ihn kodiert ins Programm, damit der Schluessel-Scanner von
-          # GitHub ihn im oeffentlichen gh-pages-Branch nicht erkennt (sonst Sperre).
-          GEMINI_SCHLUESSEL: ${{ secrets.GEMINI_SCHLUESSEL }}
-
-      - name: Push dist to gh-pages
+      - name: Umleitungsseite schreiben
         run: |
+          mkdir -p dist
+          cat > dist/index.html <<'EOF'
+          <!doctype html>
+          <html lang="de">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <meta http-equiv="refresh" content="0; url=https://isotec-dokumentation.azurewebsites.net/" />
+              <title>Dokumentation ist umgezogen</title>
+              <script>
+                location.replace('https://isotec-dokumentation.azurewebsites.net/' + location.hash)
+              </script>
+            </head>
+            <body style="font-family: 'Segoe UI', system-ui, sans-serif; padding: 24px; color: #564a44">
+              <p>
+                Das Werkzeug „Dokumentation" ist umgezogen:
+                <a href="https://isotec-dokumentation.azurewebsites.net/">isotec-dokumentation.azurewebsites.net</a>
+              </p>
+              <p>Bitte die App auf dem Startbildschirm einmal entfernen und von der neuen Adresse neu ablegen.</p>
+            </body>
+          </html>
+          EOF
+          cp dist/index.html dist/404.html
           touch dist/.nojekyll
+
+      - name: Nach gh-pages schieben
+        run: |
           cd dist
           git init -b gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Deploy ${GITHUB_SHA:0:7}"
+          git commit -m "Umleitung nach Azure (${GITHUB_SHA:0:7})"
           git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
