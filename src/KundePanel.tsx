@@ -5,15 +5,7 @@ import MultiSelect from './MultiSelect'
 import { ACCEPT, isSupported, prepareImage } from './lib/bilder'
 import { formatBytes, formatDateTime, initialsOf } from './lib/format'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
-import {
-  CUSTOM_VALUE,
-  TERMINARTEN,
-  mitarbeiterVon,
-  type Dokument,
-  type Kundendaten,
-  type Terminart,
-  type ToastFn,
-} from './kunde'
+import { CUSTOM_VALUE, mitarbeiterVon, type Dokument, type Kundendaten, type ToastFn } from './kunde'
 
 /** Am Rechner wird heruntergeladen, am Handy zusaetzlich geteilt. */
 const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
@@ -28,17 +20,16 @@ export interface KundePanelProps {
 }
 
 /**
- * Seite "Kunde": alle Angaben zum Termin an einer Stelle, dazu die auf den
- * anderen Seiten erstellten Dokumente mit Vorschau und Download.
+ * Seite "Kunde": alle Angaben zum Termin in einem Raster, rechts das
+ * Objektfoto, darunter die auf den anderen Seiten erstellten Dokumente.
  */
 export default function KundePanel({ daten, onChange, dokumente, onEntfernen, onToast }: KundePanelProps) {
   const [spPhotoFailed, setSpPhotoFailed] = useState(false)
   const [dragOverObject, setDragOverObject] = useState(false)
-  const [objektLaeuft, setObjektLaeuft] = useState<string | null>(null)
+  const [objektLaeuft, setObjektLaeuft] = useState(false)
   const objectInputRef = useRef<HTMLInputElement>(null)
 
   const mitarbeiter = mitarbeiterVon(daten)
-  const isReklamation = daten.terminart === 'Reklamation'
 
   async function handleObjectFile(files: FileList | null) {
     const file = files?.[0]
@@ -47,7 +38,7 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
       onToast('error', `Nicht unterstütztes Format: ${file.name}`)
       return
     }
-    setObjektLaeuft(`Verarbeite Objektfoto ${file.name} …`)
+    setObjektLaeuft(true)
     try {
       const prepared = await prepareImage(file)
       if (daten.objektfoto) URL.revokeObjectURL(daten.objektfoto.thumbUrl)
@@ -55,7 +46,7 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
     } catch (err) {
       onToast('error', err instanceof Error ? err.message : `Fehler bei ${file.name}`)
     } finally {
-      setObjektLaeuft(null)
+      setObjektLaeuft(false)
     }
   }
 
@@ -69,253 +60,176 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
 
   return (
     <div className="kunde">
-      {/* 1: Terminart - bestimmt Deckblatt, Dateiname und Zusatzfelder */}
-      <section className="card" aria-labelledby="kunde-terminart">
-        <h2 id="kunde-terminart">
-          <span className="step">1</span> Terminart
-        </h2>
-        <p className="section-hint">
-          Gilt für die Fotodokumentation. Die Prinzipskizze hat eine eigene Seite, Videos entstehen
-          immer beim Analysetermin.
-        </p>
-        <div className="field">
-          <label htmlFor="terminart-select">Terminart auswählen</label>
-          <select
-            id="terminart-select"
-            value={daten.terminart}
-            onChange={(e) => onChange({ terminart: e.target.value as Terminart })}
-          >
-            {TERMINARTEN.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+      <section className="card" aria-labelledby="kunde-termin">
+        <div className="karte-kopf">
+          <h2 id="kunde-termin">Termin</h2>
+          <p>Einmal eintragen, gilt für Fotodokumentation, Videodokumentation und Prinzipskizze.</p>
         </div>
-      </section>
 
-      {/* 2: Mitarbeiter */}
-      <section className="card" aria-labelledby="kunde-mitarbeiter">
-        <h2 id="kunde-mitarbeiter">
-          <span className="step">2</span> Mitarbeiter
-        </h2>
-        <div className="salesperson-row">
-          <div className="field">
-            <label htmlFor="salesperson-select">Name auswählen</label>
-            <select
-              id="salesperson-select"
-              value={daten.mitarbeiterAuswahl}
-              onChange={(e) => {
-                onChange({ mitarbeiterAuswahl: e.target.value })
-                setSpPhotoFailed(false)
-              }}
-            >
-              <option value="">Bitte wählen …</option>
-              {SALESPEOPLE.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
-              <option value={CUSTOM_VALUE}>Anderer Name (selbst eingeben) …</option>
-            </select>
-            {mitarbeiter.eigen && (
-              <input
-                type="text"
-                className="custom-name-input"
-                value={daten.mitarbeiterEigen}
-                onChange={(e) => onChange({ mitarbeiterEigen: e.target.value })}
-                placeholder="Vorname Nachname"
-                aria-label="Eigenen Mitarbeiter-Namen eingeben"
-                autoFocus
-              />
-            )}
-          </div>
-          {mitarbeiter.name !== '' && (
-            <div className="salesperson-preview">
-              {mitarbeiter.foto && !spPhotoFailed ? (
-                <img
-                  src={mitarbeiter.foto}
-                  alt={`Foto von ${mitarbeiter.name}`}
-                  className="salesperson-photo"
-                  onError={() => setSpPhotoFailed(true)}
-                />
-              ) : (
-                <div className="initials-tile" aria-hidden="true">
-                  {initialsOf(mitarbeiter.name)}
-                </div>
-              )}
-              <div>
-                <p className="salesperson-name">{mitarbeiter.name}</p>
-                {spPhotoFailed && (
-                  <p className="hint-warn">
-                    Kein Foto gefunden für {mitarbeiter.name} – Initialen-Platzhalter wird verwendet.
-                  </p>
+        <div className="kunde-raster">
+          <div className="felder">
+            <div className="eingabe eingabe-breit">
+              <label htmlFor="salesperson-select">Mitarbeiter</label>
+              <div className="mitarbeiter-zeile">
+                {mitarbeiter.name !== '' &&
+                  (mitarbeiter.foto && !spPhotoFailed ? (
+                    <img
+                      src={mitarbeiter.foto}
+                      alt=""
+                      className="avatar"
+                      onError={() => setSpPhotoFailed(true)}
+                    />
+                  ) : (
+                    <span className="avatar avatar-initialen" aria-hidden="true">
+                      {initialsOf(mitarbeiter.name)}
+                    </span>
+                  ))}
+                <select
+                  id="salesperson-select"
+                  value={daten.mitarbeiterAuswahl}
+                  onChange={(e) => {
+                    onChange({ mitarbeiterAuswahl: e.target.value })
+                    setSpPhotoFailed(false)
+                  }}
+                >
+                  <option value="">Bitte wählen …</option>
+                  {SALESPEOPLE.map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                  <option value={CUSTOM_VALUE}>Anderer Name (selbst eingeben) …</option>
+                </select>
+                {mitarbeiter.eigen && (
+                  <input
+                    type="text"
+                    value={daten.mitarbeiterEigen}
+                    onChange={(e) => onChange({ mitarbeiterEigen: e.target.value })}
+                    placeholder="Vorname Nachname"
+                    aria-label="Eigenen Mitarbeiter-Namen eingeben"
+                    autoFocus
+                  />
                 )}
               </div>
             </div>
-          )}
-        </div>
-      </section>
 
-      {/* 3: Objektfoto */}
-      <section className="card" aria-labelledby="kunde-objektfoto">
-        <h2 id="kunde-objektfoto">
-          <span className="step">3</span> Objektfoto (Gebäude)
-        </h2>
-        <p className="section-hint">
-          Genau 1 Foto (JPG/PNG/HEIC) – erscheint prominent auf dem Deckblatt von Fotodokumentation und
-          Prinzipskizze.
-        </p>
-        <input
-          ref={objectInputRef}
-          id="object-input"
-          className="visually-hidden"
-          type="file"
-          accept={ACCEPT}
-          onChange={(e) => {
-            void handleObjectFile(e.target.files)
-            e.target.value = ''
-          }}
-        />
-        <div
-          className={`dropzone dropzone-small${dragOverObject ? ' dropzone-active' : ''}`}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragOverObject(true)
-          }}
-          onDragLeave={() => setDragOverObject(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDragOverObject(false)
-            void handleObjectFile(e.dataTransfer.files)
-          }}
-        >
-          {objektLaeuft ? (
-            <p className="dropzone-hint">{objektLaeuft}</p>
-          ) : daten.objektfoto ? (
-            <div className="object-preview">
-              <img src={daten.objektfoto.thumbUrl} alt="Vorschau Objektfoto" />
-              <div>
-                <p className="file-name">{daten.objektfoto.fileName}</p>
-                <p className="file-meta">
-                  {formatBytes(daten.objektfoto.fileSize)}
-                  {daten.objektfoto.convertedFromHeic ? ' · aus HEIC konvertiert' : ''}
-                </p>
-                <button type="button" className="btn-secondary" onClick={() => objectInputRef.current?.click()}>
-                  Anderes Foto wählen
-                </button>
-              </div>
+            <div className="eingabe">
+              <label htmlFor="customer-input">Kunde</label>
+              <input
+                id="customer-input"
+                type="text"
+                value={daten.kunde}
+                onChange={(e) => onChange({ kunde: e.target.value })}
+                placeholder="z. B. Familie Mustermann"
+              />
             </div>
-          ) : (
-            <>
-              <p className="dropzone-hint">Foto hierher ziehen oder</p>
-              <button type="button" className="btn-secondary" onClick={() => objectInputRef.current?.click()}>
-                Objektfoto auswählen
-              </button>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* 4: Angaben zum Termin */}
-      <section className="card" aria-labelledby="kunde-angaben">
-        <h2 id="kunde-angaben">
-          <span className="step">4</span> Angaben zum Termin
-        </h2>
-        <p className="section-hint">
-          Einmal eintragen genügt – Fotodokumentation, Videodokumentation und Prinzipskizze übernehmen
-          diese Angaben.
-        </p>
-        <div className="object-fields">
-          <div className="field">
-            <label htmlFor="customer-input">Kunde (optional)</label>
-            <input
-              id="customer-input"
-              type="text"
-              className="custom-name-input"
-              value={daten.kunde}
-              onChange={(e) => onChange({ kunde: e.target.value })}
-              placeholder="z. B. Familie Mustermann"
-            />
-          </div>
-          {isReklamation && (
-            <div className="field">
-              <label htmlFor="customeraddress-input">Kundenadresse (optional)</label>
+            <div className="eingabe">
+              <label htmlFor="customeraddress-input">Kundenadresse</label>
               <input
                 id="customeraddress-input"
                 type="text"
-                className="custom-name-input"
                 value={daten.kundenadresse}
                 onChange={(e) => onChange({ kundenadresse: e.target.value })}
                 placeholder="nur wenn abweichend vom Objekt"
               />
             </div>
-          )}
-          <div className="field">
-            <label htmlFor="address-input">Objektadresse (optional)</label>
-            <input
-              id="address-input"
-              type="text"
-              className="custom-name-input"
-              value={daten.objektadresse}
-              onChange={(e) => onChange({ objektadresse: e.target.value })}
-              placeholder="z. B. Musterstraße, Krefeld"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="termindate-input">Termindatum (optional)</label>
-            <input
-              id="termindate-input"
-              type="date"
-              className="custom-name-input"
-              value={daten.termindatum}
-              onChange={(e) => onChange({ termindatum: e.target.value })}
-            />
-            <p className="field-hint">
-              Leer lassen = Datum kommt automatisch aus den Fotos. Nur ausfüllen, wenn das erkannte Datum
-              nicht stimmt. Videos bringen ihr Aufnahmedatum selbst mit.
-            </p>
-          </div>
-          {isReklamation && (
-            <div className="field">
-              <label htmlFor="ordernumber-input">Auftragsnummer (optional)</label>
+            <div className="eingabe">
+              <label htmlFor="address-input">Objektadresse</label>
+              <input
+                id="address-input"
+                type="text"
+                value={daten.objektadresse}
+                onChange={(e) => onChange({ objektadresse: e.target.value })}
+                placeholder="z. B. Musterstraße, Krefeld"
+              />
+            </div>
+            <div className="eingabe">
+              <label htmlFor="ordernumber-input">Auftragsnummer</label>
               <input
                 id="ordernumber-input"
                 type="text"
-                className="custom-name-input"
                 value={daten.auftragsnummer}
                 onChange={(e) => onChange({ auftragsnummer: e.target.value })}
-                placeholder="z. B. AB-2026-0815"
+                placeholder="bei Reklamationen"
               />
             </div>
-          )}
-          <div className="field">
-            <label id="gewerke-label">Sanierungskonzept, Gewerke (optional)</label>
-            <MultiSelect
-              label="Gewerke des Sanierungskonzepts"
-              options={GEWERKE}
-              selected={daten.gewerke}
-              onChange={(gewerke) => onChange({ gewerke })}
-              placeholder="Gewerke auswählen …"
+            <div className="eingabe">
+              <label htmlFor="termindate-input">Termindatum</label>
+              <input
+                id="termindate-input"
+                type="date"
+                value={daten.termindatum}
+                onChange={(e) => onChange({ termindatum: e.target.value })}
+              />
+              <p className="eingabe-hinweis">Leer = Datum aus den Fotos</p>
+            </div>
+            <div className="eingabe">
+              <label id="gewerke-label">Sanierungskonzept</label>
+              <MultiSelect
+                label="Gewerke des Sanierungskonzepts"
+                options={GEWERKE}
+                selected={daten.gewerke}
+                onChange={(gewerke) => onChange({ gewerke })}
+                placeholder="Gewerke auswählen …"
+              />
+            </div>
+          </div>
+
+          <div className="objektfoto">
+            <span className="eingabe-label">Objektfoto</span>
+            <input
+              ref={objectInputRef}
+              id="object-input"
+              className="visually-hidden"
+              type="file"
+              accept={ACCEPT}
+              onChange={(e) => {
+                void handleObjectFile(e.target.files)
+                e.target.value = ''
+              }}
             />
-            <p className="field-hint">
-              Erscheint als Block „Sanierungskonzept" auf dem Deckblatt. Ohne Auswahl entfällt der Block.
-            </p>
+            <div
+              className={`dropzone objektfoto-feld${dragOverObject ? ' dropzone-active' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragOverObject(true)
+              }}
+              onDragLeave={() => setDragOverObject(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragOverObject(false)
+                void handleObjectFile(e.dataTransfer.files)
+              }}
+              onClick={() => objectInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') objectInputRef.current?.click()
+              }}
+            >
+              {objektLaeuft ? (
+                <span className="objektfoto-leer">Wird gelesen …</span>
+              ) : daten.objektfoto ? (
+                <img src={daten.objektfoto.thumbUrl} alt="Objektfoto" />
+              ) : (
+                <span className="objektfoto-leer">Foto hierher ziehen oder klicken</span>
+              )}
+            </div>
+            {daten.objektfoto && (
+              <p className="eingabe-hinweis" title={daten.objektfoto.fileName}>
+                {daten.objektfoto.fileName} · {formatBytes(daten.objektfoto.fileSize)}
+              </p>
+            )}
           </div>
         </div>
       </section>
 
-      {/* 5: Erstellte Dokumente */}
       <section className="card" aria-labelledby="kunde-dokumente">
-        <h2 id="kunde-dokumente">
-          <span className="step">5</span> Erstellte Dokumente
-        </h2>
-        {dokumente.length === 0 ? (
-          <p className="section-hint" style={{ marginBottom: 0 }}>
-            Noch nichts erstellt. Sobald auf einer der anderen Seiten eine PDF oder ein Video fertig
-            ist, erscheint es hier zum Herunterladen.
-          </p>
-        ) : (
+        <div className="karte-kopf">
+          <h2 id="kunde-dokumente">Erstellte Dokumente</h2>
+          {dokumente.length === 0 && <p>Noch nichts erstellt. Fertige PDFs und Videos erscheinen hier.</p>}
+        </div>
+        {dokumente.length > 0 && (
           <ul className="dokumente">
             {dokumente.map((dok) => {
               const teilbar = dok.art === 'pdf' ? PDF_TEILBAR : VIDEO_TEILBAR
@@ -337,19 +251,25 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
                     <p className="file-meta">
                       {dok.quelle} · {formatBytes(dok.blob.size)} · {formatDateTime(dok.erstellt)}
                     </p>
-                    <div className="ergebnis-knoepfe">
-                      <button type="button" className="btn-primary" onClick={() => speichereDatei(dok.blob, dok.name)}>
-                        Herunterladen
+                  </div>
+                  <div className="dokument-knoepfe">
+                    <button type="button" className="btn-primary" onClick={() => speichereDatei(dok.blob, dok.name)}>
+                      Herunterladen
+                    </button>
+                    {teilbar && (
+                      <button type="button" className="btn-secondary" onClick={() => void teile(dok)}>
+                        Teilen
                       </button>
-                      {teilbar && (
-                        <button type="button" className="btn-secondary" onClick={() => void teile(dok)}>
-                          Teilen
-                        </button>
-                      )}
-                      <button type="button" className="btn-secondary" onClick={() => onEntfernen(dok.id)}>
-                        Entfernen
-                      </button>
-                    </div>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-remove"
+                      onClick={() => onEntfernen(dok.id)}
+                      aria-label={`${dok.name} entfernen`}
+                      title="Entfernen"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </li>
               )

@@ -19,7 +19,15 @@ import {
 import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
-import { manuellesTermindatum, mitarbeiterVon, type DokumentFn, type Kundendaten, type ToastFn } from './kunde'
+import {
+  TERMINARTEN,
+  manuellesTermindatum,
+  mitarbeiterVon,
+  type DokumentFn,
+  type Kundendaten,
+  type Terminart,
+  type ToastFn,
+} from './kunde'
 
 /** Auf dem Handy kann die PDF geteilt werden, am Rechner wird heruntergeladen. */
 const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
@@ -27,7 +35,7 @@ const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
 /**
  * Fotostrecke als PDF, in zwei Ausfuehrungen:
  * - fotodoku: die Fotodokumentation zum Analysetermin oder zur Reklamation
- *   (Terminart von der Seite Kunde), mit Zusammenfassung bzw. Beurteilung.
+ *   (Terminart wird hier gewaehlt), mit Zusammenfassung bzw. Beurteilung.
  * - prinzipskizze: eigene Seite mit eigener Fotostrecke; auf dem Deckblatt
  *   entfaellt die Unterzeile "Fotodokumentation", der Dateiname folgt einem
  *   eigenen Schema, die Sonderfelder der Reklamation bleiben aussen vor.
@@ -43,6 +51,7 @@ export interface FotoDokuPanelProps {
 }
 
 export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoDokuPanelProps) {
+  const [terminart, setTerminart] = useState<Terminart>('Analysetermin')
   const [photos, setPhotos] = useState<TerminPhoto[]>([])
   const [keepDuplicates, setKeepDuplicates] = useState(false)
   const [extraCompression, setExtraCompression] = useState(true)
@@ -51,7 +60,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
   const [dragOver, setDragOver] = useState(false)
   const [fertigePdf, setFertigePdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   // Reklamation: Beurteilung; Analysetermin und Prinzipskizze: Zusammenfassung.
-  // Beide bleiben erhalten, wenn die Terminart auf der Seite Kunde wechselt.
+  // Beide bleiben erhalten, wenn die Terminart wechselt.
   const [assessment, setAssessment] = useState('')
   const [summary, setSummary] = useState('')
   // Reihenfolge: startet chronologisch; sobald manuell sortiert wurde, bleibt
@@ -67,9 +76,9 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
   const dropInputRef = useRef<HTMLInputElement>(null)
 
   const istSkizze = art === 'prinzipskizze'
-  const terminType = istSkizze ? 'Prinzipskizze' : kunde.terminart
+  const terminType = istSkizze ? 'Prinzipskizze' : terminart
   const quelle = istSkizze ? 'Prinzipskizze' : 'Fotodokumentation'
-  const isReklamation = !istSkizze && kunde.terminart === 'Reklamation'
+  const isReklamation = !istSkizze && terminart === 'Reklamation'
   const mitarbeiter = mitarbeiterVon(kunde)
   const objectPhoto = kunde.objektfoto
 
@@ -239,7 +248,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
   const missingHints: string[] = []
   if (!mitarbeiter.name) missingHints.push('Mitarbeiter auf der Seite Kunde wählen')
   if (!objectPhoto) missingHints.push('Objektfoto auf der Seite Kunde hochladen')
-  if (included.length === 0) missingHints.push(istSkizze ? 'mind. 1 Bild hinzufügen' : 'mind. 1 Termin-Foto hinzufügen')
+  if (included.length === 0) missingHints.push(istSkizze ? 'mind. 1 Bild hinzufügen' : 'mind. 1 Foto hinzufügen')
 
   const handleCreatePdf = useCallback(async () => {
     if (!canCreate || !objectPhoto || terminDate == null || !terminLabel) return
@@ -439,13 +448,74 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
 
   return (
     <div className={`fotodoku fotodoku-${art}`}>
-      {/* 1: Fotos */}
+      {/* Angaben zum Dokument: Terminart (nur Fotodokumentation) und die Textseite */}
+      <section className="card" aria-labelledby={`${art}-titel`}>
+        <div className="karte-kopf">
+          <h2 id={`${art}-titel`}>{istSkizze ? 'Prinzipskizze' : 'Fotodokumentation'}</h2>
+          <p>Mitarbeiter, Objektfoto und Kundendaten kommen von der Seite Kunde.</p>
+        </div>
+        <div className="felder">
+          {!istSkizze && (
+            <div className="eingabe">
+              <label htmlFor="terminart-select">Terminart</label>
+              <select
+                id="terminart-select"
+                value={terminart}
+                onChange={(e) => setTerminart(e.target.value as Terminart)}
+              >
+                {TERMINARTEN.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="eingabe eingabe-breit">
+            {isReklamation ? (
+              <>
+                <label htmlFor={`${art}-assessment-input`}>Beurteilung (eigene Seite nach dem Deckblatt)</label>
+                <textarea
+                  id={`${art}-assessment-input`}
+                  className="assessment-input"
+                  value={assessment}
+                  onChange={(e) => setAssessment(e.target.value)}
+                  placeholder="Text der fachlichen Beurteilung einfügen …"
+                  rows={3}
+                />
+              </>
+            ) : (
+              <>
+                <label htmlFor={`${art}-summary-input`}>Zusammenfassung (eigene Seite nach dem Deckblatt)</label>
+                <textarea
+                  id={`${art}-summary-input`}
+                  className="assessment-input"
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  placeholder="Text der Zusammenfassung einfügen …"
+                  rows={3}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Fotos */}
       <section className="card" aria-labelledby={`${art}-fotos`}>
-        <h2 id={`${art}-fotos`}>
-          <span className="step">1</span> {istSkizze ? 'Skizzen und Fotos' : 'Termin-Fotos'}
-        </h2>
+        <div className="karte-kopf">
+          <h2 id={`${art}-fotos`}>{istSkizze ? 'Bilder' : 'Fotos'}</h2>
+          {annotated.length > 0 && (
+            <p aria-live="polite">
+              {annotated.length} importiert
+              {duplicateTotal > 0 &&
+                ` · ${duplicateTotal} Duplikat(e)${keepDuplicates ? ' (bleiben enthalten)' : ' ausgeschlossen'}`}
+              {' '}· {included.length} in der PDF · Reihenfolge = Seitenfolge, per Pfeil oder Ziehen ändern
+            </p>
+          )}
+        </div>
         <div
-          className={`dropzone${dragOver ? ' dropzone-active' : ''}`}
+          className={`dropzone dropzone-zeile${dragOver ? ' dropzone-active' : ''}`}
           onDragOver={(e) => {
             e.preventDefault()
             setDragOver(true)
@@ -457,7 +527,6 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
             void addFiles(e.dataTransfer.files)
           }}
         >
-          <p className="dropzone-title">{istSkizze ? 'Bilder hinzufügen' : 'Termin-Fotos hinzufügen'}</p>
           <p className="dropzone-hint">Dateien hierher ziehen (JPG, PNG, HEIC) oder</p>
           <input
             ref={dropInputRef}
@@ -473,206 +542,152 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
           <button type="button" className="btn-secondary" onClick={() => dropInputRef.current?.click()}>
             Dateien auswählen
           </button>
+          {duplicateTotal > 0 && (
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={keepDuplicates}
+                onChange={(e) => setKeepDuplicates(e.target.checked)}
+              />
+              Duplikate behalten
+            </label>
+          )}
         </div>
 
         {annotated.length > 0 && (
-          <>
-            <div className="list-toolbar">
-              <p aria-live="polite">
-                {annotated.length} Foto(s) importiert
-                {duplicateTotal > 0 &&
-                  ` · ${duplicateTotal} Duplikat(e)${keepDuplicates ? ' (bleiben enthalten)' : ' ausgeschlossen'}`}
-                {' '}· {included.length} in der PDF
-              </p>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={keepDuplicates}
-                  onChange={(e) => setKeepDuplicates(e.target.checked)}
-                />
-                Duplikate behalten (kennzeichnen)
-              </label>
-            </div>
-            <p className="order-hint">
-              Die Reihenfolge unten ist die Seiten-Reihenfolge in der PDF – per Pfeiltasten oder
-              Ziehen ändern (startet chronologisch). Mit ↻ drehst du ein Foto um 90°.
-            </p>
-            <ul className="photo-list">
-              {annotated.map((p, idx) => (
-                <li
-                  key={p.id}
-                  className={[
-                    p.isDuplicate && !keepDuplicates ? 'photo-excluded' : '',
-                    dragPhotoId === p.id ? 'dragging' : '',
-                    dragOverPhotoId === p.id && dragPhotoId !== p.id ? 'drag-target' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  draggable
-                  onDragStart={(e) => {
-                    setDragPhotoId(p.id)
-                    e.dataTransfer.effectAllowed = 'move'
-                  }}
-                  onDragEnd={() => {
-                    setDragPhotoId(null)
-                    setDragOverPhotoId(null)
-                  }}
-                  onDragOver={(e) => {
-                    if (dragPhotoId) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      e.dataTransfer.dropEffect = 'move'
-                      setDragOverPhotoId(p.id)
-                    }
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverPhotoId === p.id) setDragOverPhotoId(null)
-                  }}
-                  onDrop={(e) => {
-                    if (dragPhotoId) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      reorderByDrop(p.id)
-                    }
-                  }}
-                >
-                  <span className="order-number" aria-hidden="true">
-                    {idx + 1}
-                  </span>
-                  <img src={p.thumbUrl} alt="" className="photo-thumb" draggable={false} />
-                  <div className="photo-info">
-                    <p className="file-name">{p.fileName}</p>
-                    <p className="file-meta">
-                      {formatDateTime(p.takenAt)}
-                      {p.dateSource === 'name' && (
-                        <span className="badge" title="Kein EXIF-Datum gefunden - Aufnahmezeit aus dem Dateinamen gelesen">
-                          Dateiname
-                        </span>
-                      )}
-                      {p.dateSource === 'file' && (
-                        <span className="badge badge-warn" title="Kein EXIF-Datum gefunden – Dateidatum wird verwendet">
-                          Dateidatum
-                        </span>
-                      )}
-                      {p.convertedFromHeic && <span className="badge">HEIC</span>}
-                    </p>
-                    <p className="file-meta">
-                      <span className={`badge ${p.isDuplicate ? 'badge-dup' : 'badge-ok'}`}>
-                        {p.isDuplicate ? `Duplikat von ${p.duplicateOf}` : 'OK'}
+          <ul className="photo-list">
+            {annotated.map((p, idx) => (
+              <li
+                key={p.id}
+                className={[
+                  p.isDuplicate && !keepDuplicates ? 'photo-excluded' : '',
+                  dragPhotoId === p.id ? 'dragging' : '',
+                  dragOverPhotoId === p.id && dragPhotoId !== p.id ? 'drag-target' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                draggable
+                onDragStart={(e) => {
+                  setDragPhotoId(p.id)
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragEnd={() => {
+                  setDragPhotoId(null)
+                  setDragOverPhotoId(null)
+                }}
+                onDragOver={(e) => {
+                  if (dragPhotoId) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDragOverPhotoId(p.id)
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverPhotoId === p.id) setDragOverPhotoId(null)
+                }}
+                onDrop={(e) => {
+                  if (dragPhotoId) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    reorderByDrop(p.id)
+                  }
+                }}
+              >
+                <span className="order-number" aria-hidden="true">
+                  {idx + 1}
+                </span>
+                <img src={p.thumbUrl} alt="" className="photo-thumb" draggable={false} />
+                <div className="photo-info">
+                  <p className="file-name">{p.fileName}</p>
+                  <p className="file-meta">
+                    {formatDateTime(p.takenAt)}
+                    {p.dateSource === 'name' && (
+                      <span className="badge" title="Kein EXIF-Datum gefunden - Aufnahmezeit aus dem Dateinamen gelesen">
+                        Dateiname
                       </span>
-                    </p>
-                  </div>
-                  <div className="move-buttons">
-                    <button
-                      type="button"
-                      className="btn-move"
-                      onClick={() => movePhoto(p.id, -1)}
-                      disabled={idx === 0}
-                      aria-label={`${p.fileName} nach oben verschieben`}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-move"
-                      onClick={() => movePhoto(p.id, 1)}
-                      disabled={idx === annotated.length - 1}
-                      aria-label={`${p.fileName} nach unten verschieben`}
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-move btn-rotate"
-                      onClick={() => void rotatePhoto(p.id)}
-                      title="Um 90° drehen"
-                      aria-label={`${p.fileName} um 90 Grad drehen`}
-                    >
-                      ↻
-                    </button>
-                  </div>
+                    )}
+                    {p.dateSource === 'file' && (
+                      <span className="badge badge-warn" title="Kein EXIF-Datum gefunden – Dateidatum wird verwendet">
+                        Dateidatum
+                      </span>
+                    )}
+                    {p.convertedFromHeic && <span className="badge">HEIC</span>}
+                    {p.isDuplicate && <span className="badge badge-dup">Duplikat von {p.duplicateOf}</span>}
+                  </p>
+                </div>
+                <div className="move-buttons">
                   <button
                     type="button"
-                    className="btn-remove"
-                    onClick={() => removePhoto(p.id)}
-                    aria-label={`${p.fileName} entfernen`}
+                    className="btn-move"
+                    onClick={() => movePhoto(p.id, -1)}
+                    disabled={idx === 0}
+                    aria-label={`${p.fileName} nach oben verschieben`}
                   >
-                    ✕
+                    ↑
                   </button>
-                </li>
-              ))}
-            </ul>
-          </>
+                  <button
+                    type="button"
+                    className="btn-move"
+                    onClick={() => movePhoto(p.id, 1)}
+                    disabled={idx === annotated.length - 1}
+                    aria-label={`${p.fileName} nach unten verschieben`}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-move btn-rotate"
+                    onClick={() => void rotatePhoto(p.id)}
+                    title="Um 90° drehen"
+                    aria-label={`${p.fileName} um 90 Grad drehen`}
+                  >
+                    ↻
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="btn-remove"
+                  onClick={() => removePhoto(p.id)}
+                  aria-label={`${p.fileName} entfernen`}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
-      {/* 2: Textseite nach dem Deckblatt */}
-      <section className="card" aria-labelledby={`${art}-text`}>
-        <h2 id={`${art}-text`}>
-          <span className="step">2</span> {isReklamation ? 'Beurteilung' : 'Zusammenfassung'} (optional)
-        </h2>
-        <div className="field">
-          {isReklamation ? (
-            <>
-              <label htmlFor={`${art}-assessment-input`} className="visually-hidden">
-                Beurteilung
-              </label>
-              <textarea
-                id={`${art}-assessment-input`}
-                className="custom-name-input assessment-input textseite-input"
-                value={assessment}
-                onChange={(e) => setAssessment(e.target.value)}
-                placeholder="Text der fachlichen Beurteilung einfügen …"
-                rows={3}
-              />
-              <p className="field-hint">
-                Erscheint als eigene Seite „Fachliche Beurteilung" direkt nach dem Deckblatt.
-              </p>
-            </>
-          ) : (
-            <>
-              <label htmlFor={`${art}-summary-input`} className="visually-hidden">
-                Zusammenfassung
-              </label>
-              <textarea
-                id={`${art}-summary-input`}
-                className="custom-name-input assessment-input textseite-input"
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                placeholder="Text der Zusammenfassung einfügen …"
-                rows={3}
-              />
-              <p className="field-hint">Erscheint als eigene Seite „Zusammenfassung" direkt nach dem Deckblatt.</p>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* 3: PDF erstellen (Komprimierung ist fest eingestellt: 2200 px, Qualität 0,75) */}
-      <section className="card card-action" aria-labelledby={`${art}-create`}>
+      {/* PDF erstellen (Komprimierung ist fest eingestellt: 2200 px, Qualität 0,75) */}
+      <section className="card aktion" aria-labelledby={`${art}-create`}>
         <h2 id={`${art}-create`} className="visually-hidden">
           PDF erstellen
         </h2>
-        {terminLabel && (
-          <p className="termin-line">
-            Termin {manualTerminDate != null ? '(auf der Seite Kunde eingetragen)' : '(aus den Foto-Aufnahmedaten)'}:{' '}
-            <strong>{terminLabel}</strong>
-          </p>
-        )}
-        <label className="checkbox checkbox-center">
-          <input
-            type="checkbox"
-            checked={extraCompression}
-            onChange={(e) => setExtraCompression(e.target.checked)}
-          />
-          Extra Komprimierung (Ziel: PDF kleiner als 10 MB)
-        </label>
-        <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
-          PDF erstellen ({pageCount} {pageCount === 1 ? 'Seite' : 'Seiten'})
-        </button>
-        {!canCreate && !busy && missingHints.length > 0 && (
-          <p className="hint-missing">Noch offen: {missingHints.join(' · ')}</p>
-        )}
+        <div className="aktion-zeile">
+          <div className="aktion-links">
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={extraCompression}
+                onChange={(e) => setExtraCompression(e.target.checked)}
+              />
+              Extra Komprimierung (unter 10 MB)
+            </label>
+            {terminLabel && (
+              <p className="termin-line">
+                Termin: <strong>{terminLabel}</strong>
+                {manualTerminDate == null && <span className="eingabe-hinweis-inline"> (aus den Fotos)</span>}
+              </p>
+            )}
+            {!canCreate && !busy && missingHints.length > 0 && (
+              <p className="hint-missing">Noch offen: {missingHints.join(' · ')}</p>
+            )}
+          </div>
+          <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
+            PDF erstellen ({pageCount} {pageCount === 1 ? 'Seite' : 'Seiten'})
+          </button>
+        </div>
         {fertigePdf && (
           <div className="ergebnis">
             <p className="ergebnis-name">
@@ -706,12 +721,6 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
                 Speichern
               </button>
             </div>
-            {PDF_TEILBAR && (
-              <p className="field-hint">
-                Über „PDF teilen" öffnet sich das Teilen-Fenster des Geräts, darüber geht die Datei direkt an
-                MeisterTask oder in die Dateien.
-              </p>
-            )}
           </div>
         )}
         {progress && (

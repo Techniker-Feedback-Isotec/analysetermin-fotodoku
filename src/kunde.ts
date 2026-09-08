@@ -15,18 +15,17 @@ export type Terminart = (typeof TERMINARTEN)[number]
 export const CUSTOM_VALUE = '__custom__'
 
 export interface Kundendaten {
-  terminart: Terminart
   /** Name aus der Mitarbeiterliste, CUSTOM_VALUE fuer freie Eingabe, oder '' */
   mitarbeiterAuswahl: string
   /** Frei eingegebener Name, wenn mitarbeiterAuswahl === CUSTOM_VALUE */
   mitarbeiterEigen: string
   kunde: string
-  /** Nur bei Reklamation: Anschrift des Kunden, wenn sie vom Objekt abweicht */
+  /** Anschrift des Kunden, wenn sie vom Objekt abweicht; landet nur bei Reklamationen in der PDF */
   kundenadresse: string
   objektadresse: string
   /** Optionales Termindatum (JJJJ-MM-TT); ueberschreibt die Erkennung aus den Fotos */
   termindatum: string
-  /** Nur bei Reklamation */
+  /** Landet nur bei Reklamationen in der PDF */
   auftragsnummer: string
   /** Gewerke des Sanierungskonzepts; leer = kein Block auf dem Deckblatt */
   gewerke: string[]
@@ -35,7 +34,6 @@ export interface Kundendaten {
 }
 
 export const LEERE_KUNDENDATEN: Kundendaten = {
-  terminart: 'Analysetermin',
   mitarbeiterAuswahl: '',
   mitarbeiterEigen: '',
   kunde: '',

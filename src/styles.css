@@ -548,7 +548,7 @@ input[type='checkbox'] {
   gap: 14px;
   border: 1px solid var(--grey);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: var(--white);
   cursor: grab;
 }
@@ -581,8 +581,8 @@ input[type='checkbox'] {
 }
 
 .photo-thumb {
-  width: 192px;
-  height: 144px;
+  width: 120px;
+  height: 84px;
   object-fit: cover;
   border-radius: 6px;
   flex-shrink: 0;
@@ -591,7 +591,7 @@ input[type='checkbox'] {
 
 .move-buttons {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 6px;
   flex-shrink: 0;
 }
@@ -1041,6 +1041,196 @@ input[type='checkbox'] {
   margin-top: 10px;
 }
 
+/* ---------- Ruhigere Oberflaeche: Felder im Raster, Karten ohne Schrittzahlen ---------- */
+
+/* Der Inhalt steht links neben dem Menueband, nicht zentriert in der Mitte */
+.content main.container {
+  max-width: 1120px;
+  margin: 0;
+  padding: 24px 32px 8px;
+}
+
+.karte-kopf {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 14px;
+}
+
+.card .karte-kopf h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.karte-kopf p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #7a6f68;
+}
+
+.felder {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px 18px;
+}
+
+.eingabe-breit {
+  grid-column: 1 / -1;
+}
+
+.eingabe label,
+.eingabe-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #7a6f68;
+  margin-bottom: 4px;
+}
+
+.eingabe select,
+.eingabe input,
+.eingabe textarea,
+.eingabe .multiselect {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.eingabe input,
+.eingabe textarea {
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--grey);
+  border-radius: 6px;
+  background: var(--white);
+  color: inherit;
+}
+
+.eingabe-hinweis {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: #a99f98;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eingabe-hinweis-inline {
+  color: #a99f98;
+  font-weight: 400;
+}
+
+/* Mitarbeiter: kleines Foto neben der Auswahl statt grosser Vorschau */
+.mitarbeiter-zeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mitarbeiter-zeile select,
+.mitarbeiter-zeile input {
+  flex: 1 1 200px;
+  width: auto;
+  max-width: 360px;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--red);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatar-initialen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--light);
+  color: var(--red);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Seite Kunde: Felder links, Objektfoto rechts */
+.kunde-raster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 16px 28px;
+  align-items: start;
+}
+
+.objektfoto-feld {
+  padding: 6px;
+  cursor: pointer;
+}
+
+.objektfoto-feld img {
+  display: block;
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.objektfoto-leer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+  color: #a99f98;
+}
+
+/* Ablagefläche als eine Zeile statt grosser Kasten */
+.dropzone-zeile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 12px 16px;
+}
+
+.dropzone-zeile .dropzone-hint {
+  margin: 0;
+}
+
+.dropzone-zeile .checkbox {
+  margin: 0 0 0 auto;
+  font-size: 0.85rem;
+}
+
+/* Aktion: Einstellungen links, Knopf rechts */
+.aktion {
+  text-align: left;
+}
+
+.aktion-zeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+.aktion-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+.aktion-links .checkbox,
+.aktion-links .termin-line,
+.aktion-links .hint-missing {
+  margin: 0;
+}
+
 /* ---------- Seite Kunde: erstellte Dokumente ---------- */
 
 .dokumente {
@@ -1055,18 +1245,25 @@ input[type='checkbox'] {
 .dokument {
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  align-items: center;
   border: 1px solid var(--grey);
   border-radius: 8px;
   background: var(--light);
-  padding: 12px;
+  padding: 10px 12px;
+}
+
+.dokument-knoepfe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* Kleines Vorschaufenster: PDF im eingebetteten Betrachter, Video mit Bedienung */
 .dokument-vorschau {
   flex-shrink: 0;
-  width: 220px;
-  height: 160px;
+  width: 150px;
+  height: 105px;
   border: 1px solid var(--grey);
   border-radius: 6px;
   overflow: hidden;
@@ -1091,15 +1288,8 @@ input[type='checkbox'] {
   word-break: break-all;
 }
 
-.dokument-info .ergebnis-knoepfe {
-  margin-top: 10px;
-}
-
-/* Textseite (Zusammenfassung, Beurteilung) auf voller Kartenbreite */
-.textseite-input {
-  width: 100%;
-  min-width: 0;
-  margin-top: 0;
+.dokument-info .file-meta {
+  margin-top: 2px;
 }
 
 /* ---------- Seitliches Verrutschen unterbinden ---------- */
