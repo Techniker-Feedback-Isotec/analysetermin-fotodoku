@@ -1041,6 +1041,67 @@ input[type='checkbox'] {
   margin-top: 10px;
 }
 
+/* ---------- Seite Kunde: erstellte Dokumente ---------- */
+
+.dokumente {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dokument {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  border: 1px solid var(--grey);
+  border-radius: 8px;
+  background: var(--light);
+  padding: 12px;
+}
+
+/* Kleines Vorschaufenster: PDF im eingebetteten Betrachter, Video mit Bedienung */
+.dokument-vorschau {
+  flex-shrink: 0;
+  width: 220px;
+  height: 160px;
+  border: 1px solid var(--grey);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--white);
+}
+
+.dokument-vorschau iframe,
+.dokument-vorschau video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #1c1715;
+}
+
+.dokument-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.dokument-info .file-name {
+  word-break: break-all;
+}
+
+.dokument-info .ergebnis-knoepfe {
+  margin-top: 10px;
+}
+
+/* Textseite (Zusammenfassung, Beurteilung) auf voller Kartenbreite */
+.textseite-input {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+}
+
 /* ---------- Seitliches Verrutschen unterbinden ---------- */
 
 /*

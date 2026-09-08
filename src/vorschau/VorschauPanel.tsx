@@ -120,7 +120,12 @@ let demoGeladen = false
  * Vorher-Nachher, unveraendert in der Arbeitsweise. Kopf- und Fusszeile
  * kommen vom Dokumentationstool.
  */
-export default function VorschauPanel() {
+export default function VorschauPanel({
+  onDokument,
+}: {
+  /** Fertige PDF fuer die Sammlung auf der Seite Kunde */
+  onDokument?: (schluessel: string, quelle: string, datei: File | null) => void
+} = {}) {
   const [fotos, setFotos] = useState<Foto[]>([])
   const [schluessel, setSchluessel] = useState('')
   const [einstellungenOffen, setEinstellungenOffen] = useState(false)
@@ -398,6 +403,11 @@ export default function VorschauPanel() {
       ])
       const logoPng = new Uint8Array(await logoAntwort.arrayBuffer())
       const pdf = await erzeugeSanierungsvorschauPdf(eintraege, logoPng)
+      onDokument?.(
+        'pdf:vorschau',
+        'Sanierungsvorschau',
+        new File([pdf], 'ISOTEC Sanierungsvorschau.pdf', { type: 'application/pdf' }),
+      )
       if (aufIOS) setPdfBlob(pdf)
       else speichereDatei(pdf, 'ISOTEC Sanierungsvorschau.pdf')
     } catch (fehler) {

@@ -6,11 +6,13 @@ import logo from './assets/isotec-logo.png'
  * Auf dem Handy wandert die Marke in eine schmale Kopfzeile und die Bereiche
  * in eine Leiste am unteren Rand (Daumenreichweite), siehe styles.css.
  */
-export type Modus = 'foto' | 'video' | 'vorschau'
+export type Modus = 'kunde' | 'foto' | 'video' | 'prinzipskizze' | 'vorschau'
 
 export const BEREICHE: { id: Modus; label: string; kurz: string }[] = [
+  { id: 'kunde', label: 'Kunde', kurz: 'Kunde' },
   { id: 'foto', label: 'Fotodokumentation', kurz: 'Fotos' },
   { id: 'video', label: 'Videodokumentation', kurz: 'Videos' },
+  { id: 'prinzipskizze', label: 'Prinzipskizze', kurz: 'Skizze' },
   { id: 'vorschau', label: 'Sanierungsvorschau', kurz: 'Vorschau' },
 ]
 
@@ -23,6 +25,21 @@ const strich = {
 }
 
 const ICONS: Record<Modus, JSX.Element> = {
+  // Person: die Angaben zum Kunden und Termin
+  kunde: (
+    <svg width="18" height="18" viewBox="0 0 20 20" {...strich}>
+      <circle cx="10" cy="6.5" r="3.5" />
+      <path d="M3.5 17.5c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5" />
+    </svg>
+  ),
+  // Stift und Lineal: die Skizze
+  prinzipskizze: (
+    <svg width="18" height="18" viewBox="0 0 20 20" {...strich}>
+      <path d="m3 17 1-4 9.5-9.5 3 3L7 16z" />
+      <path d="m11.5 5.5 3 3" />
+      <path d="M3 17h5" />
+    </svg>
+  ),
   // Fotoapparat
   foto: (
     <svg width="18" height="18" viewBox="0 0 20 20" {...strich}>

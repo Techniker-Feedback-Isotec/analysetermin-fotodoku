@@ -65,6 +65,8 @@ export interface VideoPanelProps {
   kunde: string
   objektadresse: string
   onToast: (kind: 'info' | 'error' | 'success', text: string) => void
+  /** Fertige Videos fuer die Sammlung auf der Seite Kunde; null = Video wurde entfernt */
+  onDokument?: (schluessel: string, quelle: string, datei: File | null) => void
 }
 
 /** WebCodecs fehlt z. B. in alten iOS-Versionen - dann bleibt nur das Original. */
@@ -398,6 +400,32 @@ export default function VideoPanel(props: VideoPanelProps) {
     },
     [fileNames],
   )
+
+  /**
+   * Fertige Videos an die Seite Kunde melden. Gemeldet wird je Video einmal pro
+   * Stand (Datei, Groesse, Deckblatt); wird ein Video neu verarbeitet oder
+   * umbenannt, ersetzt der neue Stand den alten. Entfernte Videos verschwinden
+   * auch dort.
+   */
+  const gemeldet = useRef(new Map<string, string>())
+  useEffect(() => {
+    const melde = props.onDokument
+    if (!melde) return
+    const vorhanden = new Set(jobs.map((job) => job.id))
+    for (const id of [...gemeldet.current.keys()]) {
+      if (!vorhanden.has(id)) {
+        gemeldet.current.delete(id)
+        melde(`video:${id}`, 'Videodokumentation', null)
+      }
+    }
+    for (const job of jobs) {
+      if (job.status !== 'fertig' || !job.result) continue
+      const stand = `${fileNames.get(job.id)}|${job.result.blob.size}|${job.coverKey}`
+      if (gemeldet.current.get(job.id) === stand) continue
+      gemeldet.current.set(job.id, stand)
+      melde(`video:${job.id}`, 'Videodokumentation', dateiVon(job))
+    }
+  }, [jobs, fileNames, dateiVon, props.onDokument])
 
   /**
    * In die Fotomediathek sichern.
