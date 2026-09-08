@@ -1014,3 +1014,767 @@ table {
   font-size: 1.15rem;
   line-height: 1;
 }
+
+
+/* ---------- Reiter Sanierungsvorschau (ehemals Keller Vorher-Nachher) ---------- */
+
+/* Die Vorschau zeigt Kacheln und Vergleich nebeneinander und braucht mehr Breite. */
+.app.modus-vorschau .container {
+  max-width: 1280px;
+}
+
+.vorschau-hinweis {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #8a7f78;
+  margin: -6px 0 16px;
+}
+
+.hinweis-warn {
+  border-left: 4px solid var(--warn);
+  font-size: 0.95rem;
+}
+
+/* Knoepfe und Felder */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.btn-rot {
+  background: var(--red);
+  color: var(--white);
+}
+
+.btn-rot:hover {
+  background: var(--red-dark);
+}
+
+.btn-rand {
+  background: var(--white);
+  border: 1px solid var(--grey);
+  color: var(--brown);
+}
+
+.btn-rand:hover {
+  background: var(--light);
+}
+
+.btn-hell {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--brown);
+}
+
+.btn-klein {
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+
+.punkt {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.punkt-ok {
+  background: var(--ok);
+}
+
+.punkt-warn {
+  background: var(--warn);
+}
+
+.zeile {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.feld {
+  flex: 1 1 240px;
+  min-width: 0;
+  border: 1px solid var(--grey);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--brown);
+}
+
+.feld:focus {
+  outline: 2px solid var(--red);
+  outline-offset: -1px;
+}
+
+/* Ablagefläche fuer den Upload */
+.ablage {
+  border: 2px dashed var(--grey);
+  border-radius: 10px;
+  padding: 28px 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ablage:hover,
+.ablage.zieht {
+  border-color: var(--red);
+  background: #fdf6f6;
+}
+
+.ablage p {
+  margin: 0 0 6px;
+}
+
+.ablage-klein {
+  font-size: 0.85rem;
+  color: #7a6f68;
+  max-width: 560px;
+  margin: 0 auto !important;
+}
+
+.kachel-marke {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--brown);
+  color: var(--white);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+/* Übersicht: links die Auswahl, rechts der Vergleich */
+.uebersicht {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .uebersicht {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Galerie */
+.galerie {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .galerie {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    max-height: none;
+  }
+
+  /* Gestapelt gehört der Vergleich nach oben und bleibt beim Blättern durch
+     die Kacheln stehen, sonst müsste man nach jedem Antippen hochscrollen. */
+  .vergleich-fenster {
+    order: -1;
+    --vergleich-hoehe: 46vh;
+  }
+}
+
+/* Vergleichsfenster auf der Seite */
+.vergleich-fenster {
+  /* Kellerfotos kommen meist hochkant vom Handy; dort begrenzt die Höhe die
+     Größe, deshalb bewusst großzügig. */
+  --vergleich-hoehe: 76vh;
+  background: var(--light);
+  border: 1px solid var(--grey);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  top: 76px;
+  /* Muss über den Kacheln liegen: gestapelt steht das Fenster per order:-1
+     vorn, wird dadurch aber zuerst gezeichnet und sonst von den Kacheln
+     überdeckt, sobald sie darunter durchscrollen. */
+  z-index: 2;
+}
+
+.fenster-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.fenster-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.fenster-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+/* Die Abschnittsüberschrift darf umbrechen, damit der PDF-Knopf auf dem Handy Platz hat */
+.vorschau .card h2 {
+  flex-wrap: wrap;
+}
+
+.fenster-hinweis {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #8a7f78;
+  text-align: center;
+}
+
+/* Vom Textmodell erkannter Bestand, zum Nachprüfen bei Abweichungen */
+.bestand {
+  width: 100%;
+  font-size: 0.82rem;
+  color: #7a6f68;
+}
+
+.bestand summary {
+  cursor: pointer;
+  text-align: center;
+}
+
+.bestand pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: var(--white);
+  border: 1px solid var(--grey);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  font-family: inherit;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.fenster-leer {
+  margin: 0;
+  padding: 60px 20px;
+  text-align: center;
+  color: #8a7f78;
+  font-size: 0.9rem;
+}
+
+.kachel {
+  margin: 0;
+  border: 1px solid var(--grey);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--light);
+}
+
+.kachel.klickbar {
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.kachel.klickbar:hover {
+  box-shadow: 0 4px 14px rgba(86, 74, 68, 0.25);
+  transform: translateY(-2px);
+}
+
+/* Das im Fenster gezeigte Foto: Auswahl über die Rahmenfarbe, nicht über einen
+   harten Kasten. */
+.kachel.gewaehlt {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px var(--red);
+}
+
+.kachel-bild {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--grey);
+}
+
+.kachel-bild img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kachel-teiler {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: var(--white);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.kachel-schleier {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(86, 74, 68, 0.55);
+  color: var(--white);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 10px;
+}
+
+.kachel-fehler {
+  background: rgba(120, 20, 22, 0.75);
+}
+
+.dreher {
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-top-color: var(--white);
+  border-radius: 50%;
+  animation: drehen 0.9s linear infinite;
+}
+
+@keyframes drehen {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.kachel figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 10px;
+  background: var(--white);
+  font-size: 0.83rem;
+}
+
+.kachel-zeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+/* Haekchen fuer die Variante "Boden hellgrau" */
+.kachel-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #6f645d;
+  cursor: pointer;
+  user-select: none;
+}
+
+.kachel-option input {
+  accent-color: var(--red);
+  margin: 0;
+}
+
+/* Die beiden Haekchen nebeneinander, an der Kachel und im Fenster */
+.kachel-optionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.fenster-optionen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.fenster-optionen .kachel-option {
+  font-size: 0.85rem;
+}
+
+/* Klappmenue "Bestand": alles Erkannte angehakt, Abgehaktes verschwindet */
+.bestand-menue {
+  position: relative;
+}
+
+.bestand-menue > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--white);
+  border: 1px solid var(--grey);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  color: var(--brown);
+  line-height: 1.2;
+}
+
+.bestand-menue > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bestand-menue > summary::after {
+  content: '▾';
+  font-size: 0.75rem;
+}
+
+.bestand-menue[open] > summary {
+  background: var(--light);
+}
+
+.bestand-zahl {
+  background: var(--red);
+  color: var(--white);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+}
+
+.bestand-liste {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  min-width: 320px;
+  max-width: min(460px, 90vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--white);
+  border: 1px solid var(--grey);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(86, 74, 68, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.bestand-liste .kachel-option {
+  align-items: flex-start;
+  font-size: 0.83rem;
+  color: var(--brown);
+  line-height: 1.35;
+}
+
+.bestand-liste .kachel-option input {
+  margin-top: 3px;
+}
+
+.bestand-knoepfe {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--grey);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Knopf rechts in der Abschnittsueberschrift (PDF erstellen) */
+.h2-aktion {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.upload-hinweis {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: #8a5a00;
+}
+
+/* Auf dem Handy passt die Liste nicht unter den Knopf: als zentrierte Fläche
+   über die Seite legen, damit sie nie aus dem Bild ragt. */
+@media (max-width: 900px) {
+  .bestand-liste {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: 0;
+    max-width: none;
+    max-height: 70vh;
+    z-index: 50;
+  }
+}
+
+.dreher-dunkel {
+  display: inline-block;
+  border-color: rgba(86, 74, 68, 0.25);
+  border-top-color: var(--brown);
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.kachel-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kachel-entfernen {
+  border: none;
+  background: none;
+  color: #a0958d;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.kachel-entfernen:hover {
+  color: var(--red);
+}
+
+.rechts-hinweis {
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  color: #8a7f78;
+}
+
+/* Grossansicht mit Schieberegler */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #1c1715;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  color: var(--white);
+}
+
+.viewer-titel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.viewer-titel strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-titel span {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.viewer-knoepfe {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.viewer-zu {
+  font-size: 1rem;
+  padding: 9px 12px;
+}
+
+.viewer-mitte {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0 8px;
+  gap: 6px;
+}
+
+.viewer-pfeil {
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--white);
+  font-size: 1.9rem;
+  line-height: 1;
+  width: 44px;
+  height: 64px;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.viewer-pfeil:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.vergleich {
+  position: relative;
+  max-width: min(1400px, 100%);
+  max-height: 100%;
+  touch-action: none;
+  user-select: none;
+  cursor: ew-resize;
+  line-height: 0;
+}
+
+/* Die Höhe kommt vom jeweiligen Rahmen (Fenster auf der Seite oder Vollbild). */
+.vergleich-bild {
+  max-width: 100%;
+  max-height: var(--vergleich-hoehe, calc(100vh - 150px));
+  display: block;
+  border-radius: 6px;
+}
+
+/* iOS rechnet 100vh mit eingeblendeter Adressleiste, dvh ist die sichtbare Höhe.
+   Sonst hängt der untere Bildrand auf dem iPhone hinter der Leiste. */
+@supports (height: 1dvh) {
+  .vergleich-bild {
+    max-height: var(--vergleich-hoehe, calc(100dvh - 150px));
+  }
+
+  .vergleich-fenster {
+    --vergleich-hoehe: 76dvh;
+  }
+
+  @media (max-width: 900px) {
+    .vergleich-fenster {
+      --vergleich-hoehe: 46dvh;
+    }
+
+    .vergleich-bild {
+      max-height: var(--vergleich-hoehe, calc(100dvh - 170px));
+    }
+  }
+}
+
+/* Touch-Geräte: größere Tippflächen für die kleinen Knöpfe und Häkchen */
+@media (pointer: coarse) {
+  .kachel-entfernen {
+    padding: 6px 9px;
+    font-size: 1rem;
+  }
+
+  .btn-klein {
+    padding: 8px 12px;
+    font-size: 0.88rem;
+  }
+
+  .kachel-option input {
+    width: 18px;
+    height: 18px;
+  }
+
+  .kachel-option {
+    padding: 3px 0;
+  }
+
+  .bestand-liste .kachel-option {
+    padding: 5px 0;
+  }
+}
+
+.vergleich-nachher {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vergleich-marke {
+  position: absolute;
+  top: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(28, 23, 21, 0.65);
+  color: var(--white);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.vergleich-marke.links-oben {
+  left: 10px;
+}
+
+.vergleich-marke.rechts-oben {
+  right: 10px;
+}
+
+.vergleich-linie {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1.5px;
+  background: var(--white);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.vergleich-griff {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--brown);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.viewer-hinweis {
+  margin: 0;
+  padding: 10px 16px 14px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 700px) {
+  .viewer-pfeil {
+    display: none;
+  }
+
+  .vergleich-bild {
+    max-height: calc(100vh - 170px);
+  }
+}

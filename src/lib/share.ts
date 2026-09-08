@@ -52,6 +52,53 @@ export async function teileDateien(files: File[], titel: string): Promise<Teilen
   }
 }
 
+/**
+ * iPhone oder iPad. Dort landet ein Download in "Dateien" und ist aus einer
+ * installierten App heraus oft gar nicht moeglich; der richtige Weg ist das
+ * Teilen-Blatt. iPadOS meldet sich als Mac, verraet sich aber durch Touch.
+ */
+export function istIOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua)) return true
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+}
+
+/** Eine beliebige Datei ueber das Teilen-Blatt anbieten; auf 'nicht moeglich' faellt der Aufrufer auf Download zurueck. */
+export async function teileDatei(blob: Blob, dateiname: string, titel: string): Promise<TeilenErgebnis> {
+  const file = new File([blob], dateiname, { type: blob.type })
+  return teileDateien([file], titel)
+}
+
+function nachherDateiname(blob: Blob, basisname: string): string {
+  const endung = blob.type.includes('png') ? 'png' : 'jpg'
+  const sauber = basisname.replace(/[^\wäöüÄÖÜß. -]+/g, '').trim() || 'Foto'
+  return `ISOTEC_Nachher_${sauber}.${endung}`
+}
+
+/** Sanierungsvorschau: Nachher-Bild direkt herunterladen (am Rechner). */
+export function ladeNachherHerunter(blob: Blob, basisname: string): void {
+  speichereDatei(blob, nachherDateiname(blob, basisname))
+}
+
+/**
+ * Sanierungsvorschau: Nachher-Bild ueber das Teilen-Blatt ablegen (Fotomediathek).
+ * Liefert true, wenn die Datei abgelegt wurde.
+ */
+export async function teileNachherBild(blob: Blob, basisname: string): Promise<boolean> {
+  const dateiname = nachherDateiname(blob, basisname)
+  const file = new File([blob], dateiname, { type: blob.type })
+  const ergebnis = await teileDateien([file], 'Nachher-Bild')
+  if (ergebnis === 'geteilt') return true
+  // Abbruch durch den Nutzer: nichts tun. Kann das Geraet gar nicht teilen,
+  // bleibt der Download als Rueckfallweg.
+  if (ergebnis === 'nicht moeglich') {
+    speichereDatei(blob, dateiname)
+    return true
+  }
+  return false
+}
+
 /** Herunterladen als Rückfallweg, wenn Teilen nicht geht (Desktop). */
 export function speichereDatei(blob: Blob, dateiname: string): void {
   const url = URL.createObjectURL(blob)

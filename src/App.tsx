@@ -25,12 +25,16 @@ import {
 import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
 import VideoPanel from './VideoPanel'
+import VorschauPanel from './vorschau/VorschauPanel'
 import MultiSelect from './MultiSelect'
 import { GEWERKE } from './data/gewerke'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
 
 /** Auf dem Handy kann die PDF geteilt werden, am Rechner wird heruntergeladen. */
 const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
+
+/** Die drei Reiter: Fotodokumentation, Videodokumentation, Sanierungsvorschau. */
+type Modus = 'foto' | 'video' | 'vorschau'
 
 // ---------- Typen ----------
 
@@ -200,8 +204,14 @@ let toastCounter = 0
 // ---------- App ----------
 
 export default function App() {
-  /** Fotos oder Videos - die Angaben zum Termin gelten fuer beides. */
-  const [modus, setModus] = useState<'foto' | 'video'>('foto')
+  /**
+   * Fotos oder Videos - die Angaben zum Termin gelten fuer beides. Die
+   * Sanierungsvorschau ist ein eigener Reiter ohne diese Angaben; ihre Links
+   * (#einstellungen, #demo) oeffnen sie direkt.
+   */
+  const [modus, setModus] = useState<Modus>(() =>
+    /vorschau|einstellungen|demo/.test(window.location.hash) ? 'vorschau' : 'foto',
+  )
   const [terminType, setTerminType] = useState(TERMINARTEN[0])
   const [selectValue, setSelectValue] = useState('')
   const [customName, setCustomName] = useState('')
@@ -669,7 +679,7 @@ export default function App() {
   // ---------- Render ----------
 
   return (
-    <div className="app">
+    <div className={`app modus-${modus}`}>
       <header className="header">
         <div className="container header-inner">
           <div className="header-brand">
@@ -680,10 +690,18 @@ export default function App() {
               <p className="header-kicker">{COMPANY}</p>
             </div>
           </div>
-          <p className="privacy-note">
-            <span aria-hidden="true">🔒</span> Alle Dateien bleiben lokal im Browser – es wird nichts
-            hochgeladen.
-          </p>
+          {modus === 'vorschau' ? (
+            // Die Sanierungsvorschau schickt die Fotos zur Bearbeitung an Google.
+            <p className="privacy-note">
+              <span aria-hidden="true">☁</span> Fotos werden zur Bearbeitung an Google Gemini
+              übertragen.
+            </p>
+          ) : (
+            <p className="privacy-note">
+              <span aria-hidden="true">🔒</span> Alle Dateien bleiben lokal im Browser – es wird nichts
+              hochgeladen.
+            </p>
+          )}
         </div>
       </header>
 
@@ -711,6 +729,16 @@ export default function App() {
             <span className="tab-lang">Videodokumentation</span>
             <span className="tab-kurz">Videos</span>
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={modus === 'vorschau'}
+            className={`modus-tab${modus === 'vorschau' ? ' is-active' : ''}`}
+            onClick={() => setModus('vorschau')}
+          >
+            <span className="tab-lang">Sanierungsvorschau</span>
+            <span className="tab-kurz">Vorschau</span>
+          </button>
         </div>
 
         {/* 1: Terminart - nur fuer Fotos. Videos entstehen immer beim Analysetermin. */}
@@ -735,7 +763,7 @@ export default function App() {
         </section>
 
         {/* 2: Mitarbeiter */}
-        <section className="card" aria-labelledby="sec-mitarbeiter">
+        <section className="card" aria-labelledby="sec-mitarbeiter" hidden={modus === 'vorschau'}>
           <h2 id="sec-mitarbeiter">
             <span className="step">{modus === 'foto' ? 2 : 1}</span> Mitarbeiter
           </h2>
@@ -796,7 +824,7 @@ export default function App() {
         </section>
 
         {/* 3: Objekt - Foto nur fuer die Fotodokumentation, die Angaben gelten fuer beides */}
-        <section className="card" aria-labelledby="sec-objekt">
+        <section className="card" aria-labelledby="sec-objekt" hidden={modus === 'vorschau'}>
           <h2 id="sec-objekt">
             <span className="step">{modus === 'foto' ? 3 : 2}</span>{' '}
             {modus === 'foto' ? 'Objektfoto (Gebäude)' : 'Angaben zum Objekt'}
@@ -984,6 +1012,12 @@ export default function App() {
             objektadresse={addressInput}
             onToast={pushToast}
           />
+        </div>
+
+        {/* Sanierungsvorschau: ebenfalls eingehaengt lassen, damit bearbeitete
+            Fotos beim Reiterwechsel erhalten bleiben. */}
+        <div hidden={modus !== 'vorschau'}>
+          <VorschauPanel />
         </div>
 
         {/* 4: Termin-Fotos */}

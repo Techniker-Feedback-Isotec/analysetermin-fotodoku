@@ -35,6 +35,12 @@ jobs:
         run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Gemini-Schluessel fuer den Reiter Sanierungsvorschau. Er steht NICHT
+          # im Quelltext, sondern als Actions-Geheimnis, und laesst sich dort
+          # austauschen, ohne etwas am Programm zu aendern. vite.config.ts
+          # schreibt ihn kodiert ins Programm, damit der Schluessel-Scanner von
+          # GitHub ihn im oeffentlichen gh-pages-Branch nicht erkennt (sonst Sperre).
+          GEMINI_SCHLUESSEL: ${{ secrets.GEMINI_SCHLUESSEL }}
 
       - name: Push dist to gh-pages
         run: |
