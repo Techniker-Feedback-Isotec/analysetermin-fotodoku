@@ -160,16 +160,23 @@ body {
 }
 
 /*
- * Handy: Die Marke wird zur schmalen Kopfzeile, die Bereiche wandern als
- * Leiste an den unteren Rand, wo der Daumen sie erreicht. Ein 250 Pixel
- * breites Menueband liesse auf 375 Pixeln nichts mehr fuer den Inhalt.
+ * Handy (bis 700 Pixel): Die Marke wird zur schmalen Kopfzeile, die Bereiche
+ * wandern als Leiste an den unteren Rand, wo der Daumen sie erreicht. Ein 250
+ * Pixel breites Menueband liesse auf 375 Pixeln nichts mehr fuer den Inhalt.
+ *
+ * Das iPad behaelt das Menueband (siehe Tablet-Block weiter unten): Auf 768
+ * Pixeln bleiben daneben ueber 500 Pixel fuer den Inhalt, und beim Drehen
+ * springt die Bedienung nicht zwischen zwei Anordnungen hin und her.
  */
-@media (max-width: 900px) {
+@media (max-width: 700px) {
   .shell {
     flex-direction: column;
   }
 
   .sidebar {
+    /* Nicht kleben lassen: Die Marke wuerde sonst dauerhaft 87 Pixel Display
+       kosten, obwohl die Bereiche unten immer erreichbar sind. */
+    position: static;
     width: auto;
     height: auto;
     border-right: none;
@@ -1543,9 +1550,9 @@ table {
   top: 16px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 700px) {
   .vorschau .vergleich-fenster {
-    top: 80px;
+    top: 12px;
   }
 }
 
@@ -2303,4 +2310,174 @@ table {
   .vergleich-bild {
     max-height: calc(100vh - 170px);
   }
+}
+
+/* ---------- iPad: Menueband schmaler, Inhalt mit weniger Rand ---------- */
+
+/*
+ * Das Menueband bleibt auf dem Tablet stehen, braucht dort aber weniger Platz:
+ * 200 statt 250 Punkt lassen im Hochformat (768) ueber 500 Pixel fuer den
+ * Inhalt - genug fuer die Felder neben dem Objektfoto.
+ */
+@media (min-width: 701px) and (max-width: 1080px) {
+  .sidebar {
+    width: 200px;
+  }
+
+  .sidebar-brand {
+    padding: 14px 14px 12px;
+  }
+
+  .sidebar-brand .app-title {
+    font-size: 0.95rem;
+  }
+
+  .sidebar-brand .app-claim {
+    display: none;
+  }
+
+  .nav-item {
+    font-size: 0.85rem;
+    padding: 9px 10px;
+  }
+
+  .content main.container {
+    padding: 20px 20px 8px;
+  }
+}
+
+/* ---------- Handy: alles untereinander, groessere Tippflaechen ---------- */
+
+@media (max-width: 700px) {
+  .content main.container {
+    padding: 16px max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));
+  }
+
+  .card {
+    padding: 15px;
+    margin-bottom: 14px;
+  }
+
+  /* Seite Kunde: Objektfoto unter die Felder. Nebeneinander bliebe fuer die
+     Eingaben nur eine handbreite Spalte uebrig. */
+  .kunde-raster {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .objektfoto-feld img,
+  .objektfoto-leer {
+    height: 150px;
+  }
+
+  /* Erstellte Dokumente: Vorschau und Angaben nebeneinander, Knoepfe darunter */
+  .dokument {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .dokument-vorschau {
+    width: 112px;
+    height: 80px;
+  }
+
+  .dokument-info {
+    flex: 1 1 140px;
+  }
+
+  .dokument-knoepfe {
+    flex: 1 0 100%;
+  }
+
+  /* Bilderliste: kleineres Vorschaubild, damit Name und Knoepfe Platz haben */
+  .photo-list {
+    max-height: none;
+  }
+
+  .photo-list li {
+    gap: 10px;
+    padding: 8px;
+  }
+
+  .photo-thumb {
+    width: 84px;
+    height: 60px;
+  }
+
+  /* Das Textfenster fuellt das Display, statt als kleiner Kasten darin zu schweben */
+  .textfenster-hinter {
+    padding: 0;
+  }
+
+  .textfenster {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
+
+  .textfenster-flaeche {
+    max-height: none;
+    min-height: 0;
+  }
+
+  /* Die Tastenkuerzel-Hinweise helfen ohne Tastatur nicht weiter */
+  .textfenster-hinweis,
+  .textfenster-fuss .eingabe-hinweis {
+    display: none;
+  }
+
+  .textfenster-fuss {
+    justify-content: flex-end;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  /* Der Knopf zum Erstellen ueber die volle Breite */
+  .aktion-zeile {
+    align-items: stretch;
+  }
+
+  .aktion-zeile .btn-primary {
+    width: 100%;
+  }
+}
+
+/* Bilderzeile am Handy: Bild und Name oben, die Knoepfe darunter rechts.
+   Nebeneinander bleiben fuer den Namen keine 60 Pixel, und die Knoepfe
+   schoben sich ueber den Text. */
+@media (max-width: 700px) {
+  .photo-list li {
+    flex-wrap: wrap;
+  }
+
+  .photo-info {
+    flex: 1 1 130px;
+  }
+
+  .move-buttons {
+    margin-left: auto;
+  }
+
+  .file-meta {
+    flex-wrap: wrap;
+  }
+}
+
+/* Mit dem Finger bedient: die Formatier-Knoepfe im Textfenster brauchen Flaeche */
+@media (pointer: coarse) {
+  .werkzeug {
+    min-height: 42px;
+    min-width: 46px;
+    font-size: 1rem;
+  }
+
+  .textfenster-werkzeuge {
+    gap: 8px;
+  }
+}
+
+/* Die Dateinamen-Muster in der Fusszeile enthalten keine Trennstellen und
+   ragten am Handy ueber den Rand. */
+.footer p {
+  overflow-wrap: anywhere;
 }

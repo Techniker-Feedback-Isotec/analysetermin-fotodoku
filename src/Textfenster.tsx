@@ -44,6 +44,7 @@ const WERKZEUGE: Werkzeug[] = [
 
 export default function Textfenster({ titel, hinweis, wert, onSpeichern, onAbbrechen }: TextfensterProps) {
   const flaeche = useRef<HTMLDivElement>(null)
+  const hinter = useRef<HTMLDivElement>(null)
   const [aktiv, setAktiv] = useState<Record<string, boolean>>({})
 
   // Der Inhalt wird nur beim Oeffnen gesetzt: Waehrend des Schreibens darf
@@ -61,6 +62,30 @@ export default function Textfenster({ titel, hinweis, wert, onSpeichern, onAbbre
     auswahl?.removeAllRanges()
     auswahl?.addRange(bereich)
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /**
+   * Auf dem iPhone schiebt die Bildschirmtastatur den sichtbaren Bereich nach
+   * oben, das feste Fenster bliebe aber in voller Hoehe stehen - "Uebernehmen"
+   * laege dann hinter der Tastatur. Deshalb richtet sich das Fenster nach dem
+   * tatsaechlich sichtbaren Ausschnitt.
+   */
+  useEffect(() => {
+    const sicht = window.visualViewport
+    if (!sicht) return
+    const passeAn = () => {
+      const el = hinter.current
+      if (!el) return
+      el.style.height = `${sicht.height}px`
+      el.style.top = `${sicht.offsetTop}px`
+    }
+    passeAn()
+    sicht.addEventListener('resize', passeAn)
+    sicht.addEventListener('scroll', passeAn)
+    return () => {
+      sicht.removeEventListener('resize', passeAn)
+      sicht.removeEventListener('scroll', passeAn)
+    }
   }, [])
 
   const pruefeZustand = useCallback(() => {
@@ -106,6 +131,7 @@ export default function Textfenster({ titel, hinweis, wert, onSpeichern, onAbbre
 
   return (
     <div
+      ref={hinter}
       className="textfenster-hinter"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onAbbrechen()
