@@ -1,6 +1,7 @@
 import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf-lib'
 import type { OptimizedImage } from './image'
 import type { Reichtext, TextAbsatz, TextStueck } from './richtext'
+import type { LegendenGruppe } from '../data/legende'
 import { formatDateShort, formatDateTime, initialsOf } from './format'
 
 // ISOTEC-Farben (Corporate Design Handbuch 2.0)
@@ -11,6 +12,13 @@ const LIGHT = rgb(244 / 255, 244 / 255, 244 / 255) // #F4F4F4
 const MUTED = rgb(138 / 255, 127 / 255, 120 / 255) // abgeschwaechtes Braun fuer Untertitel
 
 const A4: [number, number] = [595.28, 841.89]
+
+/** Farbe aus "#rrggbb"; hellt sie auf Wunsch Richtung Weiss auf (0 = Original, 1 = weiss). */
+function farbeVon(hex: string, aufhellen = 0): ReturnType<typeof rgb> {
+  const zahl = parseInt(hex.replace('#', ''), 16)
+  const misch = (kanal: number) => (kanal + (255 - kanal) * aufhellen) / 255
+  return rgb(misch((zahl >> 16) & 255), misch((zahl >> 8) & 255), misch(zahl & 255))
+}
 
 export interface PdfPhoto {
   image: OptimizedImage
@@ -44,6 +52,12 @@ export interface PdfInputs {
    * "Fachliche Beurteilung" (Reklamation) oder "Zusammenfassung" (Analysetermin).
    * note = Vermerk am Ende (wer, wann).
    */
+  /**
+   * Prinzipskizze: freie Seite fuer den Grundriss, direkt nach dem Deckblatt.
+   * Unten steht eine kleine Legende zu den gewaehlten Gewerken. null = keine
+   * solche Seite (Fotodokumentation).
+   */
+  drawingPage: { title: string; legende: LegendenGruppe[] } | null
   textPage: { title: string; inhalt: Reichtext; note: string } | null
   /** Anzahl der geplanten Termin-Fotos (Zaehler fuer den Fortschritt) */
   photoCount: number
@@ -348,6 +362,107 @@ export async function buildPdf(
 
     // Unten rechts: ISOTEC-Logo (inkl. Claim "IMMER BESSER.")
     page.drawImage(logo, { x: W - margin - logoW, y: logoY, width: logoW, height: logoH })
+  }
+
+  // ---------- Bauzeichnungen (Prinzipskizze, direkt nach dem Deckblatt) ----------
+  // Die Seite bleibt bewusst leer: Dort wird der Grundriss eingefuegt. Unten
+  // steht nur eine kleine Legende zu den gewaehlten Gewerken.
+  if (inputs.drawingPage) {
+    const margin = 48
+    const page = doc.addPage(A4)
+    const pageLogoW = 70
+    const pageLogoH = pageLogoW * (logo.height / logo.width)
+    page.drawImage(logo, {
+      x: W - margin + 8 - pageLogoW,
+      y: H - 12 - pageLogoH,
+      width: pageLogoW,
+      height: pageLogoH,
+    })
+    let y = H - 76
+    drawTracked(page, inputs.terminType.toUpperCase(), margin, y, bold, 9, RED, 1.6)
+    y -= 26
+    page.drawText(inputs.drawingPage.title, { x: margin, y, size: 22, font: bold, color: BROWN })
+    y -= 14
+    page.drawLine({ start: { x: margin, y }, end: { x: W - margin, y }, thickness: 0.75, color: GREY })
+
+    const gruppen = inputs.drawingPage.legende
+    if (gruppen.length > 0) {
+      const spalten = 3
+      const spaltenBreite = (W - 2 * margin) / spalten
+      const titelHoehe = 13
+      const zeilenHoehe = 13
+      const gruppenAbstand = 9
+      const hoeheVon = (g: LegendenGruppe) => titelHoehe + g.eintraege.length * zeilenHoehe + gruppenAbstand
+      const proSpalte = Math.ceil(gruppen.length / spalten)
+      const spaltenHoehen = Array.from({ length: spalten }, (_, s) =>
+        gruppen.slice(s * proSpalte, (s + 1) * proSpalte).reduce((summe, g) => summe + hoeheVon(g), 0),
+      )
+      const blockHoehe = Math.max(...spaltenHoehen)
+
+      // Der Block sitzt unten, damit die Flaeche darueber fuer den Grundriss frei bleibt.
+      const unten = 56
+      const oben = unten + blockHoehe
+      drawTracked(page, 'LEGENDE', margin, oben + 16, bold, 8, MUTED, 1.4)
+      page.drawLine({
+        start: { x: margin, y: oben + 10 },
+        end: { x: W - margin, y: oben + 10 },
+        thickness: 0.5,
+        color: GREY,
+      })
+
+      gruppen.forEach((gruppe, i) => {
+        const spalte = Math.floor(i / proSpalte)
+        const x = margin + spalte * spaltenBreite
+        let zeileY = oben
+        for (let vorher = spalte * proSpalte; vorher < i; vorher++) {
+          zeileY -= hoeheVon(gruppen[vorher])
+        }
+        zeileY -= titelHoehe
+        // Lange Gruppennamen duerfen etwas kleiner werden, statt in die
+        // Nachbarspalte zu laufen.
+        let titelGroesse = 8.5
+        const titel = toWinAnsi(gruppe.titel)
+        while (titelGroesse > 6 && bold.widthOfTextAtSize(titel, titelGroesse) > spaltenBreite - 10) {
+          titelGroesse -= 0.25
+        }
+        page.drawText(titel, { x, y: zeileY + 3, size: titelGroesse, font: bold, color: BROWN })
+
+        for (const eintrag of gruppe.eintraege) {
+          zeileY -= zeilenHoehe
+          const mitte = zeileY + 6
+          if (eintrag.form === 'balken') {
+            page.drawRectangle({
+              x,
+              y: mitte - 3,
+              width: 22,
+              height: 6,
+              color: farbeVon(gruppe.farbe),
+            })
+          } else if (eintrag.form === 'flaeche') {
+            page.drawRectangle({
+              x: x + 4,
+              y: mitte - 6,
+              width: 13,
+              height: 13,
+              color: farbeVon(gruppe.farbe, 0.86),
+              borderColor: farbeVon(gruppe.farbe),
+              borderWidth: 0.8,
+            })
+          } else {
+            const strich = { thickness: 1.4, color: farbeVon(gruppe.farbe) }
+            page.drawLine({ start: { x: x + 5, y: mitte - 5 }, end: { x: x + 16, y: mitte + 5 }, ...strich })
+            page.drawLine({ start: { x: x + 5, y: mitte + 5 }, end: { x: x + 16, y: mitte - 5 }, ...strich })
+          }
+          page.drawText(toWinAnsi(eintrag.text), {
+            x: x + 28,
+            y: mitte - 3,
+            size: 8,
+            font: regular,
+            color: BROWN,
+          })
+        }
+      })
+    }
   }
 
   // ---------- Optionale Textseite (nur wenn ausgefuellt, direkt nach dem Deckblatt) ----------

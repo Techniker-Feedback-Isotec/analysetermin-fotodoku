@@ -13,6 +13,7 @@ import {
   type Progress,
 } from './lib/bilder'
 import type { Fotostapel } from './fotostapel'
+import { SONSTIGES, legendeFuer, ohneLegende } from './data/legende'
 import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
@@ -181,7 +182,13 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
 
   const hasAssessment = isReklamation && !reichtextIstLeer(beurteilung)
   const hasSummary = !isReklamation && !reichtextIstLeer(zusammenfassung)
-  const pageCount = included.length + 1 + (hasAssessment || hasSummary ? 1 : 0)
+  // Prinzipskizze: Deckblatt, freie Seite fuer den Grundriss, dann die Bilder
+  const legende = useMemo(
+    () => (istSkizze ? [...legendeFuer(kunde.gewerke), SONSTIGES] : []),
+    [istSkizze, kunde.gewerke],
+  )
+  const gewerkeOhneFarbe = istSkizze ? ohneLegende(kunde.gewerke) : []
+  const pageCount = included.length + 1 + (istSkizze ? 1 : 0) + (hasAssessment || hasSummary ? 1 : 0)
 
   // Welches der beiden Textfelder gerade gilt
   const textTitel = isReklamation ? 'Beurteilung' : 'Zusammenfassung'
@@ -266,6 +273,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
             customerAddress: kunde.kundenadresse.trim() || null,
             orderNumber: isReklamation ? kunde.auftragsnummer.trim() || null : null,
             gewerke: kunde.gewerke,
+            drawingPage: istSkizze ? { title: 'Bauzeichnungen', legende } : null,
             textPage: hasAssessment
               ? {
                   title: 'Fachliche Beurteilung',
@@ -374,6 +382,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
     kunde.gewerke,
     isReklamation,
     istSkizze,
+    legende,
     hasAssessment,
     beurteilung,
     hasSummary,
@@ -395,7 +404,11 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
       <section className="card" aria-labelledby={`${art}-titel`}>
         <div className="karte-kopf">
           <h2 id={`${art}-titel`}>{istSkizze ? 'Prinzipskizze' : 'Fotodokumentation'}</h2>
-          <p>Mitarbeiter, Objektfoto und Kundendaten kommen von der Seite Kunde.</p>
+          <p>
+            {istSkizze
+              ? 'Deckblatt, freie Seite „Bauzeichnungen" für den Grundriss, dann die Bilder. Die Legende dort zeigt die auf der Seite Kunde gewählten Gewerke.'
+              : 'Mitarbeiter, Objektfoto und Kundendaten kommen von der Seite Kunde.'}
+          </p>
         </div>
         <div className="felder">
           {!istSkizze && (
@@ -426,6 +439,11 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
               )}
             </button>
           </div>
+          {gewerkeOhneFarbe.length > 0 && (
+            <p className="eingabe-breit hint-warn">
+              Ohne Farbe in der Legende: {gewerkeOhneFarbe.join(', ')}
+            </p>
+          )}
         </div>
       </section>
 

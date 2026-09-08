@@ -5,6 +5,9 @@
 export const GEWERKE: string[] = [
   'Außenabdichtung',
   'Balkon - Kombiflex',
+  // Bodenabdichtung kam am 08.09.2026 dazu: Sie steht in der Legende der
+  // Prinzipskizze, war aber noch nicht auswaehlbar.
+  'Bodenabdichtung',
   'Balkon - PMMA',
   'Balkon - Steinteppich',
   'Betoninstandsetzung',
