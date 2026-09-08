@@ -78,7 +78,7 @@ export function Navigation({
       <div className="sidebar-brand">
         <img src={logo} alt="ISOTEC" />
         <div className="sidebar-titel">
-          <p className="app-title">Dokumentation Analysetermin</p>
+          <p className="app-title">Dokumentation</p>
           <p className="app-claim">Abdichtungstechnik Dipl.-Ing. Morscheck GmbH</p>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { optimizeCircle, type OptimizedImage } from './lib/image'
-import { buildPdf, type PdfPhoto } from './lib/pdf'
+import type { PdfPhoto } from './lib/pdf'
 import { formatBytes, formatDateShort, formatDateTime, formatDateWeekday, fileDate, sanitizeFilePart } from './lib/format'
 import {
   ACCEPT,
@@ -204,7 +204,11 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
     try {
       // 1) Statische Assets (Teamfoto, Logo) + Mitarbeiterfoto laden
       setPdfProgress({ label: 'Lade Deckblatt-Bilder …', done: 0, total: 1 })
-      const logoPng = await fetch(logoPngUrl).then((r) => r.arrayBuffer())
+      // pdf-lib wird erst hier geladen: Beim Start der Seite braucht es niemand.
+      const [{ buildPdf }, logoPng] = await Promise.all([
+        import('./lib/pdf'),
+        fetch(logoPngUrl).then((r) => r.arrayBuffer()),
+      ])
       let spImage: OptimizedImage | null = null
       if (mitarbeiter.foto) {
         try {

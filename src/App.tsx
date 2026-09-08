@@ -1,6 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import VideoPanel from './VideoPanel'
-import VorschauPanel from './vorschau/VorschauPanel'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import KundePanel from './KundePanel'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
@@ -22,6 +20,17 @@ interface Toast {
 
 const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 
+/**
+ * Video- und Vorschauseite werden erst geladen, wenn jemand sie oeffnet: Die
+ * Videoumwandlung (mediabunny) und die KI-Anbindung machen zusammen den
+ * groessten Teil des Programms aus, gebraucht werden sie aber nur dort.
+ * Einmal geladen bleiben sie eingehaengt, damit nichts verloren geht.
+ */
+const VideoPanel = lazy(() => import('./VideoPanel'))
+const VorschauPanel = lazy(() => import('./vorschau/VorschauPanel'))
+
+const START_MODUS: Modus = /vorschau|einstellungen|demo/.test(window.location.hash) ? 'vorschau' : 'kunde'
+
 let toastCounter = 0
 
 /**
@@ -35,9 +44,12 @@ let toastCounter = 0
  */
 export default function App() {
   // Die Sanierungsvorschau hat eigene Links (#einstellungen, #demo), die sie direkt oeffnen.
-  const [modus, setModus] = useState<Modus>(() =>
-    /vorschau|einstellungen|demo/.test(window.location.hash) ? 'vorschau' : 'kunde',
-  )
+  const [modus, setModus] = useState<Modus>(START_MODUS)
+  /** Seiten, die schon einmal offen waren - nur die werden (und bleiben) eingehaengt */
+  const [geoeffnet, setGeoeffnet] = useState<Partial<Record<Modus, boolean>>>({ [START_MODUS]: true })
+  useEffect(() => {
+    setGeoeffnet((bisher) => (bisher[modus] ? bisher : { ...bisher, [modus]: true }))
+  }, [modus])
   const [kunde, setKunde] = useState<Kundendaten>(LEERE_KUNDENDATEN)
   const [dokumente, setDokumente] = useState<Dokument[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -150,14 +162,18 @@ export default function App() {
           {/* Das Video-Deckblatt zeigt keine Kundenadresse, ein Verweis darauf waere
               dort sinnlos - deshalb bekommt es die tatsaechliche Anschrift. */}
           <div hidden={modus !== 'video'}>
-            <VideoPanel
-              mitarbeiter={mitarbeiter.name}
-              mitarbeiterFoto={mitarbeiter.foto}
-              kunde={kunde.kunde}
-              objektadresse={objektadresseEcht(kunde)}
-              onToast={pushToast}
-              onDokument={setzeDokument}
-            />
+            {geoeffnet.video && (
+              <Suspense fallback={<p className="lade-hinweis">Videodokumentation wird geladen …</p>}>
+                <VideoPanel
+                  mitarbeiter={mitarbeiter.name}
+                  mitarbeiterFoto={mitarbeiter.foto}
+                  kunde={kunde.kunde}
+                  objektadresse={objektadresseEcht(kunde)}
+                  onToast={pushToast}
+                  onDokument={setzeDokument}
+                />
+              </Suspense>
+            )}
           </div>
 
           <div hidden={modus !== 'prinzipskizze'}>
@@ -171,7 +187,11 @@ export default function App() {
           </div>
 
           <div hidden={modus !== 'vorschau'}>
-            <VorschauPanel kunde={kunde} onDokument={setzeDokument} />
+            {geoeffnet.vorschau && (
+              <Suspense fallback={<p className="lade-hinweis">Sanierungsvorschau wird geladen …</p>}>
+                <VorschauPanel kunde={kunde} onDokument={setzeDokument} />
+              </Suspense>
+            )}
           </div>
         </main>
 

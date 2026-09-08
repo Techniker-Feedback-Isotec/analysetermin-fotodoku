@@ -1292,6 +1292,13 @@ input[type='checkbox'] {
   margin-top: 2px;
 }
 
+/* Kurzer Platzhalter, waehrend eine spaet geladene Seite ankommt */
+.lade-hinweis {
+  margin: 8px 0;
+  color: #7a6f68;
+  font-size: 0.9rem;
+}
+
 /* ---------- Textfenster fuer Zusammenfassung und Beurteilung ---------- */
 
 /* Auf der Seite steht der fertige Text; ein Klick oeffnet das Schreibfenster. */

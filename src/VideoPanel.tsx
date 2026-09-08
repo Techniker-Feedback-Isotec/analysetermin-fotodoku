@@ -500,29 +500,23 @@ export default function VideoPanel(props: VideoPanelProps) {
   return (
     <>
       <section className="card" aria-labelledby="sec-deckblatt">
-        <h2 id="sec-deckblatt">
-          <span className="step">3</span> Deckblatt
-        </h2>
-        <p className="section-hint">
-          Jedes Video beginnt mit diesem Deckblatt (5 Sekunden). Dadurch zeigt die Kachel in MeisterTask,
-          Craftboxx und im Explorer sofort, zu welchem Termin das Video gehört – statt eines zufälligen
-          ersten Bildes. Das Datum kommt aus dem Video selbst, also vom Tag der Aufnahme.
-        </p>
+        <div className="karte-kopf">
+          <h2 id="sec-deckblatt">Videodokumentation</h2>
+          <p>
+            Jedes Video beginnt mit diesem Deckblatt (5 Sekunden), damit die Kachel in MeisterTask und
+            Craftboxx sofort den Termin zeigt. Datum aus dem Video, Angaben von der Seite Kunde.
+          </p>
+        </div>
         <figure className="cover-preview">
           <canvas ref={coverCanvas} aria-label="Vorschau des Deckblatts" />
-          <figcaption>Aus den Angaben oben – ändert sich mit jeder Eingabe.</figcaption>
         </figure>
       </section>
 
       <section className="card" aria-labelledby="sec-videos">
-        <h2 id="sec-videos">
-          <span className="step">4</span> Videos
-        </h2>
-        <p className="section-hint">
-          Alles läuft im Browser: Deckblatt davorsetzen, Drehung korrigieren – und verkleinern <strong>nur,
-          wenn das Video über 40 MB liegt</strong> (Grenze von Craftboxx). Was ohnehin passt, behält seine
-          Qualität.
-        </p>
+        <div className="karte-kopf">
+          <h2 id="sec-videos">Videos</h2>
+          <p>Verkleinert wird nur, was über 40 MB liegt (Grenze von Craftboxx); der Rest behält seine Qualität.</p>
+        </div>
 
         {!compressionAvailable && (
           <p className="hint-warn">
@@ -680,15 +674,15 @@ export default function VideoPanel(props: VideoPanelProps) {
       </section>
 
       <section className="card card-action" aria-labelledby="sec-video-save">
-        <h2 id="sec-video-save">
-          <span className="step">5</span> {KANN_TEILEN ? 'In Fotos sichern' : 'Videos speichern'}
-        </h2>
-        {jobs.length > 0 && (
-          <p className="section-hint">
-            {jobs.length} Video{jobs.length === 1 ? '' : 's'} · vorher {formatBytes(totalOriginal)} · nachher{' '}
-            {formatBytes(totalResult)}
-          </p>
-        )}
+        <div className="karte-kopf">
+          <h2 id="sec-video-save">{KANN_TEILEN ? 'In Fotos sichern' : 'Videos speichern'}</h2>
+          {jobs.length > 0 && (
+            <p>
+              {jobs.length} Video{jobs.length === 1 ? '' : 's'} · vorher {formatBytes(totalOriginal)} · nachher{' '}
+              {formatBytes(totalResult)}
+            </p>
+          )}
+        </div>
 
         {banner && (
           <p className="erfolg-banner" role="status">

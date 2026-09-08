@@ -1,4 +1,4 @@
-# Dokumentation Analysetermin
+# Dokumentation
 
 Statisches Web-Tool (Single-Page-App) der **Abdichtungstechnik Dipl.-Ing. Morscheck GmbH** für die
 Unterlagen vom Analysetermin – **ein Tool für Fotos und Videos**, umschaltbar über zwei Reiter:
