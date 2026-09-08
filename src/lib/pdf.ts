@@ -1,5 +1,6 @@
 import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf-lib'
 import type { OptimizedImage } from './image'
+import type { Reichtext, TextAbsatz, TextStueck } from './richtext'
 import { formatDateShort, formatDateTime, initialsOf } from './format'
 
 // ISOTEC-Farben (Corporate Design Handbuch 2.0)
@@ -43,7 +44,7 @@ export interface PdfInputs {
    * "Fachliche Beurteilung" (Reklamation) oder "Zusammenfassung" (Analysetermin).
    * note = Vermerk am Ende (wer, wann).
    */
-  textPage: { title: string; text: string; note: string } | null
+  textPage: { title: string; inhalt: Reichtext; note: string } | null
   /** Anzahl der geplanten Termin-Fotos (Zaehler fuer den Fortschritt) */
   photoCount: number
   /**
@@ -150,6 +151,8 @@ export async function buildPdf(
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const regular = await doc.embedFont(StandardFonts.Helvetica)
   const italic = await doc.embedFont(StandardFonts.HelveticaOblique)
+  // Fuer fett und kursiv zugleich im formatierten Text
+  const boldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique)
   const [W, H] = A4
   const logo = await doc.embedPng(inputs.logoPng)
 
@@ -349,7 +352,7 @@ export async function buildPdf(
 
   // ---------- Optionale Textseite (nur wenn ausgefuellt, direkt nach dem Deckblatt) ----------
   if (inputs.textPage) {
-    const { title, text, note } = inputs.textPage
+    const { title, inhalt, note } = inputs.textPage
     const margin = 48
     const textSize = 11
     const lineHeight = 17
@@ -382,18 +385,158 @@ export async function buildPdf(
       return { page, y }
     }
 
-    // Fliesstext: Zeilen umbrechen, Leerzeilen bleiben als Absatzabstand erhalten
-    const lines = wrapText(toWinAnsi(text), regular, textSize, W - 2 * margin)
-    let { page, y } = newTextPage(true)
-    for (const line of lines) {
-      if (y < bottomLimit) {
-        ;({ page, y } = newTextPage(false))
-      }
-      if (line !== '') {
-        page.drawText(line, { x: margin, y, size: textSize, font: regular, color: BROWN })
-      }
-      y -= lineHeight
+    // Formatierter Text aus dem Textfenster. Fett, kursiv und unterstrichen
+    // koennen mitten in der Zeile wechseln, deshalb traegt jedes Stueck seine
+    // eigene Schrift und die Zeile wird aus einzelnen Teilen zusammengesetzt.
+    const einzug = 16
+
+    /** Ein Stueck Zeile mit fester Schrift: Wortteil oder Leerzeichen. */
+    interface Teil {
+      text: string
+      font: PDFFont
+      unterstrichen: boolean
+      breite: number
     }
+    /** Ein Wort, das nicht umbrochen werden darf; kann mehrere Schriften enthalten. */
+    interface Wort {
+      teile: Teil[]
+      breite: number
+      abstandDavor: boolean
+    }
+
+    const schriftFuer = (s: TextStueck): PDFFont =>
+      s.fett ? (s.kursiv ? boldItalic : bold) : s.kursiv ? italic : regular
+
+    const teilVon = (text: string, font: PDFFont, unterstrichen: boolean): Teil => ({
+      text,
+      font,
+      unterstrichen,
+      breite: font.widthOfTextAtSize(text, textSize),
+    })
+
+    const worteVon = (stuecke: TextStueck[], maxBreite: number): Wort[] => {
+      const worte: Wort[] = []
+      let teile: Teil[] = []
+      let abstand = false
+      const wortAbschliessen = () => {
+        if (teile.length === 0) return
+        worte.push({
+          teile,
+          breite: teile.reduce((summe, t) => summe + t.breite, 0),
+          abstandDavor: abstand,
+        })
+        teile = []
+        abstand = false
+      }
+      for (const stueck of stuecke) {
+        const font = schriftFuer(stueck)
+        for (const zeichenfolge of toWinAnsi(stueck.text).split(/( )/)) {
+          if (zeichenfolge === '') continue
+          if (zeichenfolge === ' ') {
+            wortAbschliessen()
+            abstand = true
+            continue
+          }
+          // Ueberlange Woerter (etwa Dateinamen ohne Leerzeichen) hart trennen
+          let rest = zeichenfolge
+          while (font.widthOfTextAtSize(rest, textSize) > maxBreite && rest.length > 1) {
+            let schnitt = rest.length - 1
+            while (schnitt > 1 && font.widthOfTextAtSize(rest.slice(0, schnitt), textSize) > maxBreite) {
+              schnitt--
+            }
+            teile.push(teilVon(rest.slice(0, schnitt), font, stueck.unterstrichen))
+            wortAbschliessen()
+            rest = rest.slice(schnitt)
+          }
+          teile.push(teilVon(rest, font, stueck.unterstrichen))
+        }
+      }
+      wortAbschliessen()
+      return worte
+    }
+
+    let { page, y } = newTextPage(true)
+
+    const zeichneAbsatz = (absatz: TextAbsatz) => {
+      const linkerRand = margin + (absatz.art === 'punkt' ? einzug : 0)
+      const maxBreite = W - margin - linkerRand
+      const worte = worteVon(absatz.stuecke, maxBreite)
+      if (worte.length === 0) {
+        // Leerzeile zwischen zwei Absaetzen
+        y -= lineHeight * 0.6
+        return
+      }
+
+      let zeile: Teil[] = []
+      let breite = 0
+      let ersteZeile = true
+
+      const zeileZeichnen = () => {
+        if (zeile.length === 0) return
+        if (y < bottomLimit) {
+          ;({ page, y } = newTextPage(false))
+        }
+        let x = linkerRand
+        if (absatz.art === 'punkt' && ersteZeile) {
+          page.drawText('•', { x: margin + 3, y, size: textSize, font: regular, color: BROWN })
+        }
+        // Der Unterstrich wird als durchgehende Linie gezogen, auch ueber
+        // Leerzeichen hinweg - sonst zerfaellt er in einzelne Stuecke.
+        let strichAb: number | null = null
+        for (const teil of zeile) {
+          if (teil.unterstrichen && strichAb === null) strichAb = x
+          if (!teil.unterstrichen && strichAb !== null) {
+            page.drawLine({
+              start: { x: strichAb, y: y - 2 },
+              end: { x, y: y - 2 },
+              thickness: 0.6,
+              color: BROWN,
+            })
+            strichAb = null
+          }
+          if (teil.text !== ' ') {
+            page.drawText(teil.text, { x, y, size: textSize, font: teil.font, color: BROWN })
+          }
+          x += teil.breite
+        }
+        if (strichAb !== null) {
+          page.drawLine({
+            start: { x: strichAb, y: y - 2 },
+            end: { x, y: y - 2 },
+            thickness: 0.6,
+            color: BROWN,
+          })
+        }
+        y -= lineHeight
+        ersteZeile = false
+        zeile = []
+        breite = 0
+      }
+
+      for (const wort of worte) {
+        const vorheriges = zeile[zeile.length - 1]
+        const leerzeichen =
+          wort.abstandDavor && zeile.length > 0
+            ? teilVon(
+                ' ',
+                wort.teile[0].font,
+                wort.teile[0].unterstrichen && (vorheriges?.unterstrichen ?? false),
+              )
+            : null
+        if (zeile.length > 0 && breite + (leerzeichen?.breite ?? 0) + wort.breite > maxBreite) {
+          zeileZeichnen()
+        }
+        if (zeile.length > 0 && leerzeichen) {
+          zeile.push(leerzeichen)
+          breite += leerzeichen.breite
+        }
+        zeile.push(...wort.teile)
+        breite += wort.breite
+      }
+      zeileZeichnen()
+    }
+
+    for (const absatz of inhalt) zeichneAbsatz(absatz)
 
     // Vermerk am Ende (wer, wann)
     const noteLines = wrapText(toWinAnsi(note), italic, 10, W - 2 * margin)

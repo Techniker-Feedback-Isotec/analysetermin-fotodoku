@@ -18,6 +18,8 @@ import {
 } from './lib/bilder'
 import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
+import Textfenster, { Textvorschau } from './Textfenster'
+import { reichtextIstLeer, type Reichtext } from './lib/richtext'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
 import {
   TERMINARTEN,
@@ -62,9 +64,12 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
   const [dragOver, setDragOver] = useState(false)
   const [fertigePdf, setFertigePdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   // Reklamation: Beurteilung; Analysetermin und Prinzipskizze: Zusammenfassung.
-  // Beide bleiben erhalten, wenn die Terminart wechselt.
-  const [assessment, setAssessment] = useState('')
-  const [summary, setSummary] = useState('')
+  // Beide bleiben erhalten, wenn die Terminart wechselt. Geschrieben wird im
+  // Textfenster, gespeichert als formatierter Text (Absaetze, fett, kursiv,
+  // unterstrichen, Aufzaehlung) - genau so kommt er in die PDF.
+  const [beurteilung, setBeurteilung] = useState<Reichtext>([])
+  const [zusammenfassung, setZusammenfassung] = useState<Reichtext>([])
+  const [fensterOffen, setFensterOffen] = useState(false)
   // Reihenfolge: startet chronologisch; sobald manuell sortiert wurde, bleibt
   // die Reihenfolge beim Import neuer Fotos unangetastet (neue kommen ans Ende)
   const [orderTouched, setOrderTouched] = useState(false)
@@ -243,9 +248,14 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
   const busy = importProgress !== null || pdfProgress !== null
   const canCreate = mitarbeiter.name !== '' && objectPhoto !== null && included.length > 0 && !busy
 
-  const hasAssessment = isReklamation && assessment.trim() !== ''
-  const hasSummary = !isReklamation && summary.trim() !== ''
+  const hasAssessment = isReklamation && !reichtextIstLeer(beurteilung)
+  const hasSummary = !isReklamation && !reichtextIstLeer(zusammenfassung)
   const pageCount = included.length + 1 + (hasAssessment || hasSummary ? 1 : 0)
+
+  // Welches der beiden Textfelder gerade gilt
+  const textTitel = isReklamation ? 'Beurteilung' : 'Zusammenfassung'
+  const textWert = isReklamation ? beurteilung : zusammenfassung
+  const setzeText = isReklamation ? setBeurteilung : setZusammenfassung
 
   const missingHints: string[] = []
   if (!mitarbeiter.name) missingHints.push('Mitarbeiter auf der Seite Kunde wählen')
@@ -328,13 +338,13 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
             textPage: hasAssessment
               ? {
                   title: 'Fachliche Beurteilung',
-                  text: assessment.trim(),
+                  inhalt: beurteilung,
                   note: `Die fachliche Beurteilung wurde durchgeführt von ${mitarbeiter.name} am ${formatDateShort(Date.now())}.`,
                 }
               : hasSummary
                 ? {
                     title: 'Zusammenfassung',
-                    text: summary.trim(),
+                    inhalt: zusammenfassung,
                     note: `Die Zusammenfassung wurde erstellt von ${mitarbeiter.name} am ${formatDateShort(Date.now())}.`,
                   }
                 : null,
@@ -434,9 +444,9 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
     isReklamation,
     istSkizze,
     hasAssessment,
-    assessment,
+    beurteilung,
     hasSummary,
-    summary,
+    zusammenfassung,
     pageCount,
     art,
     quelle,
@@ -474,31 +484,16 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
             </div>
           )}
           <div className="eingabe eingabe-breit">
-            {isReklamation ? (
-              <>
-                <label htmlFor={`${art}-assessment-input`}>Beurteilung (eigene Seite nach dem Deckblatt)</label>
-                <textarea
-                  id={`${art}-assessment-input`}
-                  className="assessment-input"
-                  value={assessment}
-                  onChange={(e) => setAssessment(e.target.value)}
-                  placeholder="Text der fachlichen Beurteilung einfügen …"
-                  rows={3}
-                />
-              </>
-            ) : (
-              <>
-                <label htmlFor={`${art}-summary-input`}>Zusammenfassung (eigene Seite nach dem Deckblatt)</label>
-                <textarea
-                  id={`${art}-summary-input`}
-                  className="assessment-input"
-                  value={summary}
-                  onChange={(e) => setSummary(e.target.value)}
-                  placeholder="Text der Zusammenfassung einfügen …"
-                  rows={3}
-                />
-              </>
-            )}
+            <span className="eingabe-label">{textTitel} (eigene Seite nach dem Deckblatt)</span>
+            <button type="button" className="textvorschau" onClick={() => setFensterOffen(true)}>
+              {reichtextIstLeer(textWert) ? (
+                <span className="textvorschau-leer">
+                  {textTitel} schreiben und formatieren – zum Öffnen anklicken
+                </span>
+              ) : (
+                <Textvorschau reich={textWert} />
+              )}
+            </button>
           </div>
         </div>
       </section>
@@ -724,6 +719,18 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
               </button>
             </div>
           </div>
+        )}
+        {fensterOffen && (
+          <Textfenster
+            titel={textTitel}
+            hinweis={`erscheint als eigene Seite „${isReklamation ? 'Fachliche Beurteilung' : 'Zusammenfassung'}" nach dem Deckblatt`}
+            wert={textWert}
+            onSpeichern={(neu) => {
+              setzeText(neu)
+              setFensterOffen(false)
+            }}
+            onAbbrechen={() => setFensterOffen(false)}
+          />
         )}
         {progress && (
           <div className="progress" role="status" aria-live="polite">
