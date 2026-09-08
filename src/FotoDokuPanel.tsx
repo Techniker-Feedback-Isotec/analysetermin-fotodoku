@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { sha256Hex } from './lib/hash'
-import { makeThumbnailUrl, optimizeCircle, type OptimizedImage } from './lib/image'
+import { optimizeCircle, type OptimizedImage } from './lib/image'
 import { buildPdf, type PdfPhoto } from './lib/pdf'
 import { formatBytes, formatDateShort, formatDateTime, formatDateWeekday, fileDate, sanitizeFilePart } from './lib/format'
 import {
@@ -10,12 +9,10 @@ import {
   JPEG_QUALITY,
   MAX_EDGE,
   chronoCompare,
-  isSupported,
   optimizeWithRetry,
-  prepareImage,
   type Progress,
-  type TerminPhoto,
 } from './lib/bilder'
+import type { Fotostapel } from './fotostapel'
 import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
@@ -50,16 +47,20 @@ export type FotoDokuArt = 'fotodoku' | 'prinzipskizze'
 export interface FotoDokuPanelProps {
   art: FotoDokuArt
   kunde: Kundendaten
+  /** Gemeinsamer Bilderstapel beider Fotoseiten */
+  stapel: Fotostapel
   onToast: ToastFn
   onDokument: DokumentFn
 }
 
-export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoDokuPanelProps) {
+export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument }: FotoDokuPanelProps) {
   const [terminart, setTerminart] = useState<Terminart>('Analysetermin')
-  const [photos, setPhotos] = useState<TerminPhoto[]>([])
+  /** Bilder, die auf dieser Seite nicht mitsollen; im Stapel bleiben sie */
+  const [ausgeschlossen, setAusgeschlossen] = useState<string[]>([])
+  /** Selbst gewaehlte Reihenfolge dieser Seite; null = chronologisch */
+  const [sortierung, setSortierung] = useState<string[] | null>(null)
   const [keepDuplicates, setKeepDuplicates] = useState(false)
   const [extraCompression, setExtraCompression] = useState(true)
-  const [importProgress, setImportProgress] = useState<Progress | null>(null)
   const [pdfProgress, setPdfProgress] = useState<Progress | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [fertigePdf, setFertigePdf] = useState<{ blob: Blob; fileName: string } | null>(null)
@@ -70,16 +71,9 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
   const [beurteilung, setBeurteilung] = useState<Reichtext>([])
   const [zusammenfassung, setZusammenfassung] = useState<Reichtext>([])
   const [fensterOffen, setFensterOffen] = useState(false)
-  // Reihenfolge: startet chronologisch; sobald manuell sortiert wurde, bleibt
-  // die Reihenfolge beim Import neuer Fotos unangetastet (neue kommen ans Ende)
-  const [orderTouched, setOrderTouched] = useState(false)
   const [dragPhotoId, setDragPhotoId] = useState<string | null>(null)
   const [dragOverPhotoId, setDragOverPhotoId] = useState<string | null>(null)
 
-  const photosRef = useRef(photos)
-  photosRef.current = photos
-  const orderTouchedRef = useRef(orderTouched)
-  orderTouchedRef.current = orderTouched
   const dropInputRef = useRef<HTMLInputElement>(null)
 
   const istSkizze = art === 'prinzipskizze'
@@ -89,127 +83,64 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
   const mitarbeiter = mitarbeiterVon(kunde)
   const objectPhoto = kunde.objektfoto
 
-  // ---------- Termin-Fotos ----------
+  // ---------- Bilder: gemeinsamer Stapel, eigene Auswahl je Seite ----------
 
-  const addFiles = useCallback(
-    async (list: FileList | File[]) => {
-      const files = Array.from(list)
-      files.filter((f) => !isSupported(f)).forEach((f) => {
-        onToast('error', `Nicht unterstütztes Format: ${f.name}`)
-      })
-      const supported = files.filter(isSupported)
-      if (supported.length === 0) return
+  /**
+   * Beide Fotoseiten arbeiten mit demselben Bilderstapel: Hochgeladen wird
+   * einmal, und jede Seite entscheidet selbst, welche Bilder sie zeigt und in
+   * welcher Reihenfolge (Wunsch Yann, 08.09.2026). Das X nimmt ein Bild
+   * deshalb nur von dieser Seite; der Stapel behaelt es fuer die andere.
+   */
+  const sichtbar = useMemo(() => {
+    const uebrig = stapel.fotos.filter((f) => !ausgeschlossen.includes(f.id))
+    if (!sortierung) return [...uebrig].sort(chronoCompare)
+    // Bilder, die nach dem Sortieren dazukamen, kennt die eigene Reihenfolge
+    // noch nicht - sie haengen sich chronologisch hinten an.
+    const platz = new Map(sortierung.map((id, i) => [id, i]))
+    const ende = Number.MAX_SAFE_INTEGER
+    return [...uebrig].sort(
+      (a, b) => (platz.get(a.id) ?? ende) - (platz.get(b.id) ?? ende) || chronoCompare(a, b),
+    )
+  }, [stapel.fotos, ausgeschlossen, sortierung])
 
-      const knownHashes = new Set(photosRef.current.map((p) => p.hash))
-      let noExifCount = 0
-      let duplicateCount = 0
+  /** Nur von dieser Seite nehmen - im Stapel bleibt das Bild fuer die andere. */
+  const removePhoto = (id: string) => setAusgeschlossen((bisher) => [...bisher, id])
 
-      for (let i = 0; i < supported.length; i++) {
-        const file = supported[i]
-        setImportProgress({
-          label: `Verarbeite Bild ${i + 1}/${supported.length}: ${file.name}`,
-          done: i,
-          total: supported.length,
-        })
-        try {
-          const hash = await sha256Hex(file)
-          const prepared = await prepareImage(file)
-          if (prepared.dateSource === 'file') noExifCount++
-          if (knownHashes.has(hash)) {
-            duplicateCount++
-            onToast('info', `Duplikat erkannt: ${file.name}`)
-          }
-          knownHashes.add(hash)
-          setPhotos((prev) => {
-            const next = [...prev, { ...prepared, hash, id: crypto.randomUUID(), rotation: 0 }]
-            return orderTouchedRef.current ? next : next.sort(chronoCompare)
-          })
-        } catch (err) {
-          onToast('error', err instanceof Error ? err.message : `Fehler bei ${file.name}`)
-        }
-      }
-      setImportProgress(null)
-      if (noExifCount > 0) {
-        onToast('info', `Kein EXIF-Datum bei ${noExifCount} Foto(s) gefunden – verwende Dateidatum.`)
-      }
-      if (duplicateCount > 0 && !keepDuplicates) {
-        onToast('info', `${duplicateCount} Duplikat(e) werden von der PDF ausgeschlossen.`)
-      }
-    },
-    [keepDuplicates, onToast],
-  )
-
-  const removePhoto = useCallback((id: string) => {
-    setPhotos((prev) => {
-      const photo = prev.find((p) => p.id === id)
-      if (photo) URL.revokeObjectURL(photo.thumbUrl)
-      return prev.filter((p) => p.id !== id)
-    })
-  }, [])
-
-  /** Foto um 90 Grad im Uhrzeigersinn drehen (Vorschau wird neu erzeugt) */
-  const rotatePhoto = useCallback(
-    async (id: string) => {
-      const photo = photosRef.current.find((p) => p.id === id)
-      if (!photo) return
-      const rotation = (photo.rotation + 90) % 360
-      try {
-        const thumbUrl = await makeThumbnailUrl(photo.workingBlob, photo.orientation, 512, rotation)
-        setPhotos((prev) =>
-          prev.map((p) => {
-            if (p.id !== id) return p
-            URL.revokeObjectURL(p.thumbUrl)
-            return { ...p, rotation, thumbUrl }
-          }),
-        )
-      } catch {
-        onToast('error', `Foto konnte nicht gedreht werden: ${photo.fileName}`)
-      }
-    },
-    [onToast],
-  )
+  const rotatePhoto = (id: string) => stapel.drehen(id)
 
   /** Foto per Pfeil-Button eine Position nach oben/unten schieben */
-  const movePhoto = useCallback((id: string, dir: -1 | 1) => {
-    setOrderTouched(true)
-    setPhotos((prev) => {
-      const i = prev.findIndex((p) => p.id === id)
-      const j = i + dir
-      if (i < 0 || j < 0 || j >= prev.length) return prev
-      const next = [...prev]
-      ;[next[i], next[j]] = [next[j], next[i]]
-      return next
-    })
-  }, [])
+  const movePhoto = (id: string, dir: -1 | 1) => {
+    const liste = [...sichtbar]
+    const i = liste.findIndex((p) => p.id === id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= liste.length) return
+    ;[liste[i], liste[j]] = [liste[j], liste[i]]
+    setSortierung(liste.map((p) => p.id))
+  }
 
   /** Foto per Drag & Drop an die Position des Ziel-Fotos verschieben */
-  const reorderByDrop = useCallback(
-    (targetId: string) => {
-      if (!dragPhotoId || dragPhotoId === targetId) {
-        setDragPhotoId(null)
-        setDragOverPhotoId(null)
-        return
-      }
-      setOrderTouched(true)
-      setPhotos((prev) => {
-        const from = prev.findIndex((p) => p.id === dragPhotoId)
-        const to = prev.findIndex((p) => p.id === targetId)
-        if (from < 0 || to < 0) return prev
-        const next = [...prev]
-        const [moved] = next.splice(from, 1)
-        next.splice(to, 0, moved)
-        return next
-      })
+  const reorderByDrop = (targetId: string) => {
+    if (!dragPhotoId || dragPhotoId === targetId) {
       setDragPhotoId(null)
       setDragOverPhotoId(null)
-    },
-    [dragPhotoId],
-  )
+      return
+    }
+    const liste = [...sichtbar]
+    const von = liste.findIndex((p) => p.id === dragPhotoId)
+    const nach = liste.findIndex((p) => p.id === targetId)
+    if (von >= 0 && nach >= 0) {
+      const [bewegt] = liste.splice(von, 1)
+      liste.splice(nach, 0, bewegt)
+      setSortierung(liste.map((p) => p.id))
+    }
+    setDragPhotoId(null)
+    setDragOverPhotoId(null)
+  }
 
   // Duplikate markieren (erste Datei mit einem Hash gilt als Original)
   const annotated = useMemo(() => {
     const firstByHash = new Map<string, string>()
-    return photos.map((p) => {
+    return sichtbar.map((p) => {
       const first = firstByHash.get(p.hash)
       if (first === undefined) {
         firstByHash.set(p.hash, p.fileName)
@@ -217,7 +148,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
       }
       return { ...p, isDuplicate: true, duplicateOf: first }
     })
-  }, [photos])
+  }, [sichtbar])
 
   // Die Listen-Reihenfolge (initial chronologisch, manuell aenderbar) ist
   // exakt die Seiten-Reihenfolge in der PDF.
@@ -245,7 +176,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
 
   // ---------- PDF ----------
 
-  const busy = importProgress !== null || pdfProgress !== null
+  const busy = stapel.fortschritt !== null || pdfProgress !== null
   const canCreate = mitarbeiter.name !== '' && objectPhoto !== null && included.length > 0 && !busy
 
   const hasAssessment = isReklamation && !reichtextIstLeer(beurteilung)
@@ -454,7 +385,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
     onDokument,
   ])
 
-  const progress = pdfProgress ?? importProgress
+  const progress = pdfProgress ?? stapel.fortschritt
 
   // ---------- Render ----------
 
@@ -502,14 +433,11 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
       <section className="card" aria-labelledby={`${art}-fotos`}>
         <div className="karte-kopf">
           <h2 id={`${art}-fotos`}>{istSkizze ? 'Bilder' : 'Fotos'}</h2>
-          {annotated.length > 0 && (
-            <p aria-live="polite">
-              {annotated.length} importiert
-              {duplicateTotal > 0 &&
-                ` · ${duplicateTotal} Duplikat(e)${keepDuplicates ? ' (bleiben enthalten)' : ' ausgeschlossen'}`}
-              {' '}· {included.length} in der PDF · Reihenfolge = Seitenfolge, per Pfeil oder Ziehen ändern
-            </p>
-          )}
+          <p aria-live="polite">
+            {annotated.length === 0
+              ? 'Einmal hochladen genügt – die Bilder stehen auf beiden Fotoseiten bereit'
+              : `${annotated.length} Bild(er) · ${included.length} in der PDF · ✕ nimmt eines nur von dieser Seite · Reihenfolge = Seitenfolge`}
+          </p>
         </div>
         <div
           className={`dropzone dropzone-zeile${dragOver ? ' dropzone-active' : ''}`}
@@ -521,7 +449,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
           onDrop={(e) => {
             e.preventDefault()
             setDragOver(false)
-            void addFiles(e.dataTransfer.files)
+            void stapel.hinzufuegen(e.dataTransfer.files)
           }}
         >
           <p className="dropzone-hint">Dateien hierher ziehen (JPG, PNG, HEIC) oder</p>
@@ -532,13 +460,18 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
             accept={ACCEPT}
             multiple
             onChange={(e) => {
-              if (e.target.files) void addFiles(e.target.files)
+              if (e.target.files) void stapel.hinzufuegen(e.target.files)
               e.target.value = ''
             }}
           />
           <button type="button" className="btn-secondary" onClick={() => dropInputRef.current?.click()}>
             Dateien auswählen
           </button>
+          {ausgeschlossen.length > 0 && (
+            <button type="button" className="btn-inline" onClick={() => setAusgeschlossen([])}>
+              {ausgeschlossen.length} entfernte wieder anzeigen
+            </button>
+          )}
           {duplicateTotal > 0 && (
             <label className="checkbox">
               <input

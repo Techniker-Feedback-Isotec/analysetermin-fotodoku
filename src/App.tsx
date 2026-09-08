@@ -4,6 +4,7 @@ import VorschauPanel from './vorschau/VorschauPanel'
 import KundePanel from './KundePanel'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
+import { useFotostapel } from './fotostapel'
 import {
   LEERE_KUNDENDATEN,
   mitarbeiterVon,
@@ -52,6 +53,12 @@ export default function App() {
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, 7000)
   }, [])
+
+  /**
+   * Ein gemeinsamer Bilderstapel fuer Fotodokumentation und Prinzipskizze:
+   * einmal hochladen, auf beiden Seiten verfuegbar.
+   */
+  const stapel = useFotostapel(pushToast)
 
   /** Ein neues Dokument mit gleichem Schluessel ersetzt das alte; null entfernt es. */
   const setzeDokument = useCallback((schluessel: string, quelle: string, datei: File | null) => {
@@ -131,7 +138,13 @@ export default function App() {
           </div>
 
           <div hidden={modus !== 'foto'}>
-            <FotoDokuPanel art="fotodoku" kunde={kunde} onToast={pushToast} onDokument={setzeDokument} />
+            <FotoDokuPanel
+              art="fotodoku"
+              kunde={kunde}
+              stapel={stapel}
+              onToast={pushToast}
+              onDokument={setzeDokument}
+            />
           </div>
 
           {/* Das Video-Deckblatt zeigt keine Kundenadresse, ein Verweis darauf waere
@@ -148,7 +161,13 @@ export default function App() {
           </div>
 
           <div hidden={modus !== 'prinzipskizze'}>
-            <FotoDokuPanel art="prinzipskizze" kunde={kunde} onToast={pushToast} onDokument={setzeDokument} />
+            <FotoDokuPanel
+              art="prinzipskizze"
+              kunde={kunde}
+              stapel={stapel}
+              onToast={pushToast}
+              onDokument={setzeDokument}
+            />
           </div>
 
           <div hidden={modus !== 'vorschau'}>
