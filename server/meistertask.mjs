@@ -1,8 +1,9 @@
 // Kundensuche in MeisterTask fuer die Seite Kunde.
 //
 // Jeder Vertriebler hat ein Board "<Kuerzel>_Ersttermine" (14 Stueck, gemessen
-// 08.09.2026). Gesucht wird ausschliesslich in den Spalten "Phase 0" und
-// "Auftragsbesprechungen" (Yann: "sonst keine!"). Die Liste zeigt je Aufgabe
+// 08.09.2026). Gesucht wird ausschliesslich in den Spalten "Phase 0",
+// "Auftragsbesprechungen" und "Angebote" (Yann, 08.09.2026; Angebote kam nach
+// dem ersten Test dazu, alles Weitere bleibt draussen). Die Liste zeigt je Aufgabe
 // nur "Name, Ort", gekuerzt aus dem Aufgabentitel; die Felder einer Aufgabe
 // (Name, Anschriften, Baujahr) werden erst geholt, wenn jemand sie auswaehlt.
 //
@@ -21,8 +22,12 @@ const MEISTERTASK = 'https://www.meistertask.com/api'
 /** Spaltennamen sind kein Vertrag: Yann benennt sie um, deshalb tolerant vergleichen. */
 const PHASE0 = ['phase 0', 'phase0', 'ersttermine']
 const BESPRECHUNG = ['auftragsbesprechung', 'auftragsbesprechungen', 'zweittermine', 'zweitermine']
+const ANGEBOTE = ['angebote', 'angebot']
 const norm = (s) => String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
-const istGesuchteSpalte = (name) => PHASE0.includes(norm(name)) || BESPRECHUNG.includes(norm(name))
+const istGesuchteSpalte = (name) => {
+  const n = norm(name)
+  return PHASE0.includes(n) || BESPRECHUNG.includes(n) || ANGEBOTE.includes(n)
+}
 
 /**
  * Feldnamen der Boards, aus denen die Kundendaten kommen. Die Typ-IDs sind je
@@ -71,6 +76,7 @@ const REST_DAHINTER = /\b(?:ausf(?:ührung|ühung|\.)|BL\s*[:.]|team|KW\s*\d|auf
 const TEILAUFTRAG = /\s*\b\d+\s*v(?:on)?\s*\d+\b\s*[:.\-]?\s*/i
 const OBJEKT_WORT = /\bObjekt\s+/gi
 const KLAMMERN_AM_ENDE = /\s*\([^)]*\)\s*$/
+const RANDSTRICH = /^[\s\-–]+|[\s\-–]+$/g
 const VERMERKE = /^(altkunde|neukunde|folgeauftrag|\d+\.\s*Projekt)$/i
 const BESCHREIBUNG_AB = 30
 
@@ -101,7 +107,9 @@ export function kundeUndOrt(titel, kuerzel) {
     .replace(TEILAUFTRAG, ', ')
     .replace(OBJEKT_WORT, '')
     .split(',')
-    .map((t) => t.trim().replace(KLAMMERN_AM_ENDE, '').trim())
+    // Loser Gedankenstrich am Rand eines Teils ("YF - Dr. Goetker", "Moers - Angebot"
+    // nach dem Schnitt am Datum) gehoert nicht zum Namen
+    .map((t) => t.trim().replace(KLAMMERN_AM_ENDE, '').replace(RANDSTRICH, '').trim())
     .filter(Boolean)
     .filter((t) => !VERMERKE.test(t))
 
@@ -213,7 +221,7 @@ export function erzeugeKundendienst({ token, feldToken }) {
 
   /**
    * Die Kundenliste eines Mitarbeiters: offene Aufgaben seines Boards in den
-   * Spalten Phase 0 und Auftragsbesprechungen, je Aufgabe "Name, Ort".
+   * Spalten Phase 0, Auftragsbesprechungen und Angebote, je Aufgabe "Name, Ort".
    */
   async function kundenliste(mitarbeiterName) {
     const { kuerzel, board } = await boardFuer(mitarbeiterName)

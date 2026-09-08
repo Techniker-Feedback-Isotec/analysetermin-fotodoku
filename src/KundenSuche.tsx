@@ -4,8 +4,8 @@ import { ApiFehler, ladeKundenliste, type KundenEintrag, type Kundenliste } from
 /**
  * Das Feld "Kunde" ist zugleich die Suche in MeisterTask: Getippt wird frei,
  * darunter klappt die Liste der passenden Vorgaenge auf – nur die aus dem
- * Ersttermine-Board des gewaehlten Mitarbeiters, nur Phase 0 und
- * Auftragsbesprechungen, je Vorgang "Name, Ort". Eine Auswahl fuellt die
+ * Ersttermine-Board des gewaehlten Mitarbeiters, nur Phase 0,
+ * Auftragsbesprechungen und Angebote, je Vorgang "Name, Ort". Eine Auswahl fuellt die
  * uebrigen Felder (Anschriften, Baujahr) aus der Aufgabe.
  *
  * Die Liste wird je Mitarbeiter einmal geladen und dann im Browser gefiltert:
@@ -116,7 +116,7 @@ export default function KundenSuche({
   else if (!mitarbeiter) hinweis = 'Mitarbeiter wählen, dann sucht das Feld in seinem Ersttermine-Board.'
   else if (laedt) hinweis = 'MeisterTask wird gelesen …'
   else if (fehler) hinweis = fehler
-  else if (liste?.board) hinweis = `${liste.eintraege.length} Vorgänge in Phase 0 und Auftragsbesprechungen (${liste.board})`
+  else if (liste?.board) hinweis = `${liste.eintraege.length} Vorgänge in Phase 0, Auftragsbesprechungen und Angebote (${liste.board})`
   else if (liste?.grund) hinweis = liste.grund
   else hinweis = ''
 
@@ -144,7 +144,7 @@ export default function KundenSuche({
         <ul className="kundensuche-liste" id={listId} role="listbox">
           {treffer.length === 0 ? (
             <li className="kundensuche-leer">
-              {liste.eintraege.length === 0 ? 'Keine offenen Vorgänge in Phase 0 oder Auftragsbesprechungen.' : 'Kein Vorgang passt zur Eingabe.'}
+              {liste.eintraege.length === 0 ? 'Keine offenen Vorgänge in Phase 0, Auftragsbesprechungen oder Angebote.' : 'Kein Vorgang passt zur Eingabe.'}
             </li>
           ) : (
             treffer.map((e, i) => (

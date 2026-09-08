@@ -71,8 +71,8 @@ zur Anmeldung.
 
 `GET /api/kunden?mitarbeiter=Yann Feyen` sucht das Board `YF_Ersttermine`
 (Kuerzel = erste Buchstaben von Vor- und Nachname) und liefert dessen offene
-Aufgaben aus den Spalten **Phase 0** und **Auftragsbesprechungen** – sonst
-keine (Yann). Je Aufgabe steht „Name, Ort", gekuerzt aus dem Titel.
+Aufgaben aus den Spalten **Phase 0**, **Auftragsbesprechungen** und **Angebote**
+– sonst keine (Yann, 08.09.2026). Je Aufgabe steht „Name, Ort", gekuerzt aus dem Titel.
 `GET /api/kunden/<id>?projekt=<board>` liefert die Felder einer Aufgabe:
 Name (KUNDE), Anschrift (KUNDE), Anschrift (OBJEKT), Baujahr, Objektart.
 

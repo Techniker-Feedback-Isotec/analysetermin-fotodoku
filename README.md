@@ -7,7 +7,7 @@ Kunden werden **einmal** eingetragen und gelten für alle Unterlagen:
 - **Kunde:** Mitarbeiter (nach der Anmeldung vorgewählt), Kunde, Kundenadresse, Objektadresse (nur
   bei Abweichung), Baujahr, Auftragsnummer, Termindatum, Sanierungskonzept (Gewerke), Objektfoto.
   Das Feld Kunde ist zugleich die **Suche in MeisterTask**: Es durchsucht das Ersttermine-Board
-  des Mitarbeiters (Spalten Phase 0 und Auftragsbesprechungen) und übernimmt Name, Anschriften
+  des Mitarbeiters (Spalten Phase 0, Auftragsbesprechungen und Angebote) und übernimmt Name, Anschriften
   und Baujahr aus der gewählten Aufgabe. Darunter die Sammlung aller erstellten Dokumente mit
   Vorschau und Download sowie der Knopf für die **Angebotsmappe**.
 - **Fotodokumentation:** Terminart (Analysetermin oder Reklamation), Fotos, optionale
