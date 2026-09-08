@@ -25,11 +25,14 @@ export interface PdfInputs {
   /** Rund zugeschnittenes Mitarbeiterfoto (PNG mit Alpha), oder null fuer Initialen */
   salespersonImage: OptimizedImage | null
   objectImage: OptimizedImage
-  /** Objektadresse (optionale manuelle Eingabe), oder null */
+  /**
+   * Anschrift unter dem Objektfoto, oder null. Liegt das Objekt beim Kunden,
+   * steht hier "siehe Kundenadresse" statt derselben Anschrift zweimal.
+   */
   objectAddress: string | null
   /** Kundenname (optionale Eingabe), oder null */
   customerName: string | null
-  /** Anschrift des Kunden (nur bei Reklamation, optional), oder null */
+  /** Anschrift des Kunden (optional), oder null */
   customerAddress: string | null
   /** Auftragsnummer (nur bei Reklamation, optional), oder null */
   orderNumber: string | null

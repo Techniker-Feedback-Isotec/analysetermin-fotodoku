@@ -4,7 +4,14 @@ import VorschauPanel from './vorschau/VorschauPanel'
 import KundePanel from './KundePanel'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
-import { LEERE_KUNDENDATEN, mitarbeiterVon, type Dokument, type Kundendaten, type ToastKind } from './kunde'
+import {
+  LEERE_KUNDENDATEN,
+  mitarbeiterVon,
+  objektadresseEcht,
+  type Dokument,
+  type Kundendaten,
+  type ToastKind,
+} from './kunde'
 
 interface Toast {
   id: number
@@ -127,12 +134,14 @@ export default function App() {
             <FotoDokuPanel art="fotodoku" kunde={kunde} onToast={pushToast} onDokument={setzeDokument} />
           </div>
 
+          {/* Das Video-Deckblatt zeigt keine Kundenadresse, ein Verweis darauf waere
+              dort sinnlos - deshalb bekommt es die tatsaechliche Anschrift. */}
           <div hidden={modus !== 'video'}>
             <VideoPanel
               mitarbeiter={mitarbeiter.name}
               mitarbeiterFoto={mitarbeiter.foto}
               kunde={kunde.kunde}
-              objektadresse={kunde.objektadresse}
+              objektadresse={objektadresseEcht(kunde)}
               onToast={pushToast}
               onDokument={setzeDokument}
             />

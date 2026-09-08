@@ -130,7 +130,7 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
                 type="text"
                 value={daten.kundenadresse}
                 onChange={(e) => onChange({ kundenadresse: e.target.value })}
-                placeholder="nur wenn abweichend vom Objekt"
+                placeholder="z. B. Musterstraße 1, Krefeld"
               />
             </div>
             <div className="eingabe">
@@ -140,8 +140,13 @@ export default function KundePanel({ daten, onChange, dokumente, onEntfernen, on
                 type="text"
                 value={daten.objektadresse}
                 onChange={(e) => onChange({ objektadresse: e.target.value })}
-                placeholder="z. B. Musterstraße, Krefeld"
+                placeholder="nur wenn abweichend"
               />
+              <p className="eingabe-hinweis">
+                {daten.objektadresse.trim() === '' && daten.kundenadresse.trim() !== ''
+                  ? 'Leer = siehe Kundenadresse'
+                  : 'Nur wenn das Objekt anderswo liegt'}
+              </p>
             </div>
             <div className="eingabe">
               <label htmlFor="ordernumber-input">Auftragsnummer</label>

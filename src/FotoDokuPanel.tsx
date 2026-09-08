@@ -23,6 +23,8 @@ import {
   TERMINARTEN,
   manuellesTermindatum,
   mitarbeiterVon,
+  objektadresseEcht,
+  objektadresseText,
   type DokumentFn,
   type Kundendaten,
   type Terminart,
@@ -272,8 +274,8 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
         }
       }
 
-      // 2) Objektadresse: ausschliesslich die manuelle Eingabe (optional)
-      const objectAddress: string | null = kunde.objektadresse.trim() || null
+      // 2) Objektadresse: bei gleicher Anschrift der Verweis auf die Kundenadresse
+      const objectAddress: string | null = objektadresseText(kunde) || null
 
       // Fotos, die sich partout nicht lesen lassen - werden uebersprungen
       const fehlerhafteFotos = new Set<string>()
@@ -320,7 +322,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
             objectImage: objImage,
             objectAddress,
             customerName: kunde.kunde.trim() || null,
-            customerAddress: isReklamation ? kunde.kundenadresse.trim() || null : null,
+            customerAddress: kunde.kundenadresse.trim() || null,
             orderNumber: isReklamation ? kunde.auftragsnummer.trim() || null : null,
             gewerke: kunde.gewerke,
             textPage: hasAssessment
@@ -381,7 +383,7 @@ export default function FotoDokuPanel({ art, kunde, onToast, onDokument }: FotoD
       // Prinzipskizze weicht ab: "ISOTEC Prinzipskizze_Objektadresse.pdf",
       // die Adresse entfaellt bei leerem Feld.
       const fileName = istSkizze
-        ? ['ISOTEC Prinzipskizze', sanitizeFilePart(kunde.objektadresse)]
+        ? ['ISOTEC Prinzipskizze', sanitizeFilePart(objektadresseEcht(kunde))]
             .filter((part) => part !== '')
             .join('_') + '.pdf'
         : [
