@@ -28,83 +28,230 @@ body {
   padding: 0 16px;
 }
 
-/* Header: schlicht weiss, bleibt beim Scrollen oben stehen */
-.header {
-  position: sticky;
-  top: 0;
+/* ---------- App-Shell mit Menueband links, wie im Vertriebsprozess-Werkzeug ---------- */
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 250px;
+  flex-shrink: 0;
   z-index: 40;
   background: var(--white);
+  border-right: 1px solid var(--grey);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebar-brand {
+  padding: 18px 18px 14px;
   border-bottom: 1px solid var(--grey);
-  padding: 12px 0;
 }
 
-.header-inner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 16px;
-}
-
-.header h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--brown);
-  line-height: 1.2;
-}
-
-.header-kicker {
-  margin: 1px 0 0;
-  font-size: 0.8rem;
-  color: #8a7f78;
-}
-
-.header-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.header-logo {
-  height: 30px;
+.sidebar-brand img {
+  height: 28px;
   width: auto;
   display: block;
-  flex-shrink: 0;
 }
 
-.header-divider {
-  width: 1px;
-  height: 30px;
-  background: var(--grey);
+.sidebar-brand .app-title {
+  margin: 10px 0 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.sidebar-brand .app-claim {
+  margin: 1px 0 0;
+  font-size: 0.75rem;
+  color: #7a6f68;
+  letter-spacing: 0.04em;
+}
+
+.nav {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--brown);
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nav-item:hover {
+  background: var(--light);
+  color: var(--brown);
+}
+
+.nav-item.active {
+  background: #fdf0f0;
+  color: var(--red);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+.nav-item .nav-icon {
+  width: 22px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #7a6f68;
+}
+
+.nav-item:hover .nav-icon {
+  color: var(--brown);
+}
+
+.nav-item.active .nav-icon {
+  color: var(--red);
+}
+
+/* Kurze Beschriftung nur in der Leiste am Handy-Rand */
+.nav-kurz {
+  display: none;
+}
+
+.sidebar-foot {
+  padding: 12px 14px;
+  border-top: 1px solid var(--grey);
 }
 
 .privacy-note {
   margin: 0;
-  background: var(--light);
-  border: 1px solid var(--grey);
-  border-radius: 6px;
-  padding: 6px 11px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: #6f645d;
-  max-width: 330px;
+  line-height: 1.45;
 }
 
-@media (max-width: 700px) {
-  .header-divider {
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content main {
+  flex: 1;
+  width: 100%;
+}
+
+/*
+ * Handy: Die Marke wird zur schmalen Kopfzeile, die Bereiche wandern als
+ * Leiste an den unteren Rand, wo der Daumen sie erreicht. Ein 250 Pixel
+ * breites Menueband liesse auf 375 Pixeln nichts mehr fuer den Inhalt.
+ */
+@media (max-width: 900px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: auto;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--grey);
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+    border-bottom: none;
+  }
+
+  .sidebar-brand img {
+    height: 24px;
+  }
+
+  .sidebar-titel {
+    min-width: 0;
+  }
+
+  .sidebar-brand .app-title {
+    margin: 0;
+    font-size: 0.98rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-brand .app-claim {
     display: none;
   }
 
-  .header h1 {
-    font-size: 1.1rem;
+  .sidebar-foot {
+    border-top: none;
+    padding: 0 max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
   }
 
   .privacy-note {
-    font-size: 0.78rem;
-    padding: 5px 9px;
-    max-width: none;
+    font-size: 0.74rem;
+  }
+
+  .nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    flex-direction: row;
+    gap: 4px;
+    padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+    background: var(--white);
+    border-top: 1px solid var(--grey);
+    overflow: visible;
+  }
+
+  .nav-item {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    font-size: 0.74rem;
+    font-weight: 600;
+  }
+
+  .nav-lang {
+    display: none;
+  }
+
+  .nav-kurz {
+    display: inline;
+  }
+
+  /* Platz fuer die feste Leiste unten, sonst verdeckt sie das Seitenende */
+  .content {
+    padding-bottom: 72px;
+  }
+
+  .toasts {
+    bottom: 84px;
   }
 }
 
@@ -644,43 +791,10 @@ input[type='checkbox'] {
   border: 0;
 }
 
-/* ---------- Umschaltung Foto / Video ---------- */
+/* ---------- Umschaltung Foto / Video / Vorschau ---------- */
 
 [hidden] {
   display: none !important;
-}
-
-.modus-tabs {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 18px;
-}
-
-.modus-tab {
-  flex: 1;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 11px 14px;
-  border: 1px solid var(--grey);
-  border-radius: 8px;
-  background: var(--white);
-  color: var(--muted, #8a7f78);
-}
-
-.modus-tab:hover {
-  border-color: var(--brown);
-}
-
-.modus-tab.is-active {
-  background: var(--red);
-  border-color: var(--red);
-  color: var(--white);
-}
-
-.modus-tab:focus-visible {
-  outline: 2px solid var(--red);
-  outline-offset: 2px;
 }
 
 /* ---------- Deckblatt-Vorschau ---------- */
@@ -951,29 +1065,6 @@ table {
   max-width: 100%;
 }
 
-/* Reiter: duerfen schrumpfen, auf schmalen Displays mit kurzer Beschriftung */
-.modus-tab {
-  min-width: 0;
-}
-
-.tab-kurz {
-  display: none;
-}
-
-@media (max-width: 520px) {
-  .tab-lang {
-    display: none;
-  }
-
-  .tab-kurz {
-    display: inline;
-  }
-
-  .modus-tabs {
-    gap: 6px;
-  }
-}
-
 /*
  * Schmale Displays: Eingabefelder duerfen unter ihre Wunschbreite von 260 Pixeln
  * schrumpfen. Ohne das ragen sie aus der Karte heraus, und genau dadurch liess
@@ -1021,6 +1112,18 @@ table {
 /* Die Vorschau zeigt Kacheln und Vergleich nebeneinander und braucht mehr Breite. */
 .app.modus-vorschau .container {
   max-width: 1280px;
+}
+
+/* Ohne Kopfzeile ueber dem Inhalt klebt das Vergleichsfenster direkt am oberen Rand;
+   am Handy bleibt die schmale Markenzeile oben stehen und braucht ihren Platz. */
+.vorschau .vergleich-fenster {
+  top: 16px;
+}
+
+@media (max-width: 900px) {
+  .vorschau .vergleich-fenster {
+    top: 80px;
+  }
 }
 
 .vorschau-hinweis {

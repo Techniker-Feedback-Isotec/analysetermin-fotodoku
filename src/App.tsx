@@ -26,15 +26,13 @@ import teamJpgUrl from './assets/team.jpg'
 import logoPngUrl from './assets/isotec-logo.png'
 import VideoPanel from './VideoPanel'
 import VorschauPanel from './vorschau/VorschauPanel'
+import { Navigation, type Modus } from './Navigation'
 import MultiSelect from './MultiSelect'
 import { GEWERKE } from './data/gewerke'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
 
 /** Auf dem Handy kann die PDF geteilt werden, am Rechner wird heruntergeladen. */
 const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
-
-/** Die drei Reiter: Fotodokumentation, Videodokumentation, Sanierungsvorschau. */
-type Modus = 'foto' | 'video' | 'vorschau'
 
 // ---------- Typen ----------
 
@@ -679,18 +677,13 @@ export default function App() {
   // ---------- Render ----------
 
   return (
-    <div className={`app modus-${modus}`}>
-      <header className="header">
-        <div className="container header-inner">
-          <div className="header-brand">
-            <img className="header-logo" src={logoPngUrl} alt="ISOTEC – Immer besser." />
-            <span className="header-divider" aria-hidden="true" />
-            <div>
-              <h1>Dokumentation Analysetermin</h1>
-              <p className="header-kicker">{COMPANY}</p>
-            </div>
-          </div>
-          {modus === 'vorschau' ? (
+    <div className={`app shell modus-${modus}`}>
+      {/* Menueband links wie im Vertriebsprozess-Werkzeug; die Marke steht darin */}
+      <Navigation
+        modus={modus}
+        onWechsel={setModus}
+        fuss={
+          modus === 'vorschau' ? (
             // Die Sanierungsvorschau schickt die Fotos zur Bearbeitung an Google.
             <p className="privacy-note">
               <span aria-hidden="true">☁</span> Fotos werden zur Bearbeitung an Google Gemini
@@ -701,46 +694,12 @@ export default function App() {
               <span aria-hidden="true">🔒</span> Alle Dateien bleiben lokal im Browser – es wird nichts
               hochgeladen.
             </p>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
+      <div className="content">
       <main className="container">
-        {/* Fotos oder Videos - die Angaben in den Schritten 1 bis 3 gelten fuer beides */}
-        <div className="modus-tabs" role="tablist" aria-label="Art der Dokumentation">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={modus === 'foto'}
-            className={`modus-tab${modus === 'foto' ? ' is-active' : ''}`}
-            onClick={() => setModus('foto')}
-          >
-            {/* Auf schmalen Displays passen die langen Woerter nicht nebeneinander */}
-            <span className="tab-lang">Fotodokumentation</span>
-            <span className="tab-kurz">Fotos</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={modus === 'video'}
-            className={`modus-tab${modus === 'video' ? ' is-active' : ''}`}
-            onClick={() => setModus('video')}
-          >
-            <span className="tab-lang">Videodokumentation</span>
-            <span className="tab-kurz">Videos</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={modus === 'vorschau'}
-            className={`modus-tab${modus === 'vorschau' ? ' is-active' : ''}`}
-            onClick={() => setModus('vorschau')}
-          >
-            <span className="tab-lang">Sanierungsvorschau</span>
-            <span className="tab-kurz">Vorschau</span>
-          </button>
-        </div>
-
         {/* 1: Terminart - nur fuer Fotos. Videos entstehen immer beim Analysetermin. */}
         <section className="card" aria-labelledby="sec-terminart" hidden={modus !== 'foto'}>
           <h2 id="sec-terminart">
@@ -1275,14 +1234,22 @@ export default function App() {
 
       <footer className="footer">
         <div className="container">
-          <p>
-            Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies
-            <br />
-            PDF: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;TT.MM.JJJJ&gt;.pdf ·
-            Video: ISOTEC_Videodokumentation_&lt;Titel&gt;_&lt;TT.MM.JJJJ&gt;.mp4
-          </p>
+          {modus === 'vorschau' ? (
+            <p>
+              {COMPANY} · Fotos gehen zur Bearbeitung an Google Gemini, sonst keine Uploads, kein
+              Tracking, keine Cookies
+            </p>
+          ) : (
+            <p>
+              Verarbeitung zu 100 % lokal im Browser · keine Uploads, kein Tracking, keine Cookies
+              <br />
+              PDF: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;TT.MM.JJJJ&gt;.pdf ·
+              Video: ISOTEC_Videodokumentation_&lt;Titel&gt;_&lt;TT.MM.JJJJ&gt;.mp4
+            </p>
+          )}
         </div>
       </footer>
+      </div>
 
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => (
