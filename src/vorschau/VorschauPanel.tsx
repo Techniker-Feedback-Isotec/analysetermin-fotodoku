@@ -654,9 +654,10 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
         )}
 
         <section className="card">
-          <h2>
-            <span className="step">1</span>Kellerfotos hochladen
-          </h2>
+          <div className="karte-kopf">
+            <h2>Kellerfotos</h2>
+            <p>Aus jedem Foto entsteht eine Ansicht, wie der Raum saniert aussehen kann.</p>
+          </div>
           <div
             className={ziehtDatei ? 'ablage zieht' : 'ablage'}
             onDragOver={(e) => {
@@ -692,7 +693,7 @@ export default function VorschauPanel({ kunde, onDokument }: VorschauPanelProps)
         {fotos.length > 0 && (
           <section className="card">
             <h2>
-              <span className="step">2</span>Vorher-Nachher
+              Vorher-Nachher
               {aufIOS && pdfBlob ? (
                 <button className="btn btn-rot btn-klein h2-aktion" onClick={() => void teilePdf()}>
                   PDF teilen
