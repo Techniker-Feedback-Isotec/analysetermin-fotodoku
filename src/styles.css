@@ -1300,24 +1300,34 @@ input[type='checkbox'] {
   flex-shrink: 0;
 }
 
-/* Kleines Vorschaufenster: PDF im eingebetteten Betrachter, Video mit Bedienung */
-.dokument-vorschau {
+/*
+ * Haekchen fuer die Angebotsmappe. An dieser Stelle stand bis zum 09.09.2026
+ * ein Vorschaufenster je Dokument (PDF im eingebetteten Betrachter, Video mit
+ * Bedienleiste). Yann braucht es nicht, und die Liste ist ohne die eingebetteten
+ * Betrachter deutlich leichter.
+ */
+.dokument-haken {
   flex-shrink: 0;
-  width: 150px;
-  height: 105px;
-  border: 1px solid var(--grey);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--white);
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  color: #7a6f68;
+  cursor: pointer;
 }
 
-.dokument-vorschau iframe,
-.dokument-vorschau video {
+.dokument-haken input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--red);
+  margin: 0;
+  cursor: pointer;
+}
+
+.dokument-haken-leer {
   display: block;
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: #1c1715;
 }
 
 .dokument-info {
@@ -2404,15 +2414,14 @@ table {
     height: 150px;
   }
 
-  /* Erstellte Dokumente: Vorschau und Angaben nebeneinander, Knoepfe darunter */
+  /* Erstellte Dokumente: Haekchen und Angaben nebeneinander, Knoepfe darunter */
   .dokument {
     flex-wrap: wrap;
     gap: 12px;
   }
 
-  .dokument-vorschau {
-    width: 112px;
-    height: 80px;
+  .dokument-haken {
+    width: 56px;
   }
 
   .dokument-info {

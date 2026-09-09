@@ -22,6 +22,7 @@ import {
 /**
  * Reihenfolge der Unterlagen in der Angebotsmappe (Yann, 08.09.2026): erst die
  * Prinzipskizze, dann die Sanierungsvorschau, zuletzt die Fotodokumentation.
+ * Nur diese drei koennen in die Mappe; die Mappe selbst und Videos nicht.
  */
 const MAPPEN_REIHENFOLGE = ['Prinzipskizze', 'Sanierungsvorschau', 'Fotodokumentation']
 
@@ -58,6 +59,13 @@ export default function KundePanel({
   const [objektLaeuft, setObjektLaeuft] = useState(false)
   const [mappeLaeuft, setMappeLaeuft] = useState(false)
   const [uebernahmeLaeuft, setUebernahmeLaeuft] = useState(false)
+  /**
+   * Unterlagen, die NICHT in die Mappe sollen (Yann, 09.09.2026: es muss nur
+   * auswaehlbar sein, welches Dokument mitkommt). Abgewaehlt wird selten,
+   * deshalb merkt sich die Seite die Ausnahmen statt der Auswahl - so ist eine
+   * neu erstellte Unterlage automatisch dabei.
+   */
+  const [nichtInMappe, setNichtInMappe] = useState<string[]>([])
   const objectInputRef = useRef<HTMLInputElement>(null)
 
   const mitarbeiter = mitarbeiterVon(daten)
@@ -123,10 +131,19 @@ export default function KundePanel({
     }
   }
 
-  /** Die Unterlagen, die in die Mappe wandern - in fester Reihenfolge. */
-  const mappenTeile = MAPPEN_REIHENFOLGE.map((quelle) =>
+  /** Alles, was grundsaetzlich in die Mappe koennte, in fester Reihenfolge. */
+  const mappenFaehig = MAPPEN_REIHENFOLGE.map((quelle) =>
     dokumente.find((d) => d.art === 'pdf' && d.quelle === quelle),
   ).filter((d): d is Dokument => d !== undefined)
+
+  /** Die tatsaechlich angehakten Unterlagen. */
+  const mappenTeile = mappenFaehig.filter((d) => !nichtInMappe.includes(d.quelle))
+
+  const istMappenFaehig = (dok: Dokument) =>
+    dok.art === 'pdf' && MAPPEN_REIHENFOLGE.includes(dok.quelle)
+
+  const schalteMappe = (quelle: string, dabei: boolean) =>
+    setNichtInMappe((bisher) => (dabei ? bisher.filter((q) => q !== quelle) : [...bisher, quelle]))
 
   /**
    * Alles in einem Dokument: Deckblatt, Inhaltsverzeichnis und die Unterlagen
@@ -398,9 +415,11 @@ export default function KundePanel({
           <div className="mappe-text">
             <p className="mappe-titel">Angebotsmappe</p>
             <p className="eingabe-hinweis">
-              {mappenTeile.length === 0
+              {mappenFaehig.length === 0
                 ? 'Sobald eine Unterlage fertig ist, entsteht daraus eine Mappe mit Deckblatt und Inhaltsverzeichnis.'
-                : `Deckblatt, Inhaltsverzeichnis, ${mappenTeile.map((t) => t.quelle).join(', ')}`}
+                : mappenTeile.length === 0
+                  ? 'Keine Unterlage ausgewählt.'
+                  : `Deckblatt, Inhaltsverzeichnis, ${mappenTeile.map((t) => t.quelle).join(', ')}`}
             </p>
           </div>
           <button
@@ -416,19 +435,24 @@ export default function KundePanel({
           <ul className="dokumente">
             {dokumente.map((dok) => {
               const teilbar = dok.art === 'pdf' ? PDF_TEILBAR : VIDEO_TEILBAR
+              const fuerMappe = istMappenFaehig(dok)
               return (
                 <li key={dok.id} className="dokument">
-                  <div className="dokument-vorschau">
-                    {dok.art === 'pdf' ? (
-                      <iframe
-                        src={`${dok.url}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
-                        title={`Vorschau ${dok.name}`}
-                        loading="lazy"
+                  {/* Statt einer Vorschau nur das Haekchen fuer die Mappe
+                      (Yann, 09.09.2026: "ganz basis"). Was nicht in die Mappe
+                      kann (Videos, die Mappe selbst), bekommt keines. */}
+                  {fuerMappe ? (
+                    <label className="dokument-haken" title="In die Angebotsmappe aufnehmen">
+                      <input
+                        type="checkbox"
+                        checked={!nichtInMappe.includes(dok.quelle)}
+                        onChange={(e) => schalteMappe(dok.quelle, e.target.checked)}
                       />
-                    ) : (
-                      <video src={dok.url} controls preload="metadata" playsInline />
-                    )}
-                  </div>
+                      <span>Mappe</span>
+                    </label>
+                  ) : (
+                    <span className="dokument-haken dokument-haken-leer" aria-hidden="true" />
+                  )}
                   <div className="dokument-info">
                     <p className="file-name">{dok.name}</p>
                     <p className="file-meta">
