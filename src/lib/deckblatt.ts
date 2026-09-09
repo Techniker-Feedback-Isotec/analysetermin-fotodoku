@@ -1,4 +1,15 @@
-import { PDFDocument, PDFFont, PDFImage, PDFPage, rgb } from 'pdf-lib'
+import {
+  PDFDocument,
+  PDFFont,
+  PDFImage,
+  PDFPage,
+  clip,
+  endPath,
+  popGraphicsState,
+  pushGraphicsState,
+  rectangle,
+  rgb,
+} from 'pdf-lib'
 
 /**
  * Gemeinsames Deckblatt fuer Fotodokumentation, Prinzipskizze,
@@ -33,6 +44,13 @@ const KARTE_BREITE = 230
 export interface DeckblattBild {
   bytes: Uint8Array
   format: 'jpeg' | 'png'
+  /**
+   * Mittlere Farbe der linken und rechten Bildkante, 0 bis 1 je Kanal.
+   * Wird nur beim Objektfoto mitgegeben (siehe deckblattbilder.ts) und nur
+   * gebraucht, wenn das Bild nicht formatfuellend gezeigt werden kann: Dann
+   * setzen diese Farben die Flaeche daneben fort, statt sie hell zu lassen.
+   */
+  kanten?: { links: [number, number, number]; rechts: [number, number, number] }
 }
 
 export interface DeckblattZeile {
@@ -102,9 +120,71 @@ export function umbrechen(text: string, font: PDFFont, size: number, maxBreite: 
   return zeilen.length > 0 ? zeilen : ['']
 }
 
+/**
+ * Formatfuellend: Das Bild deckt die Flaeche vollstaendig ab, der Ueberstand
+ * wird abgeschnitten (Yann, 09.09.2026: "ziehe das Bild immer so, dass nie
+ * Raender entstehen"). Vorher wurde eingepasst, wodurch oben und an den Seiten
+ * heller Grund stehen blieb.
+ */
+function fuellend(breite: number, hoehe: number, flaecheB: number, flaecheH: number) {
+  const faktor = Math.max(flaecheB / breite, flaecheH / hoehe)
+  return { w: breite * faktor, h: hoehe * faktor }
+}
+
 function eingepasst(breite: number, hoehe: number, maxB: number, maxH: number) {
   const faktor = Math.min(maxB / breite, maxH / hoehe)
   return { w: breite * faktor, h: hoehe * faktor }
+}
+
+/**
+ * Bis hierhin wird beschnitten, damit das Bild die Flaeche fuellt. Darueber
+ * bliebe zu wenig vom Objekt uebrig: Ein Hochformat verliert bei voller Breite
+ * gut 40 Prozent, man saehe nur noch den mittleren Streifen des Hauses.
+ */
+const MAX_BESCHNITT = 0.25
+
+/** Streifen je Seite fuer die Fortsetzung; mehr Streifen, weicherer Verlauf. */
+const VERLAUF_STREIFEN = 14
+
+/**
+ * Setzt die Flaeche links und rechts vom Bild in dessen Kantenfarben fort.
+ * Die Farben kommen aus dem aufbereiteten Objektfoto (deckblattbilder.ts);
+ * fehlen sie, bleibt es beim hellen Grund. Nach aussen wird die Farbe leicht
+ * dunkler, damit die Flaeche nicht wie ein Farbfehler wirkt, sondern wie ein
+ * bewusster Rahmen.
+ */
+function seitenFortsetzen(
+  page: PDFPage,
+  bild: PDFImage,
+  quelle: DeckblattBild | null,
+  bildX: number,
+  bereichY: number,
+  bereichH: number,
+  bildBreite: number,
+) {
+  const kanten = quelle?.kanten
+  if (!kanten) return
+  const luecke = bildX
+  if (luecke <= 0.5) return
+  void bild
+  const zeichneSeite = (vonX: number, breite: number, farbe: [number, number, number], nachAussenLinks: boolean) => {
+    const schritt = breite / VERLAUF_STREIFEN
+    for (let i = 0; i < VERLAUF_STREIFEN; i++) {
+      // 0 an der Bildkante, 1 am Blattrand
+      const anteil = (i + 0.5) / VERLAUF_STREIFEN
+      const dunkler = 1 - 0.18 * anteil
+      const x = nachAussenLinks ? vonX + breite - (i + 1) * schritt : vonX + i * schritt
+      page.drawRectangle({
+        x,
+        y: bereichY,
+        width: schritt + 0.5,
+        height: bereichH,
+        color: rgb(farbe[0] * dunkler, farbe[1] * dunkler, farbe[2] * dunkler),
+      })
+    }
+  }
+  zeichneSeite(0, luecke, kanten.links, true)
+  zeichneSeite(bildX + bildBreite, luecke, kanten.rechts, false)
 }
 
 /** Text mit weiten Buchstabenabstaenden, wie in der ISOTEC-Bildsprache. */
@@ -179,20 +259,45 @@ export async function zeichneDeckblatt(
   // Das Objektfoto bekommt allen Platz, der uebrig bleibt. Ohne Objektfoto
   // entfaellt der Bereich ganz, statt eine leere graue Flaeche zu zeigen; das
   // rote Band sitzt dann oben am Blatt.
-  const heroHoehe = objekt ? Math.max(230, Math.min(470, H - inhaltHoehe - fussHoehe)) : 0
+  //
+  // Die Hoehe richtet sich nach dem Bild: Ein Querformat bekommt genau die
+  // Hoehe, die es bei voller Breite braucht, und wird dadurch gar nicht
+  // beschnitten. Erst wenn das mehr Platz kostet, als das Blatt hergibt (oder
+  // bei Hochformat), greifen die Grenzen und der Ueberstand faellt weg.
+  const platz = H - inhaltHoehe - fussHoehe
+  const heroHoehe = objekt
+    ? Math.max(230, Math.min(470, platz, Math.round(W * (objekt.height / objekt.width))))
+    : 0
 
   // ---------- zeichnen ----------
   const heroY = H - heroHoehe
   if (objekt) {
     page.drawRectangle({ x: 0, y: heroY, width: W, height: heroHoehe, color: LIGHT })
-    // Ganz hineinpassen statt beschneiden: vom Objekt darf nichts fehlen.
-    const g = eingepasst(objekt.width, objekt.height, W, heroHoehe)
-    page.drawImage(objekt, {
-      x: (W - g.w) / 2,
-      y: heroY + (heroHoehe - g.h) / 2,
-      width: g.w,
-      height: g.h,
-    })
+    const voll = fuellend(objekt.width, objekt.height, W, heroHoehe)
+    // Wie viel vom Bild ginge verloren, wenn es die Flaeche ausfuellt?
+    const verlust = 1 - (W * heroHoehe) / (voll.w * voll.h)
+    page.pushOperators(pushGraphicsState(), rectangle(0, heroY, W, heroHoehe), clip(), endPath())
+    if (verlust <= MAX_BESCHNITT) {
+      // Formatfuellend und mittig, der Ueberstand wird weggeschnitten. Der
+      // Clip-Pfad haelt ihn zurueck; ohne ihn ragte das Bild ueber das rote
+      // Band und den Text darunter.
+      page.drawImage(objekt, {
+        x: (W - voll.w) / 2,
+        y: heroY + (heroHoehe - voll.h) / 2,
+        width: voll.w,
+        height: voll.h,
+      })
+    } else {
+      // Ein Hochformat muesste man zur Haelfte wegschneiden, damit es die
+      // Flaeche fuellt. Dann lieber das ganze Bild zeigen und die Flaeche
+      // daneben in seinen Kantenfarben fortsetzen (Yann, 09.09.2026), damit
+      // trotzdem kein heller Rand entsteht.
+      const g = eingepasst(objekt.width, objekt.height, W, heroHoehe)
+      const bildX = (W - g.w) / 2
+      seitenFortsetzen(page, objekt, daten.objekt ?? null, bildX, heroY, heroHoehe, g.w)
+      page.drawImage(objekt, { x: bildX, y: heroY + (heroHoehe - g.h) / 2, width: g.w, height: g.h })
+    }
+    page.pushOperators(popGraphicsState())
   }
   const bandHoehe = 10
   page.drawRectangle({ x: 0, y: heroY - bandHoehe, width: W, height: bandHoehe, color: RED })

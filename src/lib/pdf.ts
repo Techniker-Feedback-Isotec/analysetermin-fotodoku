@@ -229,21 +229,38 @@ export async function buildPdf(
     // Gruppe (Balken, Flaeche oder Kreuz).
     const gruppen = inputs.drawingPage.legende
     if (gruppen.length > 0) {
-      const symbolBreite = 14
-      const nachSymbol = 4
-      const zwischenraum = 14
+      /**
+       * Alle Masse haengen an der Schriftgroesse, damit das Verkleinern
+       * wirklich Platz schafft: Bei festen Symbolbreiten brachte eine kleinere
+       * Schrift kaum etwas, weil die Symbole den meisten Platz brauchen.
+       */
+      const masse = (g: number) => ({
+        symbol: g * 1.7,
+        zwischenSymbolen: g * 0.4,
+        nachSymbol: g * 0.6,
+        zwischenraum: g * 1.8,
+      })
+      /** Die Symbole einer Gruppe, ohne Wiederholung und in Reihenfolge. */
+      const formenVon = (g: LegendenGruppe) => [...new Set(g.eintraege.map((e) => e.form))]
+      const eintragBreite = (g: LegendenGruppe, groesse: number) => {
+        const m = masse(groesse)
+        const formen = formenVon(g).length
+        return (
+          formen * m.symbol +
+          (formen - 1) * m.zwischenSymbolen +
+          m.nachSymbol +
+          regular.widthOfTextAtSize(toWinAnsi(g.kurz), groesse)
+        )
+      }
       const breiteBei = (groesse: number) =>
-        gruppen.reduce(
-          (summe, g) =>
-            summe + symbolBreite + nachSymbol + regular.widthOfTextAtSize(toWinAnsi(g.kurz), groesse),
-          0,
-        ) +
-        zwischenraum * (gruppen.length - 1)
+        gruppen.reduce((summe, g) => summe + eintragBreite(g, groesse), 0) +
+        masse(groesse).zwischenraum * (gruppen.length - 1)
 
       // So gross wie moeglich, aber alles in einer Zeile. Erst wenn selbst
       // 5,5 pt nicht reichen (sehr viele Gewerke), wird umbrochen.
       let groesse = 8
       while (groesse > 5.5 && breiteBei(groesse) > W - 2 * margin) groesse -= 0.25
+      const m = masse(groesse)
 
       const zeilen: LegendenGruppe[][] = []
       if (breiteBei(groesse) <= W - 2 * margin) {
@@ -252,14 +269,13 @@ export async function buildPdf(
         let laufend: LegendenGruppe[] = []
         let breite = 0
         for (const g of gruppen) {
-          const eigene =
-            symbolBreite + nachSymbol + regular.widthOfTextAtSize(toWinAnsi(g.kurz), groesse)
-          if (laufend.length > 0 && breite + zwischenraum + eigene > W - 2 * margin) {
+          const eigene = eintragBreite(g, groesse)
+          if (laufend.length > 0 && breite + m.zwischenraum + eigene > W - 2 * margin) {
             zeilen.push(laufend)
             laufend = []
             breite = 0
           }
-          breite += (laufend.length > 0 ? zwischenraum : 0) + eigene
+          breite += (laufend.length > 0 ? m.zwischenraum : 0) + eigene
           laufend.push(g)
         }
         if (laufend.length > 0) zeilen.push(laufend)
@@ -280,39 +296,43 @@ export async function buildPdf(
         const mitte = y + groesse / 2
         // Jede Zeile mittig, damit die Legende als Band unter der Zeichnung wirkt
         const breite =
-          zeile.reduce(
-            (summe, g) =>
-              summe + symbolBreite + nachSymbol + regular.widthOfTextAtSize(toWinAnsi(g.kurz), groesse),
-            0,
-          ) +
-          zwischenraum * (zeile.length - 1)
+          zeile.reduce((summe, g) => summe + eintragBreite(g, groesse), 0) +
+          m.zwischenraum * (zeile.length - 1)
         let x = margin + Math.max(0, (W - 2 * margin - breite) / 2)
         for (const gruppe of zeile) {
-          const form = gruppe.eintraege[0]?.form ?? 'balken'
-          if (form === 'flaeche') {
-            page.drawRectangle({
-              x,
-              y: mitte - 4,
-              width: symbolBreite,
-              height: 8,
-              color: farbeVon(gruppe.farbe, 0.86),
-              borderColor: farbeVon(gruppe.farbe),
-              borderWidth: 0.7,
-            })
-          } else if (form === 'kreuz') {
-            const strich = { thickness: 1.2, color: farbeVon(gruppe.farbe) }
-            page.drawLine({ start: { x: x + 2, y: mitte - 4 }, end: { x: x + symbolBreite - 2, y: mitte + 4 }, ...strich })
-            page.drawLine({ start: { x: x + 2, y: mitte + 4 }, end: { x: x + symbolBreite - 2, y: mitte - 4 }, ...strich })
-          } else {
-            page.drawRectangle({
-              x,
-              y: mitte - 2.5,
-              width: symbolBreite,
-              height: 5,
-              color: farbeVon(gruppe.farbe),
-            })
+          // Alle Formen der Gruppe zeigen, nicht nur die erste: Bei der
+          // Innenabdichtung fehlte sonst das Quadrat fuer die Wandflaeche und
+          // nur der Balken fuer den Grundriss stand da (Yann, 09.09.2026).
+          for (const form of formenVon(gruppe)) {
+            if (form === 'flaeche') {
+              // Quadrat fuer die Flaeche: hell gefuellt mit farbigem Rand
+              page.drawRectangle({
+                x,
+                y: mitte - groesse / 2,
+                width: m.symbol,
+                height: groesse,
+                color: farbeVon(gruppe.farbe, 0.86),
+                borderColor: farbeVon(gruppe.farbe),
+                borderWidth: 0.7,
+              })
+            } else if (form === 'kreuz') {
+              const strich = { thickness: groesse * 0.18, color: farbeVon(gruppe.farbe) }
+              const r = groesse / 2
+              page.drawLine({ start: { x: x + 2, y: mitte - r }, end: { x: x + m.symbol - 2, y: mitte + r }, ...strich })
+              page.drawLine({ start: { x: x + 2, y: mitte + r }, end: { x: x + m.symbol - 2, y: mitte - r }, ...strich })
+            } else {
+              // Voller Balken fuer Grundriss und Querschnitt
+              page.drawRectangle({
+                x,
+                y: mitte - groesse * 0.28,
+                width: m.symbol,
+                height: groesse * 0.56,
+                color: farbeVon(gruppe.farbe),
+              })
+            }
+            x += m.symbol + m.zwischenSymbolen
           }
-          x += symbolBreite + nachSymbol
+          x += m.nachSymbol - m.zwischenSymbolen
           page.drawText(toWinAnsi(gruppe.kurz), {
             x,
             y: mitte - groesse / 2 + 1,
@@ -320,7 +340,7 @@ export async function buildPdf(
             font: regular,
             color: BROWN,
           })
-          x += regular.widthOfTextAtSize(toWinAnsi(gruppe.kurz), groesse) + zwischenraum
+          x += regular.widthOfTextAtSize(toWinAnsi(gruppe.kurz), groesse) + m.zwischenraum
         }
       })
     }
