@@ -1115,6 +1115,40 @@ input[type='checkbox'] {
   color: inherit;
 }
 
+/*
+ * Ausnahme fuer die Klappliste der Gewerkeauswahl.
+ *
+ * Die Regeln oben gelten fuer jedes label und jedes input innerhalb von
+ * .eingabe - also auch fuer die Eintraege der Klappliste, die selbst Labels
+ * mit Kontrollkaestchen sind. Sie sind spezifischer als .multiselect-option
+ * und haben deren Flex-Layout ausgehebelt: Das Kaestchen stand als Block ueber
+ * der Beschriftung statt daneben (Yann, 09.09.2026). Diese beiden Regeln
+ * stellen den Eintrag wieder her; sie muessen unter den allgemeinen stehen.
+ */
+.eingabe .multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 0;
+  font-size: 0.92rem;
+  font-weight: 400;
+  color: inherit;
+}
+
+.eingabe .multiselect-option input {
+  display: inline-block;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border-radius: 3px;
+}
+
+/* Das Suchfeld liegt in einer eigenen Huelle und ist deshalb kein direktes
+   Kind von .eingabe - die Feldoptik gilt trotzdem (siehe Regeln oben). */
+.eingabe .kundensuche {
+  min-width: 0;
+}
+
 .eingabe-hinweis {
   margin: 4px 0 0;
   font-size: 0.78rem;
