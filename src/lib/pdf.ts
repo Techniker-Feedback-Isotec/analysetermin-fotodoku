@@ -9,7 +9,6 @@ import { formatDateTime } from './format'
 const RED = rgb(213 / 255, 19 / 255, 23 / 255) // #D51317
 const BROWN = rgb(86 / 255, 74 / 255, 68 / 255) // #564A44
 const GREY = rgb(224 / 255, 224 / 255, 224 / 255) // #E0E0E0
-const MUTED = rgb(138 / 255, 127 / 255, 120 / 255) // abgeschwaechtes Braun fuer Untertitel
 
 const A4: [number, number] = [595.28, 841.89]
 
@@ -57,6 +56,12 @@ export interface PdfInputs {
    * solche Seite (Fotodokumentation).
    */
   drawingPage: { title: string; legende: LegendenGruppe[] } | null
+  /**
+   * Kleiner Hinweis, rot umrandet, unten auf jeder Bildseite - bei der
+   * Prinzipskizze also auf allen Seiten nach den Bauzeichnungen (Yann,
+   * 09.09.2026). null = kein Hinweis (Fotodokumentation).
+   */
+  fotoHinweis: string | null
   textPage: { title: string; inhalt: Reichtext; note: string } | null
   /** Anzahl der geplanten Termin-Fotos (Zaehler fuer den Fortschritt) */
   photoCount: number
@@ -217,81 +222,105 @@ export async function buildPdf(
     y -= 14
     page.drawLine({ start: { x: margin, y }, end: { x: W - margin, y }, thickness: 0.75, color: GREY })
 
+    // Legende als eine Zeile ganz unten (Yann, 09.09.2026): klein, waagerecht
+    // und nur mit dem noetigsten Text, damit die Flaeche darueber vollstaendig
+    // fuer den eingefuegten Grundriss frei bleibt. Je Gewerk ein Symbol in
+    // seiner Farbe und der Kurzname; die Form kommt vom ersten Eintrag der
+    // Gruppe (Balken, Flaeche oder Kreuz).
     const gruppen = inputs.drawingPage.legende
     if (gruppen.length > 0) {
-      const spalten = 3
-      const spaltenBreite = (W - 2 * margin) / spalten
-      const titelHoehe = 13
-      const zeilenHoehe = 13
-      const gruppenAbstand = 9
-      const hoeheVon = (g: LegendenGruppe) => titelHoehe + g.eintraege.length * zeilenHoehe + gruppenAbstand
-      const proSpalte = Math.ceil(gruppen.length / spalten)
-      const spaltenHoehen = Array.from({ length: spalten }, (_, s) =>
-        gruppen.slice(s * proSpalte, (s + 1) * proSpalte).reduce((summe, g) => summe + hoeheVon(g), 0),
-      )
-      const blockHoehe = Math.max(...spaltenHoehen)
+      const symbolBreite = 14
+      const nachSymbol = 4
+      const zwischenraum = 14
+      const breiteBei = (groesse: number) =>
+        gruppen.reduce(
+          (summe, g) =>
+            summe + symbolBreite + nachSymbol + regular.widthOfTextAtSize(toWinAnsi(g.kurz), groesse),
+          0,
+        ) +
+        zwischenraum * (gruppen.length - 1)
 
-      // Der Block sitzt unten, damit die Flaeche darueber fuer den Grundriss frei bleibt.
-      const unten = 56
-      const oben = unten + blockHoehe
-      drawTracked(page, 'LEGENDE', margin, oben + 16, bold, 8, MUTED, 1.4)
+      // So gross wie moeglich, aber alles in einer Zeile. Erst wenn selbst
+      // 5,5 pt nicht reichen (sehr viele Gewerke), wird umbrochen.
+      let groesse = 8
+      while (groesse > 5.5 && breiteBei(groesse) > W - 2 * margin) groesse -= 0.25
+
+      const zeilen: LegendenGruppe[][] = []
+      if (breiteBei(groesse) <= W - 2 * margin) {
+        zeilen.push(gruppen)
+      } else {
+        let laufend: LegendenGruppe[] = []
+        let breite = 0
+        for (const g of gruppen) {
+          const eigene =
+            symbolBreite + nachSymbol + regular.widthOfTextAtSize(toWinAnsi(g.kurz), groesse)
+          if (laufend.length > 0 && breite + zwischenraum + eigene > W - 2 * margin) {
+            zeilen.push(laufend)
+            laufend = []
+            breite = 0
+          }
+          breite += (laufend.length > 0 ? zwischenraum : 0) + eigene
+          laufend.push(g)
+        }
+        if (laufend.length > 0) zeilen.push(laufend)
+      }
+
+      const zeilenHoehe = groesse + 7
+      const unten = 34
+      const trennlinie = unten + zeilen.length * zeilenHoehe + 6
       page.drawLine({
-        start: { x: margin, y: oben + 10 },
-        end: { x: W - margin, y: oben + 10 },
+        start: { x: margin, y: trennlinie },
+        end: { x: W - margin, y: trennlinie },
         thickness: 0.5,
         color: GREY,
       })
 
-      gruppen.forEach((gruppe, i) => {
-        const spalte = Math.floor(i / proSpalte)
-        const x = margin + spalte * spaltenBreite
-        let zeileY = oben
-        for (let vorher = spalte * proSpalte; vorher < i; vorher++) {
-          zeileY -= hoeheVon(gruppen[vorher])
-        }
-        zeileY -= titelHoehe
-        // Lange Gruppennamen duerfen etwas kleiner werden, statt in die
-        // Nachbarspalte zu laufen.
-        let titelGroesse = 8.5
-        const titel = toWinAnsi(gruppe.titel)
-        while (titelGroesse > 6 && bold.widthOfTextAtSize(titel, titelGroesse) > spaltenBreite - 10) {
-          titelGroesse -= 0.25
-        }
-        page.drawText(titel, { x, y: zeileY + 3, size: titelGroesse, font: bold, color: BROWN })
-
-        for (const eintrag of gruppe.eintraege) {
-          zeileY -= zeilenHoehe
-          const mitte = zeileY + 6
-          if (eintrag.form === 'balken') {
+      zeilen.forEach((zeile, zi) => {
+        const y = unten + (zeilen.length - 1 - zi) * zeilenHoehe
+        const mitte = y + groesse / 2
+        // Jede Zeile mittig, damit die Legende als Band unter der Zeichnung wirkt
+        const breite =
+          zeile.reduce(
+            (summe, g) =>
+              summe + symbolBreite + nachSymbol + regular.widthOfTextAtSize(toWinAnsi(g.kurz), groesse),
+            0,
+          ) +
+          zwischenraum * (zeile.length - 1)
+        let x = margin + Math.max(0, (W - 2 * margin - breite) / 2)
+        for (const gruppe of zeile) {
+          const form = gruppe.eintraege[0]?.form ?? 'balken'
+          if (form === 'flaeche') {
             page.drawRectangle({
               x,
-              y: mitte - 3,
-              width: 22,
-              height: 6,
-              color: farbeVon(gruppe.farbe),
-            })
-          } else if (eintrag.form === 'flaeche') {
-            page.drawRectangle({
-              x: x + 4,
-              y: mitte - 6,
-              width: 13,
-              height: 13,
+              y: mitte - 4,
+              width: symbolBreite,
+              height: 8,
               color: farbeVon(gruppe.farbe, 0.86),
               borderColor: farbeVon(gruppe.farbe),
-              borderWidth: 0.8,
+              borderWidth: 0.7,
             })
+          } else if (form === 'kreuz') {
+            const strich = { thickness: 1.2, color: farbeVon(gruppe.farbe) }
+            page.drawLine({ start: { x: x + 2, y: mitte - 4 }, end: { x: x + symbolBreite - 2, y: mitte + 4 }, ...strich })
+            page.drawLine({ start: { x: x + 2, y: mitte + 4 }, end: { x: x + symbolBreite - 2, y: mitte - 4 }, ...strich })
           } else {
-            const strich = { thickness: 1.4, color: farbeVon(gruppe.farbe) }
-            page.drawLine({ start: { x: x + 5, y: mitte - 5 }, end: { x: x + 16, y: mitte + 5 }, ...strich })
-            page.drawLine({ start: { x: x + 5, y: mitte + 5 }, end: { x: x + 16, y: mitte - 5 }, ...strich })
+            page.drawRectangle({
+              x,
+              y: mitte - 2.5,
+              width: symbolBreite,
+              height: 5,
+              color: farbeVon(gruppe.farbe),
+            })
           }
-          page.drawText(toWinAnsi(eintrag.text), {
-            x: x + 28,
-            y: mitte - 3,
-            size: 8,
+          x += symbolBreite + nachSymbol
+          page.drawText(toWinAnsi(gruppe.kurz), {
+            x,
+            y: mitte - groesse / 2 + 1,
+            size: groesse,
             font: regular,
             color: BROWN,
           })
+          x += regular.widthOfTextAtSize(toWinAnsi(gruppe.kurz), groesse) + zwischenraum
         }
       })
     }
@@ -404,15 +433,25 @@ export async function buildPdf(
 
     let { page, y } = newTextPage(true)
 
-    const zeichneAbsatz = (absatz: TextAbsatz) => {
+    /**
+     * Abstand zwischen zwei Absaetzen (Yann, 09.09.2026: Absaetze sollen im
+     * Dokument sichtbar sein). Ohne ihn stehen zwei Absaetze wie fortlaufende
+     * Zeilen untereinander und der Wechsel geht unter. Aufeinanderfolgende
+     * Aufzaehlungspunkte gehoeren zusammen und bekommen keinen.
+     */
+    const zeichneAbsatz = (absatz: TextAbsatz, vorheriger: TextAbsatz | null) => {
       const linkerRand = margin + (absatz.art === 'punkt' ? einzug : 0)
       const maxBreite = W - margin - linkerRand
       const worte = worteVon(absatz.stuecke, maxBreite)
       if (worte.length === 0) {
-        // Leerzeile zwischen zwei Absaetzen
-        y -= lineHeight * 0.6
+        // Ausdrueckliche Leerzeile: volle Zeilenhoehe, damit mehrere
+        // Leerzeilen auch als groesserer Abstand ankommen.
+        y -= lineHeight
         return
       }
+      const vorherLeer = vorheriger !== null && vorheriger.stuecke.length === 0
+      const beidePunkte = vorheriger?.art === 'punkt' && absatz.art === 'punkt'
+      if (vorheriger && !vorherLeer && !beidePunkte) y -= lineHeight * 0.45
 
       let zeile: Teil[] = []
       let breite = 0
@@ -483,7 +522,7 @@ export async function buildPdf(
       zeileZeichnen()
     }
 
-    for (const absatz of inhalt) zeichneAbsatz(absatz)
+    inhalt.forEach((absatz, i) => zeichneAbsatz(absatz, i > 0 ? inhalt[i - 1] : null))
 
     // Vermerk am Ende (wer, wann)
     const noteLines = wrapText(toWinAnsi(note), italic, 10, W - 2 * margin)
@@ -509,6 +548,11 @@ export async function buildPdf(
   // Jedes Foto wird erst hier geladen und nach dem Einbetten wieder freigegeben.
   const margin = 40
   const footerH = 32
+  // Der Hinweis liegt zwischen Bild und Fusszeile; das Bild bekommt entsprechend
+  // weniger Hoehe, damit sich nichts ueberdeckt.
+  const hinweisText = inputs.fotoHinweis?.trim() ? toWinAnsi(inputs.fotoHinweis.trim()) : null
+  const hinweisKastenH = 18
+  const platzUnten = footerH + (hinweisText ? hinweisKastenH + 8 : 0)
   const footers: Array<{ page: PDFPage; takenAt: number | null; isDuplicate: boolean }> = []
 
   for (let i = 0; i < inputs.photoCount; i++) {
@@ -527,9 +571,9 @@ export async function buildPdf(
     })
 
     const img = await embed(doc, photo.image)
-    const { w, h } = fitInto(img.width, img.height, W - 2 * margin, H - 2 * margin - footerH)
+    const { w, h } = fitInto(img.width, img.height, W - 2 * margin, H - 2 * margin - platzUnten)
     const x = (W - w) / 2
-    const y = footerH + margin + (H - 2 * margin - footerH - h) / 2
+    const y = platzUnten + margin + (H - 2 * margin - platzUnten - h) / 2
     page.drawImage(img, { x, y, width: w, height: h })
 
     footers.push({ page, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate })
@@ -538,7 +582,34 @@ export async function buildPdf(
   // Fusszeilen erst jetzt zeichnen - dann stimmt "Foto X / N" auch, wenn
   // einzelne Fotos uebersprungen wurden.
   const total = footers.length
+  // Der Hinweis steht auf jeder Bildseite gleich: kleiner Kasten mit rotem
+  // Rand ueber der Fusszeile, Text mittig.
+  let hinweisGroesse = 8.5
+  if (hinweisText) {
+    while (hinweisGroesse > 6 && bold.widthOfTextAtSize(hinweisText, hinweisGroesse) > W - 2 * margin - 20) {
+      hinweisGroesse -= 0.25
+    }
+  }
   footers.forEach((f, idx) => {
+    if (hinweisText) {
+      const kastenY = footerH + 8
+      f.page.drawRectangle({
+        x: margin,
+        y: kastenY,
+        width: W - 2 * margin,
+        height: hinweisKastenH,
+        borderColor: RED,
+        borderWidth: 0.9,
+      })
+      const breite = bold.widthOfTextAtSize(hinweisText, hinweisGroesse)
+      f.page.drawText(hinweisText, {
+        x: (W - breite) / 2,
+        y: kastenY + (hinweisKastenH - hinweisGroesse) / 2 + 1.5,
+        size: hinweisGroesse,
+        font: bold,
+        color: RED,
+      })
+    }
     f.page.drawLine({
       start: { x: margin, y: footerH },
       end: { x: W - margin, y: footerH },

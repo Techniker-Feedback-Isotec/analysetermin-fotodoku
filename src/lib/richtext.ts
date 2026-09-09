@@ -141,9 +141,18 @@ function lese(node: Node, marken: Marken, sammler: Sammler): void {
   }
 }
 
-/** Raeumt auf: Leerraum an den Raendern, keine Leerzeilen am Anfang, Ende oder doppelt. */
+/**
+ * Wie viele Leerzeilen hintereinander erhalten bleiben. Yann will groessere
+ * Absaetze setzen koennen (09.09.2026); vorher wurde jede zweite verworfen.
+ * Die Grenze verhindert nur, dass eine versehentlich gedrueckte Eingabetaste
+ * die halbe Seite leer laesst.
+ */
+const MAX_LEERZEILEN = 3
+
+/** Raeumt auf: Leerraum an den Raendern, keine Leerzeilen am Anfang oder Ende. */
 function aufraeumen(absaetze: Reichtext): Reichtext {
   const sauber: Reichtext = []
+  let leerAmStueck = 0
   for (const absatz of absaetze) {
     const stuecke = absatz.stuecke
       .map((s) => ({ ...s }))
@@ -154,8 +163,13 @@ function aufraeumen(absaetze: Reichtext): Reichtext {
     }
     const inhalt = stuecke.filter((s) => s.text !== '')
     const leer = inhalt.length === 0
-    // Leerzeilen nur zwischen Absaetzen, nie am Anfang und nie zwei hintereinander
-    if (leer && (sauber.length === 0 || sauber[sauber.length - 1].stuecke.length === 0)) continue
+    // Leerzeilen nur zwischen Absaetzen, nie am Anfang, und hoechstens drei
+    if (leer) {
+      if (sauber.length === 0 || leerAmStueck >= MAX_LEERZEILEN) continue
+      leerAmStueck++
+    } else {
+      leerAmStueck = 0
+    }
     sauber.push({ art: absatz.art, stuecke: inhalt })
   }
   while (sauber.length > 0 && sauber[sauber.length - 1].stuecke.length === 0) sauber.pop()

@@ -20,6 +20,13 @@ export interface LegendenEintrag {
 
 export interface LegendenGruppe {
   titel: string
+  /**
+   * Der kuerzestmoegliche Text fuer die einzeilige Legende auf der Seite
+   * "Bauzeichnungen" (Yann, 09.09.2026: „nur der essentiellste Text"). Er nennt
+   * die tatsaechlich gewaehlten Gewerke, nicht den langen Vorlagentitel:
+   * „Horizontalsperre" statt „Horizontalsperre (Injektionscreme & Horizontalsperre)".
+   */
+  kurz: string
   /** Grundfarbe als #rrggbb; Flaechen werden daraus hell eingefaerbt */
   farbe: string
   eintraege: LegendenEintrag[]
@@ -28,7 +35,8 @@ export interface LegendenGruppe {
 const GRUNDRISS = 'Grundriss/Querschnitt'
 const BEIDES = 'Grundriss/Querschnitt & Wandfläche'
 
-interface Vorlage extends LegendenGruppe {
+/** Der Kurztext entsteht aus der Auswahl (kurzFuer), er steht nicht in der Vorlage. */
+interface Vorlage extends Omit<LegendenGruppe, 'kurz'> {
   /** Gewerke aus der Auswahlliste, die zu dieser Gruppe gehoeren */
   gewerke: string[]
 }
@@ -121,8 +129,26 @@ const VORLAGEN: Vorlage[] = [
 /** Steht unabhaengig von der Gewerkeauswahl immer in der Legende. */
 export const SONSTIGES: LegendenGruppe = {
   titel: 'Sonstiges',
+  kurz: 'Wanddurchbruch',
   farbe: '#ff3b3b',
   eintraege: [{ text: 'Wanddurchbruch', form: 'kreuz' }],
+}
+
+/**
+ * Der Kurztext einer Gruppe: die gewaehlten Gewerke, nicht der Vorlagentitel.
+ * Teilen sich mehrere Varianten ein Wort ("Balkon - Kombiflex", "Balkon -
+ * Steinteppich"), steht es nur einmal davor.
+ */
+function kurzFuer(vorlage: Vorlage, gewaehlt: Set<string>): string {
+  const eigene = vorlage.gewerke.filter((g) => gewaehlt.has(g))
+  if (eigene.length === 0) return vorlage.titel
+  if (eigene.length === 1) return eigene[0].replace(' - ', ' ')
+  const teile = eigene.map((g) => g.split(' - '))
+  const kopf = teile[0][0]
+  if (teile.length > 1 && teile.every((t) => t.length === 2 && t[0] === kopf)) {
+    return `${kopf} ${teile.map((t) => t[1]).join('/')}`
+  }
+  return eigene.map((g) => g.replace(' - ', ' ')).join('/')
 }
 
 /**
@@ -132,9 +158,12 @@ export const SONSTIGES: LegendenGruppe = {
  */
 export function legendeFuer(gewerke: string[]): LegendenGruppe[] {
   const gewaehlt = new Set(gewerke)
-  return VORLAGEN.filter((v) => v.gewerke.some((g) => gewaehlt.has(g))).map(
-    ({ titel, farbe, eintraege }) => ({ titel, farbe, eintraege }),
-  )
+  return VORLAGEN.filter((v) => v.gewerke.some((g) => gewaehlt.has(g))).map((v) => ({
+    titel: v.titel,
+    kurz: kurzFuer(v, gewaehlt),
+    farbe: v.farbe,
+    eintraege: v.eintraege,
+  }))
 }
 
 /** Gewerke, für die es in der Vorlage keine Farbe gibt. */

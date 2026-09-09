@@ -34,6 +34,12 @@ export interface KundenEintrag {
 
 export interface Kundenliste {
   board: string | null
+  /**
+   * Welche Art Board durchsucht wurde: 'ersttermine' (Vertrieb, nur die drei
+   * Spalten des Ablaufs) oder 'reklamation' (technische Leitung, alle offenen
+   * Vorgaenge des Reklamationsboards).
+   */
+  art: 'ersttermine' | 'reklamation'
   eintraege: KundenEintrag[]
   /** Warum es keine Liste gibt (kein Board fuer diesen Namen) */
   grund?: string

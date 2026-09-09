@@ -17,6 +17,7 @@ import type { Fotostapel } from './fotostapel'
 import { SONSTIGES, legendeFuer, ohneLegende } from './data/legende'
 import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
+import Bildansicht from './Bildansicht'
 import { reichtextIstLeer, type Reichtext } from './lib/richtext'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
 import {
@@ -33,6 +34,14 @@ import {
 
 /** Auf dem Handy kann die PDF geteilt werden, am Rechner wird heruntergeladen. */
 const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
+
+/**
+ * Steht rot umrandet unten auf jeder Bildseite der Prinzipskizze, also auf
+ * allen Seiten nach den Bauzeichnungen (Yann, 09.09.2026). Der Kunde soll
+ * beim Blaettern durch die Skizzen nicht uebersehen, was er vorbereiten muss.
+ */
+const FREIRAEUM_HINWEIS =
+  'Alle Sanierungsbereiche müssen im Abstand von ca. 1 Meter bauseits freigeräumt werden.'
 
 /**
  * Fotostrecke als PDF, in zwei Ausfuehrungen:
@@ -56,6 +65,8 @@ export interface FotoDokuPanelProps {
 
 export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument }: FotoDokuPanelProps) {
   const [terminart, setTerminart] = useState<Terminart>('Analysetermin')
+  /** Index des gross gezeigten Fotos, oder null */
+  const [ansichtIndex, setAnsichtIndex] = useState<number | null>(null)
   /** Bilder, die auf dieser Seite nicht mitsollen; im Stapel bleiben sie */
   const [ausgeschlossen, setAusgeschlossen] = useState<string[]>([])
   /** Selbst gewaehlte Reihenfolge dieser Seite; null = chronologisch */
@@ -275,6 +286,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
             customerAddress: kunde.kundenadresse.trim() || null,
             orderNumber: isReklamation ? kunde.auftragsnummer.trim() || null : null,
             drawingPage: istSkizze ? { title: 'Bauzeichnungen', legende } : null,
+            fotoHinweis: istSkizze ? FREIRAEUM_HINWEIS : null,
             textPage: hasAssessment
               ? {
                   title: 'Fachliche Beurteilung',
@@ -543,7 +555,19 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
                 <span className="order-number" aria-hidden="true">
                   {idx + 1}
                 </span>
-                <img src={p.thumbUrl} alt="" className="photo-thumb" draggable={false} />
+                {/* Klick auf die Vorschau zeigt das Foto gross, um Details zu pruefen */}
+                <button
+                  type="button"
+                  className="photo-thumb-knopf"
+                  onClick={() => setAnsichtIndex(idx)}
+                  title="Foto groß ansehen"
+                  aria-label={`${p.fileName} groß ansehen`}
+                >
+                  <img src={p.thumbUrl} alt="" className="photo-thumb" draggable={false} />
+                  <span className="photo-thumb-lupe" aria-hidden="true">
+                    ⤢
+                  </span>
+                </button>
                 <div className="photo-info">
                   <p className="file-name">{p.fileName}</p>
                   <p className="file-meta">
@@ -699,6 +723,15 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
           </div>
         )}
       </section>
+
+      {ansichtIndex !== null && annotated[ansichtIndex] && (
+        <Bildansicht
+          fotos={annotated}
+          index={ansichtIndex}
+          onIndex={setAnsichtIndex}
+          onClose={() => setAnsichtIndex(null)}
+        />
+      )}
     </div>
   )
 }

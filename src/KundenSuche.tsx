@@ -113,11 +113,17 @@ export default function KundenSuche({
   /** Die Zeile unter dem Feld: woher die Liste kommt, oder warum es keine gibt. */
   let hinweis: string
   if (verfuegbar === false) hinweis = 'Kundensuche nicht eingerichtet (kein MeisterTask-Zugang auf dem Server).'
-  else if (!mitarbeiter) hinweis = 'Mitarbeiter wählen, dann sucht das Feld in seinem Ersttermine-Board.'
+  else if (!mitarbeiter) hinweis = 'Mitarbeiter wählen, dann sucht das Feld in seinem MeisterTask-Board.'
   else if (laedt) hinweis = 'MeisterTask wird gelesen …'
   else if (fehler) hinweis = fehler
-  else if (liste?.board) hinweis = `${liste.eintraege.length} Vorgänge in Phase 0, Auftragsbesprechungen und Angebote (${liste.board})`
-  else if (liste?.grund) hinweis = liste.grund
+  else if (liste?.board) {
+    // Die technische Leitung sucht im Reklamationsboard, dort zaehlen alle
+    // offenen Vorgaenge statt drei Spalten des Vertriebsablaufs.
+    hinweis =
+      liste.art === 'reklamation'
+        ? `${liste.eintraege.length} offene Vorgänge (${liste.board})`
+        : `${liste.eintraege.length} Vorgänge in Phase 0, Auftragsbesprechungen und Angebote (${liste.board})`
+  } else if (liste?.grund) hinweis = liste.grund
   else hinweis = ''
 
   return (
@@ -144,7 +150,11 @@ export default function KundenSuche({
         <ul className="kundensuche-liste" id={listId} role="listbox">
           {treffer.length === 0 ? (
             <li className="kundensuche-leer">
-              {liste.eintraege.length === 0 ? 'Keine offenen Vorgänge in Phase 0, Auftragsbesprechungen oder Angebote.' : 'Kein Vorgang passt zur Eingabe.'}
+              {liste.eintraege.length === 0
+                ? liste.art === 'reklamation'
+                  ? 'Keine offenen Vorgänge im Reklamationsboard.'
+                  : 'Keine offenen Vorgänge in Phase 0, Auftragsbesprechungen oder Angebote.'
+                : 'Kein Vorgang passt zur Eingabe.'}
             </li>
           ) : (
             treffer.map((e, i) => (

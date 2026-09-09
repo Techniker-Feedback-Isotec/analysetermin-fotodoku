@@ -7,6 +7,10 @@
 // nur "Name, Ort", gekuerzt aus dem Aufgabentitel; die Felder einer Aufgabe
 // (Name, Anschriften, Baujahr) werden erst geholt, wenn jemand sie auswaehlt.
 //
+// Ausnahme technische Leitung: Gerd Kahlau hat kein Ersttermine-Board, er
+// arbeitet auf dem Board "Reklamationen" (Yann, 09.09.2026). Dort gelten alle
+// offenen Aufgaben, weil das Board keine Phasen wie der Vertrieb kennt.
+//
 // Das Modul ist browserfrei und paketfrei und wird von zwei Stellen benutzt:
 // vom Dev-Server (vite.config.ts) und vom Azure-Server (server/index.mjs).
 // Beide reichen ihre Token hinein; die Token liegen nur auf dem Server.
@@ -32,7 +36,9 @@ const istGesuchteSpalte = (name) => {
 /**
  * Feldnamen der Boards, aus denen die Kundendaten kommen. Die Typ-IDs sind je
  * Board verschieden (Baujahr ist 437272 auf YF, 305081 auf HM), deshalb immer
- * ueber den Namen aufloesen.
+ * ueber den Namen aufloesen. Die Reihenfolge ist die Vorliebe: Auf dem
+ * Reklamationsboard gibt es beide Namensschemata nebeneinander ("Name (KUNDE)"
+ * und "Kunde", "Anschrift (OBJEKT)" und "Adresse (Objekt)").
  */
 const FELDER = {
   kunde: ['name (kunde)', 'kunde'],
@@ -40,6 +46,15 @@ const FELDER = {
   objektadresse: ['anschrift (objekt)', 'adresse (objekt)'],
   baujahr: ['baujahr'],
   objektart: ['objektart'],
+}
+
+/**
+ * Wer sucht in welchem Board? Ohne Eintrag gilt "<Kuerzel>_Ersttermine".
+ * Der Schluessel ist der Anzeigename aus der Mitarbeiterliste, klein.
+ */
+const SONDERBOARDS = {
+  // Technische Leitung: Reklamationen statt Ersttermine (Yann, 09.09.2026)
+  'gerd kahlau': { name: 'reklamationen', art: 'reklamation' },
 }
 
 /** "Yann Feyen" -> "YF": erster Buchstabe von erstem und letztem Wort. */
@@ -70,7 +85,18 @@ const ABSCHNEIDER = [
   /\bAB\s+\d/,
   /\bRM\b/,
   /\bxx\.xx\./i,
+  // Auf dem Reklamationsboard steht das Wort oft mitten im Titel und leitet
+  // die Beschreibung ein ("…, Duisburg, Reklamation Ausführung 2024 (?)")
+  /\breklamation/i,
 ]
+
+/**
+ * Reklamationstitel tragen Datum und Wort vorn statt hinten:
+ * "12.04.2022 Reklamation - HV Schlayer, …" oder "Reklamation - Bartholomeus,
+ * Mülheim". Beides weg, damit die Kuerzung wie bei den Ersttermin-Titeln
+ * greift (dort schneidet das Datum den Rest ab, hier stuende es am Anfang).
+ */
+const VORNE_WEG = [/^\d{1,2}\.\d{1,2}\.\d{2,4}\s*[-,/]?\s*/, /^reklamation\s*[-,/:]?\s*/i]
 const GEDANKENSTRICH = /\s[-–]\s/
 const REST_DAHINTER = /\b(?:ausf(?:ührung|ühung|\.)|BL\s*[:.]|team|KW\s*\d|auftragsbesprechung|RM)/i
 const TEILAUFTRAG = /\s*\b\d+\s*v(?:on)?\s*\d+\b\s*[:.\-]?\s*/i
@@ -89,6 +115,10 @@ export function kundeUndOrt(titel, kuerzel) {
   // Das Vertriebler-Kuerzel vorn faellt weg, mit oder ohne Komma dahinter
   if (kuerzel) {
     rest = rest.replace(new RegExp(`^${kuerzel}\\s*,?\\s+`, 'i'), '')
+  }
+  // Fuehrendes Datum und fuehrendes "Reklamation" (auch beides nacheinander)
+  for (let runde = 0; runde < 2; runde++) {
+    for (const muster of VORNE_WEG) rest = rest.replace(muster, '')
   }
 
   let schnitt = rest.length
@@ -124,7 +154,51 @@ export function kundeUndOrt(titel, kuerzel) {
   }
 
   if (teile.length === 0) return rest
-  return (gefunden ? teile : teile.slice(0, 2)).join(', ')
+  if (gefunden) return teile.join(', ')
+  // Ohne Abschneider ist unklar, wo der Name aufhoert und die Beschreibung
+  // beginnt. Gesucht ist "Name, Ort", und der Ort steht am Ende - deshalb
+  // erster und letzter Teil ("Fr. Conle-Hüttner, Gestüt Wiesenhof, Krefeld"
+  // wird zu "Fr. Conle-Hüttner, Krefeld").
+  if (teile.length > 2) return `${teile[0]}, ${teile[teile.length - 1]}`
+  return teile.join(', ')
+}
+
+// ---------- Feldwerte saeubern ----------
+//
+// Auf dem Reklamationsboard stehen in den Feldern teils ganze Mailverlaeufe
+// (gemessen 09.09.2026: das Feld "Kunde" einer Aufgabe enthielt den kompletten
+// Schriftwechsel). Ungeprueft uebernommen stuende so etwas als Kundenname auf
+// dem Deckblatt. Deshalb wird jeder Wert auf das reduziert, was eine Anschrift
+// oder ein Name sein kann.
+
+/** Zeilen, die aus einem eingefuegten Mailverlauf stammen. */
+const MAILZEILE = /(@|^(von|gesendet|an|betreff|cc|hallo|sehr geehrte)\b)/i
+
+/** Ein Name: die erste Zeile. Sieht sie nach Fliesstext aus, lieber nichts. */
+function alsName(text) {
+  const zeile = text.split(/\n/).map((z) => z.trim()).find(Boolean) ?? ''
+  if (zeile.length > 120 || MAILZEILE.test(zeile)) return ''
+  return zeile
+}
+
+/** Eine Anschrift: bis zu drei Zeilen, mit Komma verbunden. */
+function alsAnschrift(text) {
+  const zeilen = []
+  for (const roh of text.split(/\n/)) {
+    const zeile = roh.trim()
+    if (!zeile) continue
+    if (MAILZEILE.test(zeile)) break
+    zeilen.push(zeile)
+    if (zeilen.length === 3) break
+  }
+  const ganz = zeilen.join(', ')
+  return ganz.length > 150 ? '' : ganz
+}
+
+/** Ein kurzer Wert wie das Baujahr ("1971", "190x"). */
+function alsKurz(text) {
+  const zeile = text.split(/\n/)[0].trim()
+  return zeile.length > 20 ? '' : zeile
 }
 
 // ---------- Zwischenspeicher ----------
@@ -209,28 +283,40 @@ export function erzeugeKundendienst({ token, feldToken }) {
       alle(`/projects/${projektId}/tasks?status=open`),
     )
 
-  /** Das Ersttermine-Board eines Mitarbeiters, oder null. */
+  /**
+   * Das Board eines Mitarbeiters: normal "<Kuerzel>_Ersttermine", fuer die
+   * technische Leitung das Reklamationsboard (siehe SONDERBOARDS).
+   */
   async function boardFuer(mitarbeiterName) {
-    const kuerzel = kuerzelVon(mitarbeiterName)
-    if (!kuerzel) return { kuerzel: null, board: null }
-    const gesucht = norm(`${kuerzel}_ersttermine`)
+    const sonder = SONDERBOARDS[norm(mitarbeiterName)]
     const liste = await projekte()
+    if (sonder) {
+      const board = liste.find((p) => p.status === 1 && norm(p.name) === sonder.name) ?? null
+      return { kuerzel: null, board, art: sonder.art, gesucht: sonder.name }
+    }
+    const kuerzel = kuerzelVon(mitarbeiterName)
+    if (!kuerzel) return { kuerzel: null, board: null, art: 'ersttermine', gesucht: null }
+    const gesucht = norm(`${kuerzel}_ersttermine`)
     const board = liste.find((p) => p.status === 1 && norm(p.name) === gesucht) ?? null
-    return { kuerzel, board }
+    return { kuerzel, board, art: 'ersttermine', gesucht: `${kuerzel}_Ersttermine` }
   }
 
   /**
-   * Die Kundenliste eines Mitarbeiters: offene Aufgaben seines Boards in den
-   * Spalten Phase 0, Auftragsbesprechungen und Angebote, je Aufgabe "Name, Ort".
+   * Die Kundenliste eines Mitarbeiters, je Aufgabe "Name, Ort".
+   *
+   * Ersttermine-Board: nur die Spalten Phase 0, Auftragsbesprechungen und
+   * Angebote. Reklamationsboard: alle offenen Aufgaben, denn dort bilden die
+   * Spalten den Bearbeitungsstand ab und nicht die Vertriebsphase.
    */
   async function kundenliste(mitarbeiterName) {
-    const { kuerzel, board } = await boardFuer(mitarbeiterName)
+    const { kuerzel, board, art, gesucht } = await boardFuer(mitarbeiterName)
     if (!board) {
       return {
         board: null,
+        art,
         eintraege: [],
-        grund: kuerzel
-          ? `Für ${mitarbeiterName} gibt es kein Board ${kuerzel}_Ersttermine.`
+        grund: gesucht
+          ? `Für ${mitarbeiterName} gibt es kein Board ${gesucht}.`
           : 'Ohne Mitarbeiter kein Board.',
       }
     }
@@ -238,7 +324,7 @@ export function erzeugeKundendienst({ token, feldToken }) {
     const spaltenName = new Map(spaltenListe.map((s) => [s.id, s.name]))
     const eintraege = aufgaben
       .map((t) => ({ t, spalte: spaltenName.get(t.section_id) ?? t.section_name ?? '' }))
-      .filter(({ spalte }) => istGesuchteSpalte(spalte))
+      .filter(({ spalte }) => art === 'reklamation' || istGesuchteSpalte(spalte))
       .map(({ t, spalte }) => ({
         id: t.id,
         projekt: board.id,
@@ -248,7 +334,7 @@ export function erzeugeKundendienst({ token, feldToken }) {
         anzeige: kundeUndOrt(t.name, kuerzel),
       }))
       .sort((a, b) => a.anzeige.localeCompare(b.anzeige, 'de'))
-    return { board: board.name, eintraege }
+    return { board: board.name, art, eintraege }
   }
 
   /** Die Werte der Kundenfelder einer Aufgabe; leere Felder fehlen. */
@@ -266,18 +352,23 @@ export function erzeugeKundendienst({ token, feldToken }) {
       const name = nameVonTyp.get(w.custom_field_type_id)
       if (name && w.value) felder[name] = String(w.value).trim()
     }
-    const wert = (schluessel) => {
-      for (const n of FELDER[schluessel]) if (felder[n]) return felder[n]
+    // Je Angabe der erste Feldname, der etwas Brauchbares liefert: auf dem
+    // Reklamationsboard ist "Kunde" mal der Name und mal ein ganzer Mailverlauf,
+    // dann traegt das zweite Feld.
+    const wert = (schluessel, saeubern) => {
+      for (const n of FELDER[schluessel]) {
+        const sauber = felder[n] ? saeubern(felder[n]) : ''
+        if (sauber) return sauber
+      }
       return ''
     }
-    // Anschriften stehen im Board mit Zeilenumbruch ("Rotkehlchenweg 3\n41749 Viersen")
-    const einzeilig = (s) => s.split(/\s*\n+\s*/).filter(Boolean).join(', ')
     return {
-      kunde: wert('kunde'),
-      kundenadresse: einzeilig(wert('kundenadresse')),
-      objektadresse: einzeilig(wert('objektadresse')),
-      baujahr: wert('baujahr'),
-      objektart: wert('objektart'),
+      kunde: wert('kunde', alsName),
+      // Anschriften stehen im Board mit Zeilenumbruch ("Rotkehlchenweg 3\n41749 Viersen")
+      kundenadresse: wert('kundenadresse', alsAnschrift),
+      objektadresse: wert('objektadresse', alsAnschrift),
+      baujahr: wert('baujahr', alsKurz),
+      objektart: wert('objektart', alsKurz),
     }
   }
 
