@@ -20,8 +20,9 @@ Kunden werden **einmal** eingetragen und gelten für alle Unterlagen:
   ursprünglich das eigenständige Tool `keller-vorher-nachher`, seit 08.09.2026 hier eingebaut.
 
 Live: https://isotec-dokumentation.azurewebsites.net (Anmeldung mit dem ISOTEC-Konto, seit
-08.09.2026; Betrieb siehe [`docs/AZURE.md`](docs/AZURE.md)). Die alte GitHub-Pages-Adresse
-leitet nur noch um. Der Repo-Name ist historisch, das Tool heißt nur noch „Dokumentation". Die
+08.09.2026; Betrieb siehe [`docs/AZURE.md`](docs/AZURE.md)) — und die einzige Adresse: GitHub
+Pages ist seit dem 09.09.2026 abgeschaltet. Der Repo-Name ist historisch, das Tool heißt nur
+noch „Dokumentation". Die
 ausführliche Projektnotiz mit Entscheidungen und offenen Punkten liegt in Yanns Obsidian-Vault
 unter `02 Projekte/Dokumentation Analysetermin.md`.
 
@@ -84,8 +85,8 @@ Die **Visitenkarten** für das Deckblatt liegen in **`src/assets/visitenkarten/`
 dem Deckblatt; alle anderen bekommen das Logo. Aktuell: Björn Morscheck, Gerd Kahlau,
 Hüseyin Manaz, Mike Alsdorf.
 
-Vite vergibt beim Bauen gehashte ASCII-Dateinamen, weil der GitHub-Pages-Build an Umlauten im
-Dateinamen scheitert; die Anzeigenamen behalten ihre Umlaute. Liegt ein Name in zwei Formaten
+Vite vergibt beim Bauen gehashte ASCII-Dateinamen, weil der frühere GitHub-Pages-Build an Umlauten
+im Dateinamen scheiterte; die Anzeigenamen behalten ihre Umlaute. Liegt ein Name in zwei Formaten
 vor, zählt nur das erste.
 
 ## Server und Deployment (Azure)
@@ -97,8 +98,8 @@ selbst kann: `/api/ich` (wer ist angemeldet, aus den Easy-Auth-Kopfzeilen), `/ap
 Anwendungseinstellungen auf dem Server und verlassen ihn nie; der Browser kennt keinen Schlüssel
 mehr. Bauen und Ausliefern immer in PowerShell, Befehle in [`docs/AZURE.md`](docs/AZURE.md).
 
-Der GitHub-Workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) baut nichts
-mehr, sondern legt auf `gh-pages` nur noch eine Umleitung nach Azure ab.
+Das Repo hat **keinen Workflow** mehr: GitHub Pages ist abgeschaltet (Branch `gh-pages` und
+Pages-Einstellung entfernt, 09.09.2026), ein Push sichert nur den Quelltext.
 
 ## Datenschutz
 

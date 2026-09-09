@@ -39,7 +39,8 @@ Werkzeug speichert nichts – Fotos, Videos und PDFs bleiben im Browser.
 `/gesund` sagt ohne Anmeldung, welche der drei Geheimnisse gesetzt sind.
 
 Der Gemini-Schluessel ist in Google auf die Adresse der alten GitHub-Pages-
-Seite beschraenkt (HTTP-Referrer). Der Server schickt deshalb diese Adresse
+Seite beschraenkt (HTTP-Referrer) — die Seite selbst gibt es seit dem 09.09.2026
+nicht mehr, Google prueft aber nur den Kopfzeilenwert (nachgewiesen). Der Server schickt deshalb diese Adresse
 als `Referer` mit (`server/gemini.mjs`); die Beschraenkung bleibt damit als
 Schutz gegen einen kopierten Schluessel bestehen. Wird der Schluessel in
 Google einmal neu angelegt, entweder wieder diese Adresse zulassen oder die
@@ -95,10 +96,10 @@ Der Server nutzt nur Node-Bordmittel, es werden keine Pakete nachgeladen.
 Pruefen ohne Anmeldung: `https://isotec-dokumentation.azurewebsites.net/gesund`.
 Ein 401 auf andere Pfade per `curl` ist normal, Easy Auth leitet nur Browser um.
 
-Das Repo liegt weiter auf GitHub (`Techniker-Feedback-Isotec/analysetermin-fotodoku`).
-Der Workflow dort baut nichts mehr, sondern legt auf `gh-pages` nur eine
-Umleitung nach Azure ab, damit Lesezeichen und installierte Apps weiter
-ankommen.
+Das Repo liegt weiter auf GitHub (`Techniker-Feedback-Isotec/analysetermin-fotodoku`),
+ist aber nur noch Ablage des Quelltextes: **GitHub Pages ist seit dem 09.09.2026
+abgeschaltet** (Branch `gh-pages` geloescht, Pages im Repo deaktiviert, Workflow
+entfernt), die alte Adresse antwortet mit 404. Ein Push liefert nichts aus.
 
 ## Lokal entwickeln
 
