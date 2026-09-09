@@ -61,32 +61,16 @@ function bestandBlock(bestand?: string): string[] {
  * als Verbote, deshalb steht dieser Block ganz vorn und wird am Ende knapp
  * wiederholt.
  */
-function regelErhalten(moeblieren: boolean): string[] {
+function regelErhalten(): string[] {
   return [
     'PFLICHT, UNVERÄNDERT ERHALTEN:',
     'Alle Fenster, Türen, Treppen, Nischen und Öffnungen bleiben in gleicher Anzahl, an gleicher Position und in gleicher Größe. Kein Fenster und keine Tür darf verschwinden oder neu entstehen.',
     'Alle Rohre, Leitungen, Kabel, Heizkörper, Zähler, Kästen, Ventile, Steckdosen, Schalter und Lampen bleiben in gleicher Anzahl, an gleicher Stelle und in gleicher Führung.',
     'Alle Geräte und Möbel, die fest stehen oder angeschlossen sind (Waschmaschine, Trockner, Heizung, Boiler, Schränke, Regale), bleiben an ihrem Platz.',
     'Die Decke bleibt exakt unverändert, auch in Farbe und Helligkeit, einschließlich aller Deckenverkleidungen wie Holzpaneelen, Holzbrettern, Balken und Platten.',
-    moeblieren
-      ? 'ERFINDE KEINE BAUTEILE: Füge keine Rohre, Leitungen, Fenster, Türen, Lampen oder technischen Geräte hinzu, die auf dem Foto nicht vorhanden sind. Neue Einrichtung ist nur so erlaubt, wie der Abschnitt EINRICHTUNG es beschreibt.'
-      : 'ERFINDE NICHTS: Füge keine Rohre, Leitungen, Fenster, Türen, Lampen, Möbel, Geräte oder sonstigen Gegenstände hinzu, die auf dem Foto nicht vorhanden sind.',
+    'ERFINDE NICHTS: Füge keine Rohre, Leitungen, Fenster, Türen, Lampen, Möbel, Geräte oder sonstigen Gegenstände hinzu, die auf dem Foto nicht vorhanden sind.',
   ]
 }
-
-/**
- * Variante "Moeblieren" (Yann, 05.09.2026): Der sanierte Raum bekommt passende
- * Einrichtung, die seinen moeglichen Nutzen zeigt, etwa Waeschestaender bei
- * einer Waschmaschine. Zurueckhaltend, realistisch, nichts verdecken.
- */
-const REGEL_EINRICHTUNG = [
-  'EINRICHTUNG:',
-  'Richte den sanierten Raum passend und glaubwürdig ein, damit man seinen möglichen Nutzen sieht: wohnlich, aufgeräumt, hochwertig und zurückhaltend, wie in einem gepflegten Haushalt.',
-  'Wähle die Einrichtung nach dem, was auf dem Foto vorhanden ist. Beispiele: Bei einer Waschmaschine ein Wäscheständer mit aufgehängter Wäsche, ein Wäschekorb und ein kleines Regal mit Waschmittel. Bei einem leeren Raum ein ordentliches Regal mit Vorratsgläsern oder beschrifteten Kisten, eine aufgeräumte Werkbank, ein Fahrrad an der Wand oder eine kleine Sitzecke mit Sessel, Teppich und Stehlampe. Bei einem Heizungsraum ein sauberes Regal. Bei einem hellen Raum mit Fenster auch ein Schreibtisch mit Stuhl oder ein Fitnessgerät.',
-  'Drei bis fünf Gegenstände, nicht mehr. Sie stehen frei im Raum oder an der Wand, in realistischer Größe und Perspektive, mit stimmigen Schatten und passendem Licht.',
-  'Die Einrichtung verdeckt keine Fenster, Türen, Rohre, Heizkörper, Zähler oder Anschlüsse und verändert nichts an Wänden, Decke, Boden und der vorhandenen Technik.',
-  'Keine Menschen, keine Tiere, kein Text, keine Marken.',
-]
 
 const REGEL_WAND_SANIERT = [
   'Jede betroffene Wandfläche wird zu einer vollkommen ebenen, glatt gespachtelten und deckend weiß gestrichenen Fläche, so homogen wie eine neue Trockenbauwand oder eine frisch verputzte Wand: einfarbig matt weiß, ohne jede Struktur, ohne Relief, ohne Textur.',
@@ -125,7 +109,7 @@ const REGEL_GEGENSTAENDE = [
   'Fest installierte Dinge bleiben unverändert erhalten: Geräte wie Waschmaschinen, Trockner, Heizungen und Boiler samt Schläuchen, Wasseranschlüsse und Armaturen, Türen, Fenster, Treppen, Bodenabläufe, Lichtschalter, Steckdosen und Lampen.',
 ]
 
-function regelAllgemein(moeblieren: boolean, entferntEtwas: boolean): string[] {
+function regelAllgemein(entferntEtwas: boolean): string[] {
   const ausnahme = entferntEtwas ? ' Ausgenommen sind allein die unter ENTFERNEN genannten Elemente, die fehlen müssen.' : ''
   return [
     'ALLGEMEIN:',
@@ -133,9 +117,7 @@ function regelAllgemein(moeblieren: boolean, entferntEtwas: boolean): string[] {
     'Der Raum wirkt hell, trocken und sauber, mit neutraler heller Ausleuchtung. Die Decke ist davon ausgenommen und behält ihre ursprüngliche Farbe und Helligkeit.',
     'Das Ergebnis muss wie ein echtes, unbearbeitetes Foto desselben Raums aussehen.',
     'Kein Text, kein Wasserzeichen.',
-    (moeblieren
-      ? 'Prüfe zum Schluss: Fenster, Türen, Rohre, Heizkörper und vorhandene Geräte sind in Anzahl und Lage genau wie auf dem Foto, nichts davon fehlt. Neu ist ausschließlich die beschriebene Einrichtung.'
-      : 'Prüfe zum Schluss: Fenster, Türen, Rohre, Heizkörper und Geräte sind in Anzahl und Lage genau wie auf dem Foto. Nichts fehlt, nichts ist neu.') +
+    'Prüfe zum Schluss: Fenster, Türen, Rohre, Heizkörper und Geräte sind in Anzahl und Lage genau wie auf dem Foto. Nichts fehlt, nichts ist neu.' +
       ausnahme +
       ' Die sanierten Wandflächen sind glatte, einfarbig weiße Flächen ohne erkennbares Stein- oder Fugenmuster. Die Decke ist unverändert wie auf dem Foto, auch in Farbe und Helligkeit; eine vorhandene Holz- oder Plattendecke ist unbearbeitet vorhanden.',
   ]
@@ -158,17 +140,12 @@ function entfernenBlock(entfernen: string[]): string[] {
 }
 
 /** Der Arbeitsauftrag: alle Waende und die Decke werden saniert, der Boden je nach Variante. */
-function prompt(
-  bestand?: string,
-  bodenHellgrau = false,
-  moeblieren = false,
-  entfernen: string[] = [],
-): string {
+function prompt(bestand?: string, bodenHellgrau = false, entfernen: string[] = []): string {
   return [
   'Bearbeite dieses Foto eines Kellers.',
   'Zeige exakt denselben Raum nach einer professionellen Kellersanierung. Halte dich genau an diese Regeln:',
   '',
-  ...regelErhalten(moeblieren),
+  ...regelErhalten(),
   ...bestandBlock(bestand),
   ...entfernenBlock(entfernen),
   '',
@@ -185,9 +162,8 @@ function prompt(
   ...REGEL_LEITUNGEN,
   '',
   ...REGEL_GEGENSTAENDE,
-  ...(moeblieren ? ['', ...REGEL_EINRICHTUNG] : []),
   '',
-  ...regelAllgemein(moeblieren, entfernen.length > 0),
+  ...regelAllgemein(entfernen.length > 0),
 ].join('\n')
 }
 
@@ -217,8 +193,6 @@ export type SanierOptionen = {
   bestand?: string
   /** Variante "Boden sanieren": Boden vollflaechig hellgrau beschichtet statt nur gesaeubert. */
   bodenHellgrau?: boolean
-  /** Variante "Moeblieren": passende Einrichtung, die den Nutzen des Raums zeigt. */
-  moeblieren?: boolean
   /**
    * Elemente aus dem erkannten Bestand, die der Nutzer abgewaehlt hat (Yann,
    * 05.09.2026): Sie sollen im Ergebnis verschwinden. Die Zeilen stammen aus
@@ -237,12 +211,7 @@ export async function saniereFoto(base64Jpeg: string, optionen: SanierOptionen =
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: base64Jpeg } },
             {
-              text: prompt(
-                optionen.bestand,
-                optionen.bodenHellgrau ?? false,
-                optionen.moeblieren ?? false,
-                optionen.entfernen ?? [],
-              ),
+              text: prompt(optionen.bestand, optionen.bodenHellgrau ?? false, optionen.entfernen ?? []),
             },
           ],
         },

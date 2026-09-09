@@ -1860,11 +1860,53 @@ table {
 }
 
 .kachel {
+  position: relative;
   margin: 0;
   border: 1px solid var(--grey);
   border-radius: 10px;
   overflow: hidden;
   background: var(--light);
+}
+
+/*
+ * Reihenfolge der Sanierungsvorschau (Yann, 09.09.2026): Die Kacheln stehen in
+ * der Reihenfolge, in der die Fotos in die PDF kommen. Die Zahl zeigt den
+ * Platz, Ziehen und die Pfeile in der Kachelzeile stellen ihn um.
+ */
+.kachel-nummer {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(28, 23, 21, 0.62);
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.kachel.zieht {
+  opacity: 0.45;
+}
+
+.kachel.ziehziel {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(213, 19, 23, 0.25);
+}
+
+.kachel-entfernen:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.kachel-entfernen:disabled:hover {
+  color: #a0958d;
 }
 
 .kachel.klickbar {
@@ -2115,10 +2157,37 @@ table {
   margin-right: 8px;
 }
 
+/*
+ * Der Name ist ein Eingabefeld, sieht aber wie Text aus: Er steht in der PDF
+ * und im Dateinamen und laesst sich deshalb direkt aendern (Yann, 09.09.2026).
+ * Erst beim Anklicken zeigt sich der Rahmen.
+ */
 .kachel-name {
+  min-width: 0;
+  flex: 1;
+  font: inherit;
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  padding: 1px 4px;
+  margin: -1px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: text;
+}
+
+.kachel-name:hover {
+  border-color: var(--grey);
+  background: var(--white);
+}
+
+.kachel-name:focus {
+  outline: none;
+  border-color: var(--red);
+  background: var(--white);
+  text-overflow: clip;
 }
 
 .kachel-entfernen {

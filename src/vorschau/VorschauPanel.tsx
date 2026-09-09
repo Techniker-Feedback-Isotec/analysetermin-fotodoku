@@ -18,23 +18,23 @@ import type { DeckblattBild } from '../lib/deckblatt'
 import { GeminiFehler, erfasseBestand, saniereFoto } from './lib/gemini'
 
 /**
- * Je Foto lassen sich zwei Optionen anhaken (Yann, 05.09.2026):
- * - boden:  der Boden wird vollflaechig hellgrau saniert statt nur gesaeubert.
- * - moebel: passende Einrichtung zeigt den moeglichen Nutzen des Raums.
+ * Je Foto laesst sich eine Option anhaken (Yann, 05.09.2026): Der Boden wird
+ * vollflaechig hellgrau saniert statt nur gesaeubert. Die zweite Variante
+ * "Moeblieren" gab es bis zum 09.09.2026, Yann hat sie wieder herausgenommen.
  * Dazu kommt das Klappmenue "Bestand": alles, was die KI erkannt hat, ist
  * angehakt; was der Nutzer abhakt, verschwindet aus dem Ergebnis.
  * Jede Kombination wird nur einmal erzeugt und bleibt erhalten.
  */
-type Optionen = { boden: boolean; moebel: boolean }
+type Optionen = { boden: boolean }
 
-const STANDARD: Optionen = { boden: false, moebel: false }
+const STANDARD: Optionen = { boden: false }
 
 /** Hoechstens so viele Fotos je Upload, damit nicht verschwenderisch gearbeitet wird (Yann, 05.09.2026). */
 const MAX_JE_UPLOAD = 3
 
 /** Schluessel, unter dem das Ergebnis einer Kombination abgelegt wird. */
 function kombination(o: Optionen, entfernt: number[]): string {
-  const basis = `${o.boden ? 'boden' : 'standard'}${o.moebel ? '+moebel' : ''}`
+  const basis = o.boden ? 'boden' : 'standard'
   return entfernt.length ? `${basis}|-${[...entfernt].sort((a, b) => a - b).join(',')}` : basis
 }
 
@@ -42,7 +42,6 @@ function kombination(o: Optionen, entfernt: number[]): string {
 function bezeichnung(o: Optionen, entfernt: number[]): string {
   const teile: string[] = []
   if (o.boden) teile.push('Boden saniert')
-  if (o.moebel) teile.push('möbliert')
   if (entfernt.length) teile.push(`${entfernt.length} entfernt`)
   return teile.length ? teile.join(', ') : 'Standard'
 }
@@ -131,6 +130,14 @@ export interface VorschauPanelProps {
 export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: VorschauPanelProps) {
   const [fotos, setFotos] = useState<Foto[]>([])
   const [auswahlId, setAuswahlId] = useState<string | null>(null)
+  /** Fuer das Umsortieren per Ziehen: gezogenes Foto und das Ziel darunter */
+  const [ziehtId, setZiehtId] = useState<string | null>(null)
+  const [zielId, setZielId] = useState<string | null>(null)
+  /**
+   * Foto, dessen Name gerade bearbeitet wird. Solange darf die Kachel nicht
+   * ziehbar sein, sonst laesst sich der Text mit der Maus nicht markieren.
+   */
+  const [benanntId, setBenanntId] = useState<string | null>(null)
   const [gesichert, setGesichert] = useState(false)
   const [zeigeIndex, setZeigeIndex] = useState<number | null>(null)
   const [ziehtDatei, setZiehtDatei] = useState(false)
@@ -232,7 +239,6 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
         const auftrag = {
           bestand: bleibt || undefined,
           bodenHellgrau: optionen.boden,
-          moeblieren: optionen.moebel,
           entfernen,
         }
         try {
@@ -318,6 +324,39 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
   /** Die gerade gezeigte Kombination noch einmal erzeugen. */
   function bearbeiteErneut(foto: Foto) {
     void verarbeite(foto.id, foto.vorherBlob, foto.optionen, foto.entfernt)
+  }
+
+  /**
+   * Reihenfolge aendern (Yann, 09.09.2026): Die Kacheln stehen in der
+   * Reihenfolge, in der die Fotos auch in der PDF landen. Mit den Pfeilen
+   * oder per Ziehen laesst sie sich umstellen.
+   */
+  function verschiebe(id: string, richtung: -1 | 1) {
+    setFotos((liste) => {
+      const i = liste.findIndex((f) => f.id === id)
+      const j = i + richtung
+      if (i < 0 || j < 0 || j >= liste.length) return liste
+      const neu = [...liste]
+      ;[neu[i], neu[j]] = [neu[j], neu[i]]
+      return neu
+    })
+  }
+
+  /** Gezogenes Foto an die Stelle des Ziels setzen, der Rest rueckt nach. */
+  function ziehenAuf(zielId: string) {
+    const quelleId = ziehtId
+    setZiehtId(null)
+    setZielId(null)
+    if (!quelleId || quelleId === zielId) return
+    setFotos((liste) => {
+      const von = liste.findIndex((f) => f.id === quelleId)
+      const nach = liste.findIndex((f) => f.id === zielId)
+      if (von < 0 || nach < 0) return liste
+      const neu = [...liste]
+      const [bewegt] = neu.splice(von, 1)
+      neu.splice(nach, 0, bewegt)
+      return neu
+    })
   }
 
   function entferne(id: string) {
@@ -457,7 +496,6 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
   }
 
   function statustext(foto: Foto): string {
-    if (foto.optionen.moebel) return 'Wird eingerichtet …'
     if (foto.optionen.boden) return 'Boden wird saniert …'
     return 'Wird saniert …'
   }
@@ -473,14 +511,6 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
             onChange={(e) => schalteOption(foto, 'boden', e.target.checked)}
           />
           Boden sanieren
-        </label>
-        <label className="kachel-option">
-          <input
-            type="checkbox"
-            checked={foto.optionen.moebel}
-            onChange={(e) => schalteOption(foto, 'moebel', e.target.checked)}
-          />
-          Möblieren
         </label>
       </div>
     )
@@ -600,20 +630,52 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
             {pdfFertig && <p className="pdf-fertig">✓ {pdfFertig}</p>}
             <div className="uebersicht">
               <div className="galerie">
-                {fotos.map((foto) => {
+                {fotos.map((foto, index) => {
                   const ergebnis = aktuell(foto)
                   const istGewaehlt = gewaehlt?.id === foto.id
                   const klassen = ['kachel']
                   if (foto.status === 'bereit') klassen.push('klickbar')
                   if (istGewaehlt) klassen.push('gewaehlt')
+                  if (ziehtId === foto.id) klassen.push('zieht')
+                  if (zielId === foto.id && ziehtId !== foto.id) klassen.push('ziehziel')
+                  // Nummer nur fuer Fotos, die auch in die PDF kommen
+                  const pdfNummer = fertige.findIndex((f) => f.id === foto.id) + 1
                   return (
                     <figure
                       key={foto.id}
                       className={klassen.join(' ')}
+                      draggable={benanntId !== foto.id}
+                      onDragStart={(e) => {
+                        setZiehtId(foto.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragEnd={() => {
+                        setZiehtId(null)
+                        setZielId(null)
+                      }}
+                      onDragOver={(e) => {
+                        if (!ziehtId) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        setZielId(foto.id)
+                      }}
+                      onDragLeave={() => {
+                        if (zielId === foto.id) setZielId(null)
+                      }}
+                      onDrop={(e) => {
+                        if (!ziehtId) return
+                        e.preventDefault()
+                        ziehenAuf(foto.id)
+                      }}
                       onClick={() => {
                         if (foto.status === 'bereit') setAuswahlId(foto.id)
                       }}
                     >
+                      {pdfNummer > 0 && (
+                        <span className="kachel-nummer" title="Platz in der PDF">
+                          {pdfNummer}
+                        </span>
+                      )}
                       <div className="kachel-bild">
                         {foto.vorherUrl && <img src={foto.vorherUrl} alt={`${foto.name} vorher`} />}
                         {ergebnis?.status === 'fertig' && ergebnis.url && (
@@ -651,9 +713,50 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
                       </div>
                       <figcaption>
                         <div className="kachel-zeile">
-                          <span className="kachel-name" title={foto.name}>
-                            {foto.name}
-                          </span>
+                          {/* Der Name steht in der PDF und im Dateinamen, deshalb
+                              ist er hier direkt aenderbar (Yann, 09.09.2026). */}
+                          <input
+                            className="kachel-name"
+                            value={foto.name}
+                            title={`${foto.name} (Name ändern)`}
+                            aria-label={`Name von ${foto.name} ändern`}
+                            onChange={(e) => aktualisiere(foto.id, { name: e.target.value })}
+                            onFocus={() => setBenanntId(foto.id)}
+                            onBlur={(e) => {
+                              setBenanntId(null)
+                              const sauber = e.target.value.trim()
+                              aktualisiere(foto.id, { name: sauber === '' ? 'Foto' : sauber })
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
+                            }}
+                          />
+                          {/* Reihenfolge: bestimmt, wie die Fotos in der PDF stehen */}
+                          <button
+                            className="kachel-entfernen"
+                            aria-label={`${foto.name} nach vorne`}
+                            title="Nach vorne"
+                            disabled={index === 0}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              verschiebe(foto.id, -1)
+                            }}
+                          >
+                            ‹
+                          </button>
+                          <button
+                            className="kachel-entfernen"
+                            aria-label={`${foto.name} nach hinten`}
+                            title="Nach hinten"
+                            disabled={index === fotos.length - 1}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              verschiebe(foto.id, 1)
+                            }}
+                          >
+                            ›
+                          </button>
                           {(ergebnis?.status === 'fertig' || ergebnis?.status === 'fehler') && (
                             <button
                               className="kachel-entfernen"
