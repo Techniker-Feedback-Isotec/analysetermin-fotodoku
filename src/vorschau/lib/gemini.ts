@@ -43,7 +43,10 @@ function bestandBlock(bestand?: string): string[] {
  * Der Arbeitsauftrag an das Modell. Grundlage ist Yanns Beispielpaar vom
  * 01.09.2026 (Waschkueche), am 04./05.09.2026 nach seinen Tests geschaerft:
  * Waende werden glatte weisse Flaechen ohne Steinmuster, Verkleidungen wie
- * Rigips oder Holzvertaefelung verschwinden (das gefaellt ihm). Der Boden
+ * Rigips oder Holzvertaefelung verschwinden (das gefaellt ihm) - das gilt aber
+ * NUR fuer Waende: die Decke behaelt seit 07.09.2026 immer ihren Aufbau samt
+ * Holzpaneelen und wird nur heller und frisch gestrichen dargestellt, weil das
+ * Modell eine Holzdecke durch eine glatte weisse Flaeche ersetzt hatte. Der Boden
  * wird in seiner Substanz NIE veraendert, nur heller und sauberer (der
  * fruehere 30-cm-Streifen ist gestrichen). Rohre, Leitungen und Heizkoerper
  * bleiben ALLE erhalten, hoechstens gepflegter, weil das Modell am 05.09. ein
@@ -64,6 +67,7 @@ function regelErhalten(moeblieren: boolean): string[] {
     'Alle Fenster, Türen, Treppen, Nischen und Öffnungen bleiben in gleicher Anzahl, an gleicher Position und in gleicher Größe. Kein Fenster und keine Tür darf verschwinden oder neu entstehen.',
     'Alle Rohre, Leitungen, Kabel, Heizkörper, Zähler, Kästen, Ventile, Steckdosen, Schalter und Lampen bleiben in gleicher Anzahl, an gleicher Stelle und in gleicher Führung.',
     'Alle Geräte und Möbel, die fest stehen oder angeschlossen sind (Waschmaschine, Trockner, Heizung, Boiler, Schränke, Regale), bleiben an ihrem Platz.',
+    'Die Decke bleibt in Aufbau und Material unverändert, einschließlich aller Deckenverkleidungen wie Holzpaneelen, Holzbrettern, Balken und Platten.',
     moeblieren
       ? 'ERFINDE KEINE BAUTEILE: Füge keine Rohre, Leitungen, Fenster, Türen, Lampen oder technischen Geräte hinzu, die auf dem Foto nicht vorhanden sind. Neue Einrichtung ist nur so erlaubt, wie der Abschnitt EINRICHTUNG es beschreibt.'
       : 'ERFINDE NICHTS: Füge keine Rohre, Leitungen, Fenster, Türen, Lampen, Möbel, Geräte oder sonstigen Gegenstände hinzu, die auf dem Foto nicht vorhanden sind.',
@@ -87,7 +91,7 @@ const REGEL_EINRICHTUNG = [
 const REGEL_WAND_SANIERT = [
   'Jede betroffene Wandfläche wird zu einer vollkommen ebenen, glatt gespachtelten und deckend weiß gestrichenen Fläche, so homogen wie eine neue Trockenbauwand oder eine frisch verputzte Wand: einfarbig matt weiß, ohne jede Struktur, ohne Relief, ohne Textur.',
   'Das ist KEIN weißer Anstrich über dem alten Mauerwerk. Steine, Ziegel, Fugen und Kanten des alten Mauerwerks sind unter neuem Putz vollständig verschwunden und dürfen nicht durchscheinen, auch nicht schwach, auch nicht als Schatten oder Raster.',
-  'Sind diese Wände mit Rigips, Gipskartonplatten, Holzvertäfelung, Paneelen, Regalen an der Wand oder ähnlichen Verkleidungen bedeckt: Entferne diese Verkleidungen vollständig und zeige auch dort eine glatte, weiß gestrichene Wand.',
+  'Sind diese Wände mit Rigips, Gipskartonplatten, Holzvertäfelung, Paneelen, Regalen an der Wand oder ähnlichen Verkleidungen bedeckt: Entferne diese Verkleidungen vollständig und zeige auch dort eine glatte, weiß gestrichene Wand. Das gilt ausschließlich für Wandflächen, niemals für die Decke.',
   'Sämtliche Feuchtigkeitsschäden, Schimmel, Stockflecken, Salzausblühungen, abblätternde Farbe, Risse und dunkle Flecken sind verschwunden.',
 ]
 
@@ -133,7 +137,7 @@ function regelAllgemein(moeblieren: boolean, entferntEtwas: boolean): string[] {
       ? 'Prüfe zum Schluss: Fenster, Türen, Rohre, Heizkörper und vorhandene Geräte sind in Anzahl und Lage genau wie auf dem Foto, nichts davon fehlt. Neu ist ausschließlich die beschriebene Einrichtung.'
       : 'Prüfe zum Schluss: Fenster, Türen, Rohre, Heizkörper und Geräte sind in Anzahl und Lage genau wie auf dem Foto. Nichts fehlt, nichts ist neu.') +
       ausnahme +
-      ' Die sanierten Wandflächen sind glatte, einfarbig weiße Flächen ohne erkennbares Stein- oder Fugenmuster.',
+      ' Die sanierten Wandflächen sind glatte, einfarbig weiße Flächen ohne erkennbares Stein- oder Fugenmuster. Die Decke hat denselben Aufbau und dasselbe Material wie auf dem Foto, eine vorhandene Holz- oder Plattendecke ist noch da.',
   ]
 }
 
@@ -172,7 +176,9 @@ function prompt(
   ...REGEL_WAND_SANIERT,
   '',
   'DECKE:',
-  'Die Decke ist glatt verputzt und weiß gestrichen, ohne Flecken und Schäden.',
+  'Die Decke bleibt immer in ihrem Ursprungszustand. Aufbau, Material, Struktur und Verlauf bleiben exakt wie auf dem Foto: Holzpaneele, Holzbretter, Balken, Verkleidungen, Platten, Fugen und deren Richtung bleiben unverändert.',
+  'Entferne niemals eine Deckenverkleidung und ersetze die Decke niemals durch eine glatte, verputzte oder weiße Fläche. Eine Holzdecke bleibt sichtbar eine Holzdecke aus demselben Material.',
+  'Erlaubt ist nur: Die Decke wirkt heller, sauber und frisch gestrichen beziehungsweise frisch behandelt, ohne Staub, Spinnweben, Flecken, Vergilbung und Feuchtigkeitsränder. Material und Farbcharakter bleiben dabei erhalten.',
   '',
   ...(bodenHellgrau ? REGEL_BODEN_HELLGRAU : REGEL_BODEN),
   '',
