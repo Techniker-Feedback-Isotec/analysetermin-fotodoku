@@ -36,7 +36,7 @@ export const USPS: UspPunkt[] = [
   },
   {
     titel: 'Geprüfte Verfahren',
-    text: 'Unsere Abdichtungssysteme sind nach den WTA-Merkblättern 4 bis 6 geprüft. Die Materialien entwickeln und produzieren wir im eigenen Haus.',
+    text: 'Unsere Abdichtungssysteme sind nach den WTA-Merkblättern 4 bis 6 geprüft. Materialien entwickeln wir nicht selbst, wir prüfen sie und nehmen nur auf, was unseren Standards entspricht.',
   },
   {
     titel: 'Analyse vor Angebot',
@@ -44,7 +44,7 @@ export const USPS: UspPunkt[] = [
   },
   {
     titel: 'Eigene Fachleute',
-    text: 'Wir arbeiten mit fest angestellten, geschulten Technikern statt mit wechselnden Subunternehmern. Am Standort Neukirchen-Vluyn sind das rund 30 Mitarbeiter.',
+    text: 'Wir arbeiten mit fest angestellten, geschulten Technikern statt mit wechselnden Subunternehmern. Am Standort Neukirchen-Vluyn sind das rund 40 Mitarbeiter.',
   },
   {
     titel: 'Saubere Baustelle',

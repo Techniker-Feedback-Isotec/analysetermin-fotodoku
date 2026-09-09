@@ -8,17 +8,23 @@ import {
   type DeckblattBild,
   type DeckblattZeile,
 } from './deckblatt'
+import { zeichneKapitel, zeichneTrennblatt } from '../mappe/seiten'
 
 /**
- * Angebotsmappe: alle erstellten Unterlagen in einem Dokument (Yann, 08.09.2026).
+ * Angebotsmappe: alle ausgewaehlten Unterlagen in einem Dokument.
  *
- * Aufbau: Deckblatt, Inhaltsverzeichnis, danach die einzelnen Unterlagen in
- * fester Reihenfolge - Prinzipskizze, Sanierungsvorschau, Fotodokumentation.
- * Die Unterlagen werden Seite fuer Seite uebernommen, wie sie erstellt wurden;
- * jede behaelt also ihr eigenes Deckblatt und trennt damit die Abschnitte.
+ * Aufbau seit dem 09.09.2026 (Yann: "so sieht es professioneller aus und mehr
+ * wie ein richtiges Dokument"):
  *
- * So laesst sich die ganze Mappe auf einen Klick erzeugen und am Stueck
- * ausdrucken.
+ *   1. ein Deckblatt fuer die ganze Mappe
+ *   2. Inhaltsverzeichnis
+ *   3. Kapitel "Warum ISOTEC"
+ *   4. je Unterlage ein Trennblatt (Ueberschrift, kein Foto) und dahinter ihre
+ *      Seiten OHNE ihr eigenes Deckblatt
+ *
+ * Vorher trug jede Unterlage ihr eigenes Deckblatt mit Objektfoto mitten in
+ * der Mappe. Einzeln erzeugt behalten die Unterlagen ihr Deckblatt, nur in der
+ * Mappe faellt es weg.
  */
 
 const RED = rgb(213 / 255, 19 / 255, 23 / 255)
@@ -29,7 +35,7 @@ const MUTED = rgb(138 / 255, 127 / 255, 120 / 255)
 const RAND = 48
 
 export interface MappenTeil {
-  /** Ueberschrift im Inhaltsverzeichnis, z. B. "Prinzipskizze" */
+  /** Ueberschrift im Inhaltsverzeichnis und auf dem Trennblatt */
   titel: string
   bytes: Uint8Array
 }
@@ -48,12 +54,13 @@ export async function erzeugeAngebotsmappe(daten: MappenDaten): Promise<Uint8Arr
   const [W, H] = A4
   const doc = await PDFDocument.create()
   doc.setTitle('ISOTEC Angebotsmappe')
-  doc.setCreator('Dokumentation (100 % clientseitig)')
+  doc.setCreator('Dokumentation')
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const regular = await doc.embedFont(StandardFonts.Helvetica)
+  const schriften = { regular, bold }
 
   // ---------- 1. Deckblatt ----------
-  await zeichneDeckblatt(doc, { regular, bold }, {
+  await zeichneDeckblatt(doc, schriften, {
     titel: 'Angebotsmappe',
     objekt: daten.objekt,
     visitenkarte: daten.visitenkarte,
@@ -66,12 +73,20 @@ export async function erzeugeAngebotsmappe(daten: MappenDaten): Promise<Uint8Arr
   const geladen = []
   for (const teil of daten.teile) {
     const quelle = await PDFDocument.load(teil.bytes)
-    geladen.push({ titel: teil.titel, quelle, umfang: quelle.getPageCount() })
+    // Die erste Seite ist das Deckblatt der Unterlage; in der Mappe uebernimmt
+    // das Trennblatt diese Rolle. Haette eine Unterlage nur diese eine Seite,
+    // bliebe nichts uebrig - dann kommt sie vollstaendig mit.
+    const seiten = quelle.getPageIndices()
+    const inhalt = seiten.length > 1 ? seiten.slice(1) : seiten
+    geladen.push({ titel: teil.titel, quelle, inhalt, umfang: inhalt.length })
   }
-  let naechsteSeite = 3 // 1 Deckblatt + 1 Inhaltsverzeichnis
-  const eintraege = geladen.map((g) => {
-    const eintrag = { titel: g.titel, seite: naechsteSeite, umfang: g.umfang }
-    naechsteSeite += g.umfang
+
+  // Seitenzahlen: 1 Deckblatt + 1 Inhalt + 1 Kapitel, dann je Teil ein
+  // Trennblatt und seine Seiten.
+  let naechsteSeite = 4
+  const eintraege = geladen.map((g, i) => {
+    const eintrag = { nummer: i + 1, titel: g.titel, seite: naechsteSeite, umfang: g.umfang }
+    naechsteSeite += 1 + g.umfang
     return eintrag
   })
 
@@ -96,36 +111,48 @@ export async function erzeugeAngebotsmappe(daten: MappenDaten): Promise<Uint8Arr
     seite.drawLine({ start: { x: RAND, y }, end: { x: W - RAND, y }, thickness: 0.75, color: GREY })
     y -= 34
 
-    for (const eintrag of eintraege) {
-      const titel = winAnsi(eintrag.titel)
-      const seitenzahl = String(eintrag.seite)
-      const titelBreite = bold.widthOfTextAtSize(titel, 12)
-      const zahlBreite = bold.widthOfTextAtSize(seitenzahl, 12)
-      seite.drawText(titel, { x: RAND, y, size: 12, font: bold, color: BROWN })
-      seite.drawText(seitenzahl, { x: W - RAND - zahlBreite, y, size: 12, font: bold, color: BROWN })
-
-      // Punktlinie zwischen Titel und Seitenzahl
-      const von = RAND + titelBreite + 8
-      const bis = W - RAND - zahlBreite - 8
-      for (let x = von; x < bis; x += 5) {
+    /** Eine Zeile mit Punktlinie zwischen Titel und Seitenzahl. */
+    const zeile = (titel: string, seitenzahl: number, unterzeile: string | null) => {
+      const text = winAnsi(titel)
+      const zahl = String(seitenzahl)
+      const titelBreite = bold.widthOfTextAtSize(text, 12)
+      const zahlBreite = bold.widthOfTextAtSize(zahl, 12)
+      seite.drawText(text, { x: RAND, y, size: 12, font: bold, color: BROWN })
+      seite.drawText(zahl, { x: W - RAND - zahlBreite, y, size: 12, font: bold, color: BROWN })
+      for (let x = RAND + titelBreite + 8; x < W - RAND - zahlBreite - 8; x += 5) {
         seite.drawCircle({ x, y: y + 3.5, size: 0.5, color: GREY })
       }
-
       y -= 15
-      seite.drawText(`${eintrag.umfang} ${eintrag.umfang === 1 ? 'Seite' : 'Seiten'}`, {
-        x: RAND,
-        y,
-        size: 9,
-        font: regular,
-        color: MUTED,
-      })
-      y -= 26
+      if (unterzeile) {
+        seite.drawText(winAnsi(unterzeile), { x: RAND, y, size: 9, font: regular, color: MUTED })
+        y -= 26
+      } else {
+        y -= 11
+      }
+    }
+
+    zeile('Warum ISOTEC', 3, null)
+    for (const eintrag of eintraege) {
+      zeile(
+        `${eintrag.nummer}. ${eintrag.titel}`,
+        eintrag.seite,
+        `${eintrag.umfang} ${eintrag.umfang === 1 ? 'Seite' : 'Seiten'}`,
+      )
     }
   }
 
-  // ---------- 3. Die Unterlagen ----------
-  for (const g of geladen) {
-    const seiten = await doc.copyPages(g.quelle, g.quelle.getPageIndices())
+  // ---------- 3. Kapitel "Warum ISOTEC" ----------
+  await zeichneKapitel(doc, schriften, daten.logo)
+
+  // ---------- 4. Trennblatt und Seiten je Unterlage ----------
+  for (const [i, g] of geladen.entries()) {
+    await zeichneTrennblatt(doc, schriften, {
+      nummer: i + 1,
+      titel: g.titel,
+      unterzeile: `${g.umfang} ${g.umfang === 1 ? 'Seite' : 'Seiten'}`,
+      logo: daten.logo,
+    })
+    const seiten = await doc.copyPages(g.quelle, g.inhalt)
     for (const seite of seiten) doc.addPage(seite)
   }
 
