@@ -16,6 +16,7 @@ import {
 import type { Fotostapel } from './fotostapel'
 import { SONSTIGES, legendeFuer, ohneLegende } from './data/legende'
 import { nameMitRolle } from './data/rollen'
+import { zeichnungFuer, zeichnungHinweis } from './data/prinzipzeichnung'
 import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
 import Bildansicht from './Bildansicht'
@@ -200,6 +201,8 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
     [istSkizze, kunde.gewerke],
   )
   const gewerkeOhneFarbe = istSkizze ? ohneLegende(kunde.gewerke) : []
+  /** Vorgezeichneter Wandquerschnitt nach Baujahr, oder null (siehe data/prinzipzeichnung.ts) */
+  const zeichnungUrl = istSkizze ? zeichnungFuer(kunde.baujahr, kunde.gewerke) : null
   const pageCount = included.length + 1 + (istSkizze ? 1 : 0) + (hasAssessment || hasSummary ? 1 : 0)
 
   // Welches der beiden Textfelder gerade gilt
@@ -253,6 +256,11 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
           sourceType: objectPhoto.sourceType,
         })
 
+        // Der vorgezeichnete Wandquerschnitt der Prinzipskizze, falls einer passt
+        const zeichnung: DeckblattBild | null = zeichnungUrl
+          ? { bytes: new Uint8Array(await (await fetch(zeichnungUrl)).arrayBuffer()), format: 'png' }
+          : null
+
         // Jedes Foto wird erst beim Einbetten geladen und danach wieder freigegeben.
         const loadPhoto = async (i: number): Promise<PdfPhoto | null> => {
           const photo = included[i]
@@ -286,7 +294,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
             customerName: kunde.kunde.trim() || null,
             customerAddress: kunde.kundenadresse.trim() || null,
             orderNumber: isReklamation ? kunde.auftragsnummer.trim() || null : null,
-            drawingPage: istSkizze ? { title: 'Bauzeichnungen', legende } : null,
+            drawingPage: istSkizze ? { title: 'Bauzeichnungen', legende, zeichnung } : null,
             fotoHinweis: istSkizze ? FREIRAEUM_HINWEIS : null,
             textPage: hasAssessment
               ? {
@@ -453,6 +461,12 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
           {gewerkeOhneFarbe.length > 0 && (
             <p className="eingabe-breit hint-warn">
               Ohne Farbe in der Legende: {gewerkeOhneFarbe.join(', ')}
+            </p>
+          )}
+          {/* Was auf der Seite Bauzeichnungen landet, haengt am Baujahr auf der Seite Kunde */}
+          {istSkizze && (
+            <p className="eingabe-breit eingabe-hinweis">
+              {zeichnungHinweis(kunde.baujahr, kunde.gewerke)}
             </p>
           )}
         </div>
