@@ -229,7 +229,12 @@ export default function App() {
           <div hidden={modus !== 'vorschau'}>
             {geoeffnet.vorschau && (
               <Suspense fallback={<p className="lade-hinweis">Sanierungsvorschau wird geladen …</p>}>
-                <VorschauPanel kunde={kunde} onDokument={setzeDokument} geminiVerfuegbar={ich ? ich.gemini : null} />
+                <VorschauPanel
+                  kunde={kunde}
+                  onDokument={setzeDokument}
+                  onToast={pushToast}
+                  geminiVerfuegbar={ich ? ich.gemini : null}
+                />
               </Suspense>
             )}
           </div>

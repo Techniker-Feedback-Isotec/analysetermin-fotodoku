@@ -13,7 +13,7 @@ import {
 import { bereiteBildVor, blobZuBase64 } from './lib/bild'
 import { optimizeWithRetry } from '../lib/bilder'
 import { visitenkarteVon } from '../data/visitenkarten'
-import { mitarbeiterVon, objektadresseText, type Kundendaten } from '../kunde'
+import { mitarbeiterVon, objektadresseText, type Kundendaten, type ToastFn } from '../kunde'
 import type { DeckblattBild } from '../lib/deckblatt'
 import { GeminiFehler, erfasseBestand, saniereFoto } from './lib/gemini'
 
@@ -120,6 +120,8 @@ export interface VorschauPanelProps {
   kunde: Kundendaten
   /** Fertige PDF fuer die Sammlung auf der Seite Kunde */
   onDokument?: (schluessel: string, quelle: string, datei: File | null) => void
+  /** Kurze Meldungen unten rechts, wie auf den anderen Seiten */
+  onToast: ToastFn
   /**
    * Ob der Server einen Gemini-Schluessel hat (aus /api/ich); null = noch
    * unbekannt. Der Schluessel liegt seit dem Umzug nach Azure nur dort.
@@ -127,7 +129,7 @@ export interface VorschauPanelProps {
   geminiVerfuegbar: boolean | null
 }
 
-export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: VorschauPanelProps) {
+export default function VorschauPanel({ kunde, onDokument, onToast, geminiVerfuegbar }: VorschauPanelProps) {
   const [fotos, setFotos] = useState<Foto[]>([])
   const [auswahlId, setAuswahlId] = useState<string | null>(null)
   /** Fuer das Umsortieren per Ziehen: gezogenes Foto und das Ziel darunter */
@@ -143,8 +145,6 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
   const [ziehtDatei, setZiehtDatei] = useState(false)
   const [uploadHinweis, setUploadHinweis] = useState('')
   const [pdfLaeuft, setPdfLaeuft] = useState(false)
-  const [pdfFehler, setPdfFehler] = useState('')
-  const [pdfFertig, setPdfFertig] = useState('')
   /**
    * Auf iPhone und iPad wird die PDF erst erzeugt und dann ueber einen eigenen
    * Knopf geteilt: Das Teilen-Blatt darf nur unmittelbar aus einem Tipp heraus
@@ -419,8 +419,6 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
       }))
     if (eintraege.length === 0) return
     setPdfLaeuft(true)
-    setPdfFehler('')
-    setPdfFertig('')
     try {
       const [{ erzeugeSanierungsvorschauPdf }, logoAntwort] = await Promise.all([
         import('./lib/pdf'),
@@ -437,9 +435,14 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
       // Kunde unter "Erstellte Dokumente" und geht von dort in die Mappe
       // (Yann, 08.09.2026). Der Blob bleibt fuer den Teilen-Knopf auf dem iPhone.
       setPdfBlob(pdf)
-      setPdfFertig('Die PDF liegt jetzt unter Kunde › Erstellte Dokumente.')
+      // Kurz aufpoppen statt dauerhaft unter der Ueberschrift zu stehen
+      // (Yann, 10.09.2026)
+      onToast('success', 'Die PDF liegt jetzt unter Kunde › Erstellte Dokumente.')
     } catch (fehler) {
-      setPdfFehler(fehler instanceof Error ? fehler.message : 'PDF konnte nicht erstellt werden.')
+      onToast(
+        'error',
+        fehler instanceof Error ? fehler.message : 'PDF konnte nicht erstellt werden.',
+      )
     } finally {
       setPdfLaeuft(false)
     }
@@ -455,7 +458,6 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
   // Sobald sich an den Fotos etwas aendert, passt die erzeugte PDF nicht mehr.
   useEffect(() => {
     setPdfBlob(null)
-    setPdfFertig('')
   }, [fotos])
 
   // Im Fenster gezeigt wird das gewaehlte Foto, sonst das erste mit fertigem
@@ -498,6 +500,34 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
   function statustext(foto: Foto): string {
     if (foto.optionen.boden) return 'Boden wird saniert …'
     return 'Wird saniert …'
+  }
+
+  /**
+   * Der Name des Fotos als Eingabefeld: Er steht in der PDF und im Dateinamen
+   * und ist deshalb direkt aenderbar (Yann, 09.09.2026). Dasselbe Feld steht
+   * in der Kachel und im grossen Fenster, wo es sich bequemer trifft
+   * (Yann, 10.09.2026).
+   */
+  function namensfeld(foto: Foto, klasse: string) {
+    return (
+      <input
+        className={klasse}
+        value={foto.name}
+        title={`${foto.name} (Name ändern)`}
+        aria-label={`Name von ${foto.name} ändern`}
+        onChange={(e) => aktualisiere(foto.id, { name: e.target.value })}
+        onFocus={() => setBenanntId(foto.id)}
+        onBlur={(e) => {
+          setBenanntId(null)
+          const sauber = e.target.value.trim()
+          aktualisiere(foto.id, { name: sauber === '' ? 'Foto' : sauber })
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
+        }}
+      />
+    )
   }
 
   /** Die beiden Haekchen, an der Kachel und im Fenster gleich. */
@@ -626,8 +656,6 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
                 </button>
               )}
             </h2>
-            {pdfFehler && <p className="upload-hinweis">{pdfFehler}</p>}
-            {pdfFertig && <p className="pdf-fertig">✓ {pdfFertig}</p>}
             <div className="uebersicht">
               <div className="galerie">
                 {fotos.map((foto, index) => {
@@ -713,25 +741,7 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
                       </div>
                       <figcaption>
                         <div className="kachel-zeile">
-                          {/* Der Name steht in der PDF und im Dateinamen, deshalb
-                              ist er hier direkt aenderbar (Yann, 09.09.2026). */}
-                          <input
-                            className="kachel-name"
-                            value={foto.name}
-                            title={`${foto.name} (Name ändern)`}
-                            aria-label={`Name von ${foto.name} ändern`}
-                            onChange={(e) => aktualisiere(foto.id, { name: e.target.value })}
-                            onFocus={() => setBenanntId(foto.id)}
-                            onBlur={(e) => {
-                              setBenanntId(null)
-                              const sauber = e.target.value.trim()
-                              aktualisiere(foto.id, { name: sauber === '' ? 'Foto' : sauber })
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
-                            }}
-                          />
+                          {namensfeld(foto, 'kachel-name')}
                           {/* Reihenfolge: bestimmt, wie die Fotos in der PDF stehen */}
                           <button
                             className="kachel-entfernen"
@@ -792,12 +802,12 @@ export default function VorschauPanel({ kunde, onDokument, geminiVerfuegbar }: V
                 {gewaehlt ? (
                   <>
                     <div className="fenster-kopf">
-                      <strong className="fenster-name" title={gewaehlt.name}>
-                        {gewaehlt.name}
+                      <div className="fenster-name">
+                        {namensfeld(gewaehlt, 'fenster-name-feld')}
                         <span className="kachel-marke">
                           {bezeichnung(gewaehlt.optionen, gewaehlt.entfernt)}
                         </span>
-                      </strong>
+                      </div>
                       <div className="fenster-knoepfe">
                         {optionsHaken(gewaehlt, 'fenster-optionen')}
                         {bestandMenue(gewaehlt)}

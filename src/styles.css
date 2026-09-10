@@ -1852,11 +1852,15 @@ table {
   flex-wrap: wrap;
 }
 
+/* Name und Variantenmarke im Kopf des Vergleichsfensters, nebeneinander */
 .fenster-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  flex: 1;
 }
 
 .fenster-knoepfe {
@@ -2960,4 +2964,34 @@ table {
 
 .neue-fassung button:hover {
   background: var(--red-dark);
+}
+
+/* Name im grossen Vergleichsfenster: sieht wie die Ueberschrift aus, ist aber
+   ein Eingabefeld (Yann, 10.09.2026 - in der kleinen Kachel war es zu fummelig) */
+.fenster-name-feld {
+  min-width: 0;
+  flex: 1;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  padding: 2px 6px;
+  margin: -2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.fenster-name-feld:hover {
+  border-color: var(--grey);
+  background: var(--white);
+}
+
+.fenster-name-feld:focus {
+  outline: none;
+  border-color: var(--red);
+  background: var(--white);
+  text-overflow: clip;
 }
