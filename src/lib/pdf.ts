@@ -82,6 +82,12 @@ export interface PdfInputs {
    * 09.09.2026). null = kein Hinweis (Fotodokumentation).
    */
   fotoHinweis: string | null
+  /**
+   * Ueberschrift ueber jeder Bildseite, im Stil der Seite Bauzeichnungen
+   * (Yann, 10.09.2026: in der Mappe soll jeder Abschnitt seinen Kopf haben).
+   * Bei der Prinzipskizze "Sanierungsbereiche"; null = nur das Bild.
+   */
+  fotoSeitenTitel: string | null
   textPage: { title: string; inhalt: Reichtext; note: string } | null
   /** Anzahl der geplanten Termin-Fotos (Zaehler fuer den Fortschritt) */
   photoCount: number
@@ -594,8 +600,19 @@ export async function buildPdf(
   const hinweisText = inputs.fotoHinweis?.trim() ? toWinAnsi(inputs.fotoHinweis.trim()) : null
   const hinweisKastenH = 18
   const platzUnten = footerH + (hinweisText ? hinweisKastenH + 8 : 0)
+  /**
+   * Ueberschrift der Bildseiten, im selben Aufbau wie die Seite Bauzeichnungen
+   * (Yann, 10.09.2026): kleine rote Marke, grosse Ueberschrift, feine Linie.
+   * So traegt in der Mappe jeder Abschnitt seinen eigenen Kopf. Ohne Titel
+   * bleibt es wie bisher beim reinen Bild.
+   */
+  const bildTitel = inputs.fotoSeitenTitel?.trim() ? toWinAnsi(inputs.fotoSeitenTitel.trim()) : null
+  const KOPF_OBEN = 76
+  const kopfHoehe = bildTitel ? KOPF_OBEN + 26 + 14 + 18 : 0
   /** Oberer Rand der Bildflaeche: Blattkante, Logo und etwas Luft darunter */
-  const platzOben = SEITENLOGO_RAND + seitenlogoHoehe(logo) + 12
+  const platzOben = bildTitel
+    ? kopfHoehe
+    : SEITENLOGO_RAND + seitenlogoHoehe(logo) + 12
   const footers: Array<{ page: PDFPage; takenAt: number | null; isDuplicate: boolean }> = []
 
   for (let i = 0; i < inputs.photoCount; i++) {
@@ -606,8 +623,17 @@ export async function buildPdf(
     const page = doc.addPage(A4)
     zeichneSeitenlogo(page, logo)
 
+    if (bildTitel) {
+      let ky = H - KOPF_OBEN
+      drawTracked(page, inputs.terminType.toUpperCase(), margin, ky, bold, 9, RED, 1.6)
+      ky -= 26
+      page.drawText(bildTitel, { x: margin, y: ky, size: 22, font: bold, color: BROWN })
+      ky -= 14
+      page.drawLine({ start: { x: margin, y: ky }, end: { x: W - margin, y: ky }, thickness: 0.75, color: GREY })
+    }
+
     const img = await embed(doc, photo.image)
-    // Oben bleibt Platz fuer das Logo, sonst laege es auf dem Foto
+    // Oben bleibt Platz fuer Logo und Ueberschrift, sonst laegen sie auf dem Foto
     const { w, h } = fitInto(img.width, img.height, W - 2 * margin, H - platzOben - margin - platzUnten)
     const x = (W - w) / 2
     const y = platzUnten + margin + (H - platzOben - margin - platzUnten - h) / 2

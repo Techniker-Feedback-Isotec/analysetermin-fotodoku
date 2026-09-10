@@ -299,6 +299,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
             orderNumber: isReklamation ? kunde.auftragsnummer.trim() || null : null,
             drawingPage: istSkizze ? { title: 'Bauzeichnungen', legende, zeichnung } : null,
             fotoHinweis: istSkizze ? FREIRAEUM_HINWEIS : null,
+            fotoSeitenTitel: istSkizze ? 'Sanierungsbereiche' : null,
             textPage: hasAssessment
               ? {
                   title: 'Fachliche Beurteilung',
