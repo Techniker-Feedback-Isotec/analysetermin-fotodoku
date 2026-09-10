@@ -1,6 +1,6 @@
 import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib'
 import { A4, einbetten, gesperrt, umbrechen, winAnsi, type DeckblattBild } from '../lib/deckblatt'
-import { KAPITEL_EINLEITUNG, KAPITEL_SCHLUSS, KAPITEL_TITEL, USPS } from './inhalt'
+import { KAPITEL_EINLEITUNG, KAPITEL_SCHLUSS, KAPITEL_TITEL, USPS, type UspSymbol } from './inhalt'
 
 /**
  * Die beiden eigenen Seiten der Angebotsmappe: das Trennblatt vor jeder
@@ -31,6 +31,109 @@ async function logoObenRechts(doc: PDFDocument, seite: PDFPage, logo: DeckblattB
   const bild = await einbetten(doc, logo)
   const hoehe = breite * (bild.height / bild.width)
   seite.drawImage(bild, { x: W - RAND + 8 - breite, y: H - 12 - hoehe, width: breite, height: hoehe })
+}
+
+/**
+ * Die Symbole der Kacheln, gezeichnet statt als Bild eingebettet: schlichte
+ * Linien in ISOTEC-Rot, wie die Bildsprache des Corporate Design sie vorgibt
+ * (keine Flaechen, keine Schatten). Gezeichnet wird in einem gedachten Quadrat
+ * mit der Kantenlaenge `groesse`, dessen linke untere Ecke bei (x, y) liegt.
+ */
+function zeichneSymbol(seite: PDFPage, art: UspSymbol, x: number, y: number, groesse: number) {
+  const strich = { thickness: groesse * 0.075, color: RED }
+  const m = groesse / 2
+  const mx = x + m
+  const my = y + m
+
+  if (art === 'haken') {
+    // Haken im Kreis: geprueft und freigegeben
+    seite.drawCircle({ x: mx, y: my, size: m * 0.94, borderColor: RED, borderWidth: strich.thickness })
+    seite.drawLine({
+      start: { x: mx - m * 0.42, y: my + m * 0.04 },
+      end: { x: mx - m * 0.1, y: my - m * 0.32 },
+      ...strich,
+    })
+    seite.drawLine({
+      start: { x: mx - m * 0.1, y: my - m * 0.32 },
+      end: { x: mx + m * 0.46, y: my + m * 0.38 },
+      ...strich,
+    })
+    return
+  }
+
+  if (art === 'lupe') {
+    // Lupe: der Sachverstaendige sieht sich den Schaden an
+    seite.drawCircle({
+      x: mx - m * 0.16,
+      y: my + m * 0.16,
+      size: m * 0.62,
+      borderColor: RED,
+      borderWidth: strich.thickness,
+    })
+    seite.drawLine({
+      start: { x: mx + m * 0.28, y: my - m * 0.28 },
+      end: { x: mx + m * 0.72, y: my - m * 0.72 },
+      ...strich,
+    })
+    return
+  }
+
+  if (art === 'person') {
+    // Kopf und Schultern: eigene, fest angestellte Fachleute
+    seite.drawCircle({
+      x: mx,
+      y: my + m * 0.42,
+      size: m * 0.34,
+      borderColor: RED,
+      borderWidth: strich.thickness,
+    })
+    // Schultern als Bogen, aus kurzen Strecken gesetzt (pdf-lib kennt keinen Bogen)
+    const punkte = 14
+    const breite = m * 0.72
+    const tiefe = m * 0.6
+    let vorher = { x: mx - breite, y: my - m * 0.62 }
+    for (let i = 1; i <= punkte; i++) {
+      const t = i / punkte
+      const punkt = {
+        x: mx - breite + 2 * breite * t,
+        y: my - m * 0.62 + Math.sin(Math.PI * t) * tiefe,
+      }
+      seite.drawLine({ start: vorher, end: punkt, ...strich })
+      vorher = punkt
+    }
+    return
+  }
+
+  // Klemmbrett mit Haken: saubere Baustelle, jeder Schritt dokumentiert
+  const bB = m * 1.1
+  const bH = m * 1.42
+  seite.drawRectangle({
+    x: mx - bB / 2,
+    y: my - bH / 2,
+    width: bB,
+    height: bH,
+    borderColor: RED,
+    borderWidth: strich.thickness,
+  })
+  // Klemme oben
+  seite.drawRectangle({
+    x: mx - bB * 0.24,
+    y: my + bH / 2 - m * 0.16,
+    width: bB * 0.48,
+    height: m * 0.3,
+    color: RED,
+  })
+  // Haken im Blatt
+  seite.drawLine({
+    start: { x: mx - bB * 0.26, y: my - m * 0.06 },
+    end: { x: mx - bB * 0.06, y: my - m * 0.3 },
+    ...strich,
+  })
+  seite.drawLine({
+    start: { x: mx - bB * 0.06, y: my - m * 0.3 },
+    end: { x: mx + bB * 0.3, y: my + m * 0.26 },
+    ...strich,
+  })
 }
 
 export interface TrennblattDaten {
@@ -98,7 +201,7 @@ export async function zeichneKapitel(doc: PDFDocument, s: Schriften, logo: Deckb
   const inhalte = USPS.map((usp) => ({
     usp,
     zeilen: umbrechen(winAnsi(usp.text), s.regular, TEXT, textBreite),
-    kopf: usp.zahl ? 56 : 44,
+    kopf: 56,
   }))
   const hoehe = Math.max(...inhalte.map((i) => i.kopf + i.zeilen.length * ZEILE + 12))
 
@@ -110,7 +213,10 @@ export async function zeichneKapitel(doc: PDFDocument, s: Schriften, logo: Deckb
     seite.drawRectangle({ x, y: oben - hoehe, width: breite, height: hoehe, color: LIGHT })
     seite.drawRectangle({ x, y: oben - hoehe, width: 3, height: hoehe, color: RED })
 
+    // Links das Zeichen, rechts daneben die Ueberschrift: bei einer Kennzahl
+    // die Zahl selbst, sonst ein Symbol in derselben Groesse und Farbe.
     let zy = oben - 26
+    const zeichenBreite = 26
     if (eintrag.usp.zahl) {
       seite.drawText(eintrag.usp.zahl, { x: x + 16, y: zy - 8, size: 26, font: s.bold, color: RED })
       const zahlBreite = s.bold.widthOfTextAtSize(eintrag.usp.zahl, 26)
@@ -121,11 +227,19 @@ export async function zeichneKapitel(doc: PDFDocument, s: Schriften, logo: Deckb
         font: s.bold,
         color: BROWN,
       })
-      zy -= 30
+    } else if (eintrag.usp.symbol) {
+      zeichneSymbol(seite, eintrag.usp.symbol, x + 16, zy - 8, zeichenBreite)
+      seite.drawText(winAnsi(eintrag.usp.titel), {
+        x: x + 16 + zeichenBreite + 8,
+        y: zy,
+        size: 11,
+        font: s.bold,
+        color: BROWN,
+      })
     } else {
       seite.drawText(winAnsi(eintrag.usp.titel), { x: x + 16, y: zy, size: 11, font: s.bold, color: BROWN })
-      zy -= 18
     }
+    zy -= 30
     for (const zeile of eintrag.zeilen) {
       seite.drawText(zeile, { x: x + 16, y: zy, size: TEXT, font: s.regular, color: BROWN })
       zy -= ZEILE

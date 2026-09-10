@@ -9,13 +9,22 @@
  * Gedankenstriche, ohne Emojis, nicht ausschweifend.
  */
 
+/**
+ * Zeichen links in der Kachel. Wo eine Kennzahl steht, ist sie selbst das
+ * Zeichen; die uebrigen bekommen ein schlichtes Symbol in ISOTEC-Rot
+ * (Yann, 09.09.2026). Gezeichnet werden sie in mappe/seiten.ts.
+ */
+export type UspSymbol = 'haken' | 'lupe' | 'person' | 'klemmbrett'
+
 export interface UspPunkt {
   /** Kurze Ueberschrift, zwei bis vier Woerter */
   titel: string
   /** Ein bis zwei Saetze */
   text: string
-  /** Kennzahl fuer die Varianten, die eine Zahl gross zeigen (optional) */
+  /** Kennzahl, gross und rot statt eines Symbols (optional) */
   zahl?: string
+  /** Symbol, wenn es keine Kennzahl gibt */
+  symbol?: UspSymbol
 }
 
 export const KAPITEL_TITEL = 'Warum ISOTEC'
@@ -32,21 +41,25 @@ export const USPS: UspPunkt[] = [
   {
     zahl: '10',
     titel: 'Jahre Gewährleistung',
-    text: 'Doppelt so lange wie gesetzlich vorgeschrieben. Sollte doch einmal etwas sein, begleitet Sie ein Techniker persönlich, der seit 20 Jahren bei uns ist.',
+    text: 'Doppelt so lange wie gesetzlich vorgeschrieben. Sollte doch einmal etwas sein, greift ein klarer Prozess, der Ihr Anliegen umfassend regelt.',
   },
   {
+    symbol: 'haken',
     titel: 'Geprüfte Verfahren',
-    text: 'Unsere Abdichtungssysteme sind nach den WTA-Merkblättern 4 bis 6 geprüft. Materialien entwickeln wir nicht selbst, wir prüfen sie und nehmen nur auf, was unseren Standards entspricht.',
+    text: 'Unsere Abdichtungssysteme sind nach den WTA-Merkblättern 4 bis 6 geprüft. Materialien prüfen wir und nehmen nur auf, was unseren Standards entspricht.',
   },
   {
+    symbol: 'lupe',
     titel: 'Analyse vor Angebot',
     text: 'Ein Bausachverständiger sieht sich den Schaden an und ermittelt die Ursache. Diese Analyse ist für Sie unverbindlich und kostenfrei.',
   },
   {
+    symbol: 'person',
     titel: 'Eigene Fachleute',
     text: 'Wir arbeiten mit fest angestellten, geschulten Technikern statt mit wechselnden Subunternehmern. Am Standort Neukirchen-Vluyn sind das rund 40 Mitarbeiter.',
   },
   {
+    symbol: 'klemmbrett',
     titel: 'Saubere Baustelle',
     text: 'Wir schützen Ihre Räume, halten die Baustelle sauber und dokumentieren jeden Arbeitsschritt. Sie wissen jederzeit, was passiert ist und was als Nächstes kommt.',
   },
