@@ -20,9 +20,11 @@ import {
 } from './kunde'
 
 /**
- * Reihenfolge der Unterlagen in der Angebotsmappe (Yann, 08.09.2026): erst die
- * Prinzipskizze, dann die Sanierungsvorschau, zuletzt die Fotodokumentation.
- * Nur diese drei koennen in die Mappe; die Mappe selbst und Videos nicht.
+ * Vorgegebene Reihenfolge der Unterlagen in der Angebotsmappe (Yann,
+ * 08.09.2026): erst die Prinzipskizze, dann die Sanierungsvorschau, zuletzt
+ * die Fotodokumentation. Seit dem 10.09.2026 ist sie nur noch die Vorgabe,
+ * umsortieren geht in der Mappenliste. Nur diese drei koennen in die Mappe;
+ * die Mappe selbst und Videos nicht.
  */
 const MAPPEN_REIHENFOLGE = ['Prinzipskizze', 'Sanierungsvorschau', 'Fotodokumentation']
 
@@ -66,6 +68,15 @@ export default function KundePanel({
    * neu erstellte Unterlage automatisch dabei.
    */
   const [nichtInMappe, setNichtInMappe] = useState<string[]>([])
+  /**
+   * Reihenfolge der Unterlagen in der Mappe, als Liste der Quellen. Beginnt
+   * mit der Vorgabe und wird per Pfeil oder Ziehen umgestellt (Yann,
+   * 10.09.2026).
+   */
+  const [mappenFolge, setMappenFolge] = useState<string[]>(MAPPEN_REIHENFOLGE)
+  /** Gezogene und ins Visier genommene Unterlage beim Umsortieren */
+  const [ziehtQuelle, setZiehtQuelle] = useState<string | null>(null)
+  const [zielQuelle, setZielQuelle] = useState<string | null>(null)
   const objectInputRef = useRef<HTMLInputElement>(null)
 
   const mitarbeiter = mitarbeiterVon(daten)
@@ -131,19 +142,48 @@ export default function KundePanel({
     }
   }
 
-  /** Alles, was grundsaetzlich in die Mappe koennte, in fester Reihenfolge. */
-  const mappenFaehig = MAPPEN_REIHENFOLGE.map((quelle) =>
-    dokumente.find((d) => d.art === 'pdf' && d.quelle === quelle),
-  ).filter((d): d is Dokument => d !== undefined)
+  /** Alles, was grundsaetzlich in die Mappe koennte, in der gewaehlten Reihenfolge. */
+  const mappenFaehig = mappenFolge
+    .map((quelle) => dokumente.find((d) => d.art === 'pdf' && d.quelle === quelle))
+    .filter((d): d is Dokument => d !== undefined)
 
   /** Die tatsaechlich angehakten Unterlagen. */
   const mappenTeile = mappenFaehig.filter((d) => !nichtInMappe.includes(d.quelle))
 
-  const istMappenFaehig = (dok: Dokument) =>
-    dok.art === 'pdf' && MAPPEN_REIHENFOLGE.includes(dok.quelle)
-
   const schalteMappe = (quelle: string, dabei: boolean) =>
     setNichtInMappe((bisher) => (dabei ? bisher.filter((q) => q !== quelle) : [...bisher, quelle]))
+
+  /**
+   * Eine Unterlage einen Platz nach oben oder unten. Gezaehlt wird nur unter
+   * den vorhandenen Unterlagen: Fehlt eine der drei, sollen die Pfeile der
+   * uebrigen trotzdem sinnvoll wirken.
+   */
+  function verschiebeMappe(quelle: string, richtung: -1 | 1) {
+    const vorhanden = mappenFaehig.map((d) => d.quelle)
+    const i = vorhanden.indexOf(quelle)
+    const j = i + richtung
+    if (i < 0 || j < 0 || j >= vorhanden.length) return
+    const neu = [...vorhanden]
+    ;[neu[i], neu[j]] = [neu[j], neu[i]]
+    // Quellen ohne Dokument hinten anhaengen, damit sie nicht verloren gehen
+    setMappenFolge([...neu, ...mappenFolge.filter((q) => !neu.includes(q))])
+  }
+
+  /** Gezogene Unterlage an die Stelle der Ziel-Unterlage setzen. */
+  function ziehenAufMappe(zielId: string) {
+    const quelle = ziehtQuelle
+    setZiehtQuelle(null)
+    setZielQuelle(null)
+    if (!quelle || quelle === zielId) return
+    const vorhanden = mappenFaehig.map((d) => d.quelle)
+    const von = vorhanden.indexOf(quelle)
+    const nach = vorhanden.indexOf(zielId)
+    if (von < 0 || nach < 0) return
+    const neu = [...vorhanden]
+    const [bewegt] = neu.splice(von, 1)
+    neu.splice(nach, 0, bewegt)
+    setMappenFolge([...neu, ...mappenFolge.filter((q) => !neu.includes(q))])
+  }
 
   /**
    * Alles in einem Dokument: Deckblatt, Inhaltsverzeichnis und die Unterlagen
@@ -419,7 +459,7 @@ export default function KundePanel({
                 ? 'Sobald eine Unterlage fertig ist, entsteht daraus eine Mappe mit Deckblatt und Inhaltsverzeichnis.'
                 : mappenTeile.length === 0
                   ? 'Keine Unterlage ausgewählt.'
-                  : `Deckblatt, Inhaltsverzeichnis, ${mappenTeile.map((t) => t.quelle).join(', ')}`}
+                  : 'Deckblatt, Inhaltsverzeichnis, Warum ISOTEC, dann die Unterlagen in dieser Reihenfolge:'}
             </p>
           </div>
           <button
@@ -431,28 +471,90 @@ export default function KundePanel({
             {mappeLaeuft ? 'Mappe wird erstellt …' : 'Angebotsmappe erstellen'}
           </button>
         </div>
+
+        {/* Auswahl und Reihenfolge der Unterlagen an einer Stelle: anhaken,
+            was mitkommt, und per Pfeil oder Ziehen sortieren (Yann, 10.09.2026) */}
+        {mappenFaehig.length > 0 && (
+          <ul className="mappenliste">
+            {mappenFaehig.map((dok, index) => {
+              const dabei = !nichtInMappe.includes(dok.quelle)
+              const klassen = ['mappenteil']
+              if (!dabei) klassen.push('aus')
+              if (ziehtQuelle === dok.quelle) klassen.push('zieht')
+              if (zielQuelle === dok.quelle && ziehtQuelle !== dok.quelle) klassen.push('ziehziel')
+              return (
+                <li
+                  key={dok.quelle}
+                  className={klassen.join(' ')}
+                  draggable
+                  onDragStart={(e) => {
+                    setZiehtQuelle(dok.quelle)
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
+                  onDragEnd={() => {
+                    setZiehtQuelle(null)
+                    setZielQuelle(null)
+                  }}
+                  onDragOver={(e) => {
+                    if (!ziehtQuelle) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setZielQuelle(dok.quelle)
+                  }}
+                  onDragLeave={() => {
+                    if (zielQuelle === dok.quelle) setZielQuelle(null)
+                  }}
+                  onDrop={(e) => {
+                    if (!ziehtQuelle) return
+                    e.preventDefault()
+                    ziehenAufMappe(dok.quelle)
+                  }}
+                >
+                  <label className="mappenteil-haken">
+                    <input
+                      type="checkbox"
+                      checked={dabei}
+                      onChange={(e) => schalteMappe(dok.quelle, e.target.checked)}
+                    />
+                    <span className="mappenteil-nummer">{dabei ? `${mappenTeile.indexOf(dok) + 1}.` : '—'}</span>
+                    <span className="mappenteil-name">{dok.quelle}</span>
+                  </label>
+                  <span className="mappenteil-meta">{formatBytes(dok.blob.size)}</span>
+                  <div className="move-buttons">
+                    <button
+                      type="button"
+                      className="btn-move"
+                      onClick={() => verschiebeMappe(dok.quelle, -1)}
+                      disabled={index === 0}
+                      aria-label={`${dok.quelle} nach oben`}
+                      title="Nach oben"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-move"
+                      onClick={() => verschiebeMappe(dok.quelle, 1)}
+                      disabled={index === mappenFaehig.length - 1}
+                      aria-label={`${dok.quelle} nach unten`}
+                      title="Nach unten"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         {dokumente.length > 0 && (
           <ul className="dokumente">
             {dokumente.map((dok) => {
               const teilbar = dok.art === 'pdf' ? PDF_TEILBAR : VIDEO_TEILBAR
-              const fuerMappe = istMappenFaehig(dok)
               return (
+                // Auswahl und Reihenfolge fuer die Mappe stehen oben in der
+                // Mappenliste; hier geht es nur ums Ablegen und Weitergeben.
                 <li key={dok.id} className="dokument">
-                  {/* Statt einer Vorschau nur das Haekchen fuer die Mappe
-                      (Yann, 09.09.2026: "ganz basis"). Was nicht in die Mappe
-                      kann (Videos, die Mappe selbst), bekommt keines. */}
-                  {fuerMappe ? (
-                    <label className="dokument-haken" title="In die Angebotsmappe aufnehmen">
-                      <input
-                        type="checkbox"
-                        checked={!nichtInMappe.includes(dok.quelle)}
-                        onChange={(e) => schalteMappe(dok.quelle, e.target.checked)}
-                      />
-                      <span>Mappe</span>
-                    </label>
-                  ) : (
-                    <span className="dokument-haken dokument-haken-leer" aria-hidden="true" />
-                  )}
                   <div className="dokument-info">
                     <p className="file-name">{dok.name}</p>
                     <p className="file-meta">
