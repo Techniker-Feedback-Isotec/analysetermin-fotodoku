@@ -244,7 +244,9 @@ export async function buildPdf(
       const { pdf, box } = inputs.drawingPage.zeichnung
       const quelle = await PDFDocument.load(pdf)
       const [vorlage] = await doc.embedPages(quelle.getPages().slice(0, 1), [box])
-      const breite = 150
+      // 125 statt 150 Punkt: Yann wollte sie kleiner, damit mehr von der Seite
+      // zum Weiterzeichnen bleibt (10.09.2026).
+      const breite = 125
       const hoehe = breite * (vorlage.height / vorlage.width)
       page.drawPage(vorlage, { x: margin, y: y - 24 - hoehe, width: breite, height: hoehe })
     }
