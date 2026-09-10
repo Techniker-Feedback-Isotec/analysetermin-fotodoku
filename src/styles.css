@@ -2872,3 +2872,42 @@ table {
     opacity: 1;
   }
 }
+
+/*
+ * Hinweis, wenn waehrend der Arbeit eine neue Fassung ausgeliefert wurde und
+ * ein nachladbarer Programmteil fehlt (siehe main.tsx). Sitzt ueber allem,
+ * damit er nicht uebersehen wird.
+ */
+.neue-fassung {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 200;
+  max-width: min(680px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 8px 24px rgba(86, 74, 68, 0.28);
+  font-size: 0.92rem;
+}
+
+.neue-fassung button {
+  flex-shrink: 0;
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--red);
+  color: var(--white);
+  cursor: pointer;
+}
+
+.neue-fassung button:hover {
+  background: var(--red-dark);
+}

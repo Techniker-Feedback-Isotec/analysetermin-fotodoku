@@ -92,6 +92,17 @@ Compress-Archive -Path 'dist','server','package.json' -DestinationPath "$env:TEM
 az webapp deploy --name isotec-dokumentation --resource-group rg-dokumentation-prod --src-path "$env:TEMP\dokumentation-paket.zip" --type zip
 ```
 
+**Niemals mit `--clean true` ausliefern.** Die Programmteile fuer Video, PDF und
+Sanierungsvorschau werden erst geladen, wenn jemand sie braucht, und tragen
+einen Hash im Dateinamen. Wer die Seite offen hat, waehrend ausgeliefert wird,
+laedt beim naechsten Klick genau die Datei nach, die `--clean` geloescht hat:
+"Failed to fetch dynamically imported module" mitten in der Arbeit, und die
+bereits geladenen Fotos sind beim Neuladen weg (passiert am 10.09.2026 bei
+Yann). Die alten Dateien bleiben deshalb liegen; sie kosten fast nichts.
+
+Zum Aufraeumen: nur ausserhalb der Arbeitszeit einmal mit `--clean true`
+ausliefern, dann ist `dist/assets` wieder frisch.
+
 Der Server nutzt nur Node-Bordmittel, es werden keine Pakete nachgeladen.
 Pruefen ohne Anmeldung: `https://isotec-dokumentation.azurewebsites.net/gesund`.
 Ein 401 auf andere Pfade per `curl` ist normal, Easy Auth leitet nur Browser um.
