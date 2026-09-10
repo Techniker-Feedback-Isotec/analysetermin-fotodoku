@@ -59,8 +59,17 @@ export interface PdfInputs {
    * Prinzipskizze: freie Seite fuer den Grundriss. `zeichnung` ist der
    * vorgezeichnete Wandquerschnitt passend zum Baujahr (siehe
    * data/prinzipzeichnung.ts), oder null - dann bleibt die Flaeche leer.
+   * Die Vorlage ist eine Vektor-PDF und wird als Seite eingebettet, nicht als
+   * Bild gerechnet; `box` schneidet den Weissraum der Vorlage weg.
    */
-  drawingPage: { title: string; legende: LegendenGruppe[]; zeichnung: DeckblattBild | null } | null
+  drawingPage: {
+    title: string
+    legende: LegendenGruppe[]
+    zeichnung: {
+      pdf: Uint8Array
+      box: { left: number; bottom: number; right: number; top: number }
+    } | null
+  } | null
   /**
    * Kleiner Hinweis, rot umrandet, unten auf jeder Bildseite - bei der
    * Prinzipskizze also auf allen Seiten nach den Bauzeichnungen (Yann,
@@ -87,10 +96,6 @@ function embed(doc: PDFDocument, img: OptimizedImage): Promise<PDFImage> {
   return img.format === 'png' ? doc.embedPng(img.bytes) : doc.embedJpg(img.bytes)
 }
 
-/** Dasselbe fuer die Bilder des Deckblatts und die Prinzipzeichnung. */
-function embedBild(doc: PDFDocument, bild: DeckblattBild): Promise<PDFImage> {
-  return bild.format === 'png' ? doc.embedPng(bild.bytes) : doc.embedJpg(bild.bytes)
-}
 
 function fitInto(imgW: number, imgH: number, boxW: number, boxH: number) {
   const scale = Math.min(boxW / imgW, boxH / imgH)
@@ -236,10 +241,12 @@ export async function buildPdf(
     // Er steht oben links; rechts und darunter bleibt Platz, um von Hand
     // weiterzuzeichnen.
     if (inputs.drawingPage.zeichnung) {
-      const bild = await embedBild(doc, inputs.drawingPage.zeichnung)
-      const breite = 100
-      const hoehe = breite * (bild.height / bild.width)
-      page.drawImage(bild, { x: margin, y: y - 24 - hoehe, width: breite, height: hoehe })
+      const { pdf, box } = inputs.drawingPage.zeichnung
+      const quelle = await PDFDocument.load(pdf)
+      const [vorlage] = await doc.embedPages(quelle.getPages().slice(0, 1), [box])
+      const breite = 150
+      const hoehe = breite * (vorlage.height / vorlage.width)
+      page.drawPage(vorlage, { x: margin, y: y - 24 - hoehe, width: breite, height: hoehe })
     }
 
     // Legende als eine Zeile ganz unten (Yann, 09.09.2026): klein, waagerecht

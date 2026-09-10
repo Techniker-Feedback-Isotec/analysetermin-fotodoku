@@ -202,7 +202,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
   )
   const gewerkeOhneFarbe = istSkizze ? ohneLegende(kunde.gewerke) : []
   /** Vorgezeichneter Wandquerschnitt nach Baujahr, oder null (siehe data/prinzipzeichnung.ts) */
-  const zeichnungUrl = istSkizze ? zeichnungFuer(kunde.baujahr, kunde.gewerke) : null
+  const vorlage = istSkizze ? zeichnungFuer(kunde.baujahr, kunde.gewerke) : null
   const pageCount = included.length + 1 + (istSkizze ? 1 : 0) + (hasAssessment || hasSummary ? 1 : 0)
 
   // Welches der beiden Textfelder gerade gilt
@@ -257,8 +257,11 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
         })
 
         // Der vorgezeichnete Wandquerschnitt der Prinzipskizze, falls einer passt
-        const zeichnung: DeckblattBild | null = zeichnungUrl
-          ? { bytes: new Uint8Array(await (await fetch(zeichnungUrl)).arrayBuffer()), format: 'png' }
+        const zeichnung = vorlage
+          ? {
+              pdf: new Uint8Array(await (await fetch(vorlage.url)).arrayBuffer()),
+              box: vorlage.box,
+            }
           : null
 
         // Jedes Foto wird erst beim Einbetten geladen und danach wieder freigegeben.
