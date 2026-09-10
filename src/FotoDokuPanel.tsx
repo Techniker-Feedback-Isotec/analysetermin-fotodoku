@@ -15,6 +15,7 @@ import {
 } from './lib/bilder'
 import type { Fotostapel } from './fotostapel'
 import { SONSTIGES, legendeFuer, ohneLegende } from './data/legende'
+import { nameMitRolle } from './data/rollen'
 import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
 import Bildansicht from './Bildansicht'
@@ -291,13 +292,13 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
               ? {
                   title: 'Fachliche Beurteilung',
                   inhalt: beurteilung,
-                  note: `Die fachliche Beurteilung wurde durchgeführt von ${mitarbeiter.name} am ${formatDateShort(Date.now())}.`,
+                  note: `Die fachliche Beurteilung wurde durchgeführt von ${nameMitRolle(mitarbeiter.name)} am ${formatDateShort(Date.now())}.`,
                 }
               : hasSummary
                 ? {
                     title: 'Zusammenfassung',
                     inhalt: zusammenfassung,
-                    note: `Die Zusammenfassung wurde erstellt von ${mitarbeiter.name} am ${formatDateShort(Date.now())}.`,
+                    note: `Die Zusammenfassung wurde erstellt von ${nameMitRolle(mitarbeiter.name)} am ${formatDateShort(Date.now())}.`,
                   }
                 : null,
             photoCount: included.length,
