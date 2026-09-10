@@ -5,6 +5,7 @@ import {
   gesperrt,
   winAnsi,
   zeichneDeckblatt,
+  zeichneSeitenlogo,
   type DeckblattBild,
   type DeckblattZeile,
 } from './deckblatt'
@@ -93,15 +94,7 @@ export async function erzeugeAngebotsmappe(daten: MappenDaten): Promise<Uint8Arr
   // ---------- 2. Inhaltsverzeichnis ----------
   {
     const seite = doc.addPage(A4)
-    const logo = await einbetten(doc, daten.logo)
-    const logoBreite = 70
-    const logoHoehe = logoBreite * (logo.height / logo.width)
-    seite.drawImage(logo, {
-      x: W - RAND + 8 - logoBreite,
-      y: H - 12 - logoHoehe,
-      width: logoBreite,
-      height: logoHoehe,
-    })
+    zeichneSeitenlogo(seite, await einbetten(doc, daten.logo))
 
     let y = H - 76
     gesperrt(seite, 'ANGEBOTSMAPPE', RAND, y, bold, 9, RED, 1.6)

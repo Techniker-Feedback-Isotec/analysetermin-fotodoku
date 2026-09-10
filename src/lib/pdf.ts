@@ -2,7 +2,13 @@ import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf
 import type { OptimizedImage } from './image'
 import type { Reichtext, TextAbsatz, TextStueck } from './richtext'
 import type { LegendenGruppe } from '../data/legende'
-import { zeichneDeckblatt, type DeckblattBild } from './deckblatt'
+import {
+  SEITENLOGO_RAND,
+  seitenlogoHoehe,
+  zeichneDeckblatt,
+  zeichneSeitenlogo,
+  type DeckblattBild,
+} from './deckblatt'
 import { formatDateTime } from './format'
 
 // ISOTEC-Farben (Corporate Design Handbuch 2.0)
@@ -222,14 +228,7 @@ export async function buildPdf(
   if (inputs.drawingPage) {
     const margin = 48
     const page = doc.addPage(A4)
-    const pageLogoW = 70
-    const pageLogoH = pageLogoW * (logo.height / logo.width)
-    page.drawImage(logo, {
-      x: W - margin + 8 - pageLogoW,
-      y: H - 12 - pageLogoH,
-      width: pageLogoW,
-      height: pageLogoH,
-    })
+    zeichneSeitenlogo(page, logo)
     let y = H - 76
     drawTracked(page, inputs.terminType.toUpperCase(), margin, y, bold, 9, RED, 1.6)
     y -= 26
@@ -385,14 +384,7 @@ export async function buildPdf(
 
     const newTextPage = (first: boolean) => {
       const page = doc.addPage(A4)
-      const pageLogoW = 70
-      const pageLogoH = pageLogoW * (logo.height / logo.width)
-      page.drawImage(logo, {
-        x: W - margin + 8 - pageLogoW,
-        y: H - 12 - pageLogoH,
-        width: pageLogoW,
-        height: pageLogoH,
-      })
+      zeichneSeitenlogo(page, logo)
       let y = H - 76
       if (first) {
         drawTracked(page, inputs.terminType.toUpperCase(), margin, y, bold, 9, RED, 1.6)
@@ -602,6 +594,8 @@ export async function buildPdf(
   const hinweisText = inputs.fotoHinweis?.trim() ? toWinAnsi(inputs.fotoHinweis.trim()) : null
   const hinweisKastenH = 18
   const platzUnten = footerH + (hinweisText ? hinweisKastenH + 8 : 0)
+  /** Oberer Rand der Bildflaeche: Blattkante, Logo und etwas Luft darunter */
+  const platzOben = SEITENLOGO_RAND + seitenlogoHoehe(logo) + 12
   const footers: Array<{ page: PDFPage; takenAt: number | null; isDuplicate: boolean }> = []
 
   for (let i = 0; i < inputs.photoCount; i++) {
@@ -610,19 +604,13 @@ export async function buildPdf(
     if (!photo) continue // nicht lesbar - Seite wird uebersprungen
 
     const page = doc.addPage(A4)
-    const pageLogoW = 70
-    const pageLogoH = pageLogoW * (logo.height / logo.width)
-    page.drawImage(logo, {
-      x: W - margin - pageLogoW,
-      y: H - 12 - pageLogoH,
-      width: pageLogoW,
-      height: pageLogoH,
-    })
+    zeichneSeitenlogo(page, logo)
 
     const img = await embed(doc, photo.image)
-    const { w, h } = fitInto(img.width, img.height, W - 2 * margin, H - 2 * margin - platzUnten)
+    // Oben bleibt Platz fuer das Logo, sonst laege es auf dem Foto
+    const { w, h } = fitInto(img.width, img.height, W - 2 * margin, H - platzOben - margin - platzUnten)
     const x = (W - w) / 2
-    const y = platzUnten + margin + (H - 2 * margin - platzUnten - h) / 2
+    const y = platzUnten + margin + (H - platzOben - margin - platzUnten - h) / 2
     page.drawImage(img, { x, y, width: w, height: h })
 
     footers.push({ page, takenAt: photo.takenAt, isDuplicate: photo.isDuplicate })

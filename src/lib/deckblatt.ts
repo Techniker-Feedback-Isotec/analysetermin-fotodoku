@@ -205,6 +205,33 @@ export function gesperrt(
   }
 }
 
+/**
+ * Das kleine Logo oben rechts auf jeder Seite ausser dem Deckblatt.
+ *
+ * Abstand nach oben und nach rechts sind gleich (Yann, 10.09.2026: es hing zu
+ * dicht unter der Blattkante). Der Wert steht hier einmal, damit das Logo auf
+ * allen Seiten und in allen Dokumenten an derselben Stelle sitzt - vorher war
+ * er an fuenf Stellen einzeln geschrieben und schon auseinandergelaufen.
+ */
+export const SEITENLOGO_RAND = 40
+export const SEITENLOGO_BREITE = 70
+
+/** Hoehe, die das Seitenlogo einnimmt - der Inhalt darunter muss ihr ausweichen. */
+export function seitenlogoHoehe(logo: PDFImage, breite = SEITENLOGO_BREITE): number {
+  return breite * (logo.height / logo.width)
+}
+
+export function zeichneSeitenlogo(page: PDFPage, logo: PDFImage, breite = SEITENLOGO_BREITE): void {
+  const [W, H] = A4
+  const hoehe = seitenlogoHoehe(logo, breite)
+  page.drawImage(logo, {
+    x: W - SEITENLOGO_RAND - breite,
+    y: H - SEITENLOGO_RAND - hoehe,
+    width: breite,
+    height: hoehe,
+  })
+}
+
 export function einbetten(doc: PDFDocument, bild: DeckblattBild): Promise<PDFImage> {
   return bild.format === 'png' ? doc.embedPng(bild.bytes) : doc.embedJpg(bild.bytes)
 }

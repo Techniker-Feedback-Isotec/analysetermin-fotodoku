@@ -1,5 +1,13 @@
 import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib'
-import { A4, einbetten, gesperrt, umbrechen, winAnsi, type DeckblattBild } from '../lib/deckblatt'
+import {
+  A4,
+  einbetten,
+  gesperrt,
+  umbrechen,
+  winAnsi,
+  zeichneSeitenlogo,
+  type DeckblattBild,
+} from '../lib/deckblatt'
 import { KAPITEL_EINLEITUNG, KAPITEL_SCHLUSS, KAPITEL_TITEL, USPS, type UspSymbol } from './inhalt'
 
 /**
@@ -26,11 +34,9 @@ export interface Schriften {
   bold: PDFFont
 }
 
-/** Das Logo oben rechts, wie auf allen anderen Seiten. */
-async function logoObenRechts(doc: PDFDocument, seite: PDFPage, logo: DeckblattBild, breite = 70) {
-  const bild = await einbetten(doc, logo)
-  const hoehe = breite * (bild.height / bild.width)
-  seite.drawImage(bild, { x: W - RAND + 8 - breite, y: H - 12 - hoehe, width: breite, height: hoehe })
+/** Das Logo oben rechts, wie auf allen anderen Seiten (Masse in deckblatt.ts). */
+async function logoObenRechts(doc: PDFDocument, seite: PDFPage, logo: DeckblattBild) {
+  zeichneSeitenlogo(seite, await einbetten(doc, logo))
 }
 
 /**
