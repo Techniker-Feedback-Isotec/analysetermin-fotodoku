@@ -1,4 +1,5 @@
 import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf-lib'
+import { kodiereAbschnitte, type Abschnitt } from './abschnitte'
 import type { OptimizedImage } from './image'
 import type { Reichtext, TextAbsatz, TextStueck } from './richtext'
 import type { LegendenGruppe } from '../data/legende'
@@ -190,7 +191,16 @@ export async function buildPdf(
   const doc = await PDFDocument.create()
   doc.setTitle(`${inputs.terminType} - Fotodokumentation`)
   doc.setSubject(`${inputs.terminType} ${inputs.terminLabel} - ${inputs.salespersonName}`)
-  doc.setCreator('Fotodoku (100 % clientseitig)')
+  // Ersteller "Dokumentation" wie die Mappe: Daran erkennt die Mappe eine
+  // eigene PDF auch dann, wenn sie spaeter wieder hochgeladen wird, und laesst
+  // ihr Deckblatt weg (Yann, 11.09.2026).
+  doc.setCreator('Dokumentation')
+  /**
+   * Abschnitte fuer das Inhaltsverzeichnis der Mappe (Bauzeichnungen,
+   * Zusammenfassung, Sanierungsbereiche beziehungsweise Fotos), mit ihrer
+   * ersten Seite. Kommen als Vermerk in die Keywords, siehe abschnitte.ts.
+   */
+  const abschnitte: Abschnitt[] = []
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const regular = await doc.embedFont(StandardFonts.Helvetica)
   const italic = await doc.embedFont(StandardFonts.HelveticaOblique)
@@ -234,6 +244,7 @@ export async function buildPdf(
   if (inputs.drawingPage) {
     const margin = 48
     const page = doc.addPage(A4)
+    abschnitte.push({ titel: inputs.drawingPage.title, seite: doc.getPageCount() })
     zeichneSeitenlogo(page, logo)
     let y = H - 76
     drawTracked(page, inputs.terminType.toUpperCase(), margin, y, bold, 9, RED, 1.6)
@@ -390,6 +401,7 @@ export async function buildPdf(
 
     const newTextPage = (first: boolean) => {
       const page = doc.addPage(A4)
+      if (first) abschnitte.push({ titel: title, seite: doc.getPageCount() })
       zeichneSeitenlogo(page, logo)
       let y = H - 76
       if (first) {
@@ -614,6 +626,8 @@ export async function buildPdf(
     ? kopfHoehe
     : SEITENLOGO_RAND + seitenlogoHoehe(logo) + 12
   const footers: Array<{ page: PDFPage; takenAt: number | null; isDuplicate: boolean }> = []
+  /** Der Abschnitt "Fotos" wird nur einmal vermerkt, bei der ersten Bildseite */
+  let fotosVermerkt = false
 
   for (let i = 0; i < inputs.photoCount; i++) {
     const photo = await inputs.loadPhoto(i)
@@ -621,6 +635,10 @@ export async function buildPdf(
     if (!photo) continue // nicht lesbar - Seite wird uebersprungen
 
     const page = doc.addPage(A4)
+    if (!fotosVermerkt) {
+      abschnitte.push({ titel: inputs.fotoSeitenTitel?.trim() || 'Fotos', seite: doc.getPageCount() })
+      fotosVermerkt = true
+    }
     zeichneSeitenlogo(page, logo)
 
     if (bildTitel) {
@@ -695,5 +713,6 @@ export async function buildPdf(
     }
   })
 
+  doc.setKeywords([kodiereAbschnitte(abschnitte)])
   return doc.save()
 }
