@@ -194,6 +194,30 @@ createServer(async (req, res) => {
       return
     }
 
+    // Dokument in die Kundenaufgabe legen; die Datei kommt roh im Rumpf.
+    // 60 MB reichen fuer Videos (Grenze dort 40 Millionen Bytes) und Mappen.
+    const anhang = /^\/api\/kunden\/(\d+)\/anhang$/.exec(url.pathname)
+    if (anhang) {
+      if (req.method !== 'POST') {
+        json(req, res, 405, { fehler: 'Nur POST.' })
+        return
+      }
+      const rumpf = await rumpfLesen(req, 60 * 1024 * 1024)
+      if (!rumpf) {
+        json(req, res, 413, { fehler: 'Die Datei ist zu gross (mehr als 60 MB).' })
+        return
+      }
+      const ergebnis = await kunden.ersetzeAnhang(
+        Number(anhang[1]),
+        url.searchParams.get('art') ?? '',
+        url.searchParams.get('name') ?? 'Dokument.pdf',
+        rumpf,
+        req.headers['content-type'],
+      )
+      json(req, res, 200, ergebnis)
+      return
+    }
+
     const gemini = /^\/api\/gemini\/(bild|bestand)$/.exec(url.pathname)
     if (gemini) {
       if (req.method !== 'POST') {

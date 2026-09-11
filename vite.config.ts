@@ -66,6 +66,22 @@ function apiRouten(): Plugin {
             json(200, await kunden.kundendaten(Number(kunde[1]), projekt))
             return
           }
+          const anhang = /^\/kunden\/(\d+)\/anhang$/.exec(url.pathname)
+          if (anhang) {
+            const teile: Buffer[] = []
+            for await (const teil of req) teile.push(Buffer.isBuffer(teil) ? teil : Buffer.from(teil))
+            json(
+              200,
+              await kunden.ersetzeAnhang(
+                Number(anhang[1]),
+                url.searchParams.get('art') ?? '',
+                url.searchParams.get('name') ?? 'Dokument.pdf',
+                Buffer.concat(teile),
+                req.headers['content-type'],
+              ),
+            )
+            return
+          }
           const art = /^\/gemini\/(bild|bestand)$/.exec(url.pathname)
           if (art) {
             let rumpf = ''

@@ -372,5 +372,66 @@ export function erzeugeKundendienst({ token, feldToken }) {
     }
   }
 
-  return { kundenliste, kundendaten }
+  // ---------- Anhaenge: Dokumente in die Kundenaufgabe legen ----------
+  //
+  // Yann, 11.09.2026: Ueber die Seite Kunden sollen erzeugte Dokumente per
+  // Knopf in die richtige Kundenaufgabe in MeisterTask. Eine vorher abgelegte
+  // Datei derselben Art wird ersetzt, damit je Art nur ein Original dort
+  // liegt. Die Art ist das Wort im Dateinamen (Prinzipskizze,
+  // Fotodokumentation, Angebotsmappe, Sanierungsvorschau, Videodokumentation);
+  // verglichen wird tolerant, klein und ohne Leerzeichen.
+
+  const anhaenge = (aufgabeId) => alle(`/tasks/${aufgabeId}/attachments`)
+
+  async function loescheAnhang(anhangId) {
+    const r = await fetch(`${MEISTERTASK}/attachments/${anhangId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    // 404: schon weg, das ist in Ordnung
+    if (!r.ok && r.status !== 404) {
+      throw new MeisterTaskFehler(`MeisterTask konnte den alten Anhang nicht entfernen (${r.status}).`, r.status)
+    }
+  }
+
+  async function ladeAnhangHoch(aufgabeId, name, bytes, typ) {
+    const form = new FormData()
+    form.append('name', name)
+    form.append('local', new Blob([bytes], { type: typ || 'application/octet-stream' }), name)
+    const r = await fetch(`${MEISTERTASK}/tasks/${aufgabeId}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      body: form,
+    })
+    if (!r.ok) {
+      const text = await r.text().catch(() => '')
+      throw new MeisterTaskFehler(
+        r.status === 429
+          ? 'MeisterTask drosselt gerade (zu viele Abrufe). Kurz warten.'
+          : `MeisterTask nimmt den Anhang nicht an (${r.status}). ${text.slice(0, 200)}`.trim(),
+        r.status,
+      )
+    }
+    return r.json()
+  }
+
+  /**
+   * Datei in die Aufgabe legen und Anhaenge derselben Art entfernen. Erst
+   * wenn die neue Datei sicher liegt, gehen die alten weg; scheitert das
+   * Hochladen, bleibt alles wie es war.
+   */
+  async function ersetzeAnhang(aufgabeId, art, name, bytes, typ) {
+    if (!token) throw new MeisterTaskFehler('Kein MeisterTask-Token hinterlegt.', 503)
+    const suchwort = norm(art).replace(/\s+/g, '')
+    if (!suchwort) throw new MeisterTaskFehler('Ohne Art des Dokuments kann nichts ersetzt werden.', 400)
+    const vorhanden = await anhaenge(aufgabeId)
+    const alte = vorhanden.filter((a) => norm(a.name).replace(/\s+/g, '').includes(suchwort))
+    const neu = await ladeAnhangHoch(aufgabeId, name, bytes, typ)
+    for (const a of alte) {
+      if (a.id !== neu.id) await loescheAnhang(a.id)
+    }
+    return { id: neu.id, name: neu.name ?? name, ersetzt: alte.map((a) => a.name) }
+  }
+
+  return { kundenliste, kundendaten, ersetzeAnhang }
 }

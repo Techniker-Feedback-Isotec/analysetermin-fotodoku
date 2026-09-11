@@ -4,7 +4,7 @@ import { GEWERKE } from './data/gewerke'
 import MultiSelect from './MultiSelect'
 import KundenSuche from './KundenSuche'
 import VorgangZeile from './VorgangZeile'
-import { ApiFehler, ladeKundendaten, meistertaskLink, type Ich, type KundenEintrag } from './lib/api'
+import { ApiFehler, ladeKundendaten, legeInMeisterTaskAb, meistertaskLink, type Ich, type KundenEintrag } from './lib/api'
 import { ACCEPT, isSupported, prepareImage } from './lib/bilder'
 import { logoBild, objektBild, visitenkarteBild } from './lib/deckblattbilder'
 import { formatBytes, formatDateTime, initialsOf, sanitizeFilePart } from './lib/format'
@@ -86,6 +86,15 @@ function SymbolTeilen() {
       <circle cx="5" cy="10" r="2.2" />
       <circle cx="15" cy="15.5" r="2.2" />
       <path d="m7 9 6-3.4M7 11l6 3.4" />
+    </svg>
+  )
+}
+
+function SymbolAblegen() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" {...strich} aria-hidden="true">
+      <path d="M6 14.5H5.2a3.2 3.2 0 0 1-.4-6.4 4.5 4.5 0 0 1 8.7-1.3 3.6 3.6 0 0 1 1.3 7.1H14" />
+      <path d="M10 17v-7M7.3 12.7 10 10l2.7 2.7" />
     </svg>
   )
 }
@@ -174,6 +183,8 @@ export default function KundePanel({
   /** Titel gerade in Bearbeitung: solange ist die Zeile nicht ziehbar, sonst laesst sich kein Text markieren */
   const [bearbeitetId, setBearbeitetId] = useState<string | null>(null)
   const [dragOverPdf, setDragOverPdf] = useState(false)
+  /** Ablage in MeisterTask je Dokument: laeuft gerade oder ist erledigt */
+  const [ablage, setAblage] = useState<Record<string, 'laeuft' | 'fertig'>>({})
   const objectInputRef = useRef<HTMLInputElement>(null)
   const pdfInputRef = useRef<HTMLInputElement>(null)
 
@@ -356,14 +367,71 @@ export default function KundePanel({
   }
 
   /**
-   * Die kleinen Knoepfe hinter jeder Datei: herunterladen, am Handy teilen,
-   * entfernen. Bis zum 11.09.2026 standen hier grosse rote Knoepfe je Datei,
-   * die die Liste dominiert haben (Yann: "entferne diese").
+   * Ein erzeugtes Dokument in die Kundenaufgabe in MeisterTask legen (Yann,
+   * 11.09.2026). Der Server ersetzt dort die Datei derselben Art, damit je Art
+   * nur ein Original liegt. Hochgeladene Fremd-PDFs (das Angebot) kommen aus
+   * dem System und werden nicht zurueckgespielt.
+   */
+  async function legeAb(dok: Dokument) {
+    if (!daten.meistertask || ablage[dok.id] === 'laeuft') return
+    setAblage((b) => ({ ...b, [dok.id]: 'laeuft' }))
+    try {
+      const ergebnis = await legeInMeisterTaskAb(
+        daten.meistertask.id,
+        dok.quelle,
+        new File([dok.blob], dok.name, { type: dok.blob.type }),
+      )
+      setAblage((b) => ({ ...b, [dok.id]: 'fertig' }))
+      onToast(
+        'success',
+        ergebnis.ersetzt.length > 0
+          ? `In MeisterTask abgelegt: ${ergebnis.name}. Ersetzt: ${ergebnis.ersetzt.join(', ')}.`
+          : `In MeisterTask abgelegt: ${ergebnis.name}.`,
+      )
+    } catch (fehler) {
+      setAblage((b) => {
+        const { [dok.id]: _weg, ...rest } = b
+        return rest
+      })
+      onToast(
+        'error',
+        fehler instanceof ApiFehler ? `Ablage in MeisterTask fehlgeschlagen: ${fehler.message}` : 'Ablage in MeisterTask fehlgeschlagen.',
+      )
+    }
+  }
+
+  /**
+   * Die kleinen Knoepfe hinter jeder Datei: in MeisterTask ablegen,
+   * herunterladen, am Handy teilen, entfernen. Bis zum 11.09.2026 standen hier
+   * grosse rote Knoepfe je Datei, die die Liste dominiert haben (Yann:
+   * "entferne diese").
    */
   function dateiKnoepfe(dok: Dokument) {
     const teilbar = dok.art === 'pdf' ? PDF_TEILBAR : VIDEO_TEILBAR
+    const ablegbar = !dok.hochgeladen && Boolean(ich?.meistertask)
+    const stand = ablage[dok.id]
     return (
       <div className="datei-knoepfe">
+        {ablegbar && (
+          <button
+            type="button"
+            className={`btn-symbol${stand === 'fertig' ? ' btn-symbol-fertig' : ''}${stand === 'laeuft' ? ' btn-symbol-laeuft' : ''}`}
+            onClick={() => void legeAb(dok)}
+            disabled={!daten.meistertask || stand === 'laeuft'}
+            aria-label={`${dok.name} in MeisterTask ablegen`}
+            title={
+              !daten.meistertask
+                ? 'Erst einen Vorgang aus MeisterTask wählen'
+                : stand === 'fertig'
+                  ? 'In MeisterTask abgelegt, erneut ablegen ersetzt die Datei'
+                  : stand === 'laeuft'
+                    ? 'Wird abgelegt …'
+                    : 'In MeisterTask ablegen (ersetzt die vorhandene Datei dieser Art)'
+            }
+          >
+            <SymbolAblegen />
+          </button>
+        )}
         <button
           type="button"
           className="btn-symbol"

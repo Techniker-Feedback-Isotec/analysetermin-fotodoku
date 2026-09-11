@@ -1429,6 +1429,26 @@ input[type='checkbox'] {
   margin-left: 4px;
 }
 
+.btn-symbol:disabled {
+  color: #cfc9c4;
+  cursor: default;
+  background: none;
+}
+
+/* Ablage in MeisterTask: erledigt gruen, unterwegs pulsierend */
+.btn-symbol-fertig {
+  color: #1e8a3c;
+}
+
+.btn-symbol-laeuft {
+  animation: ablage-puls 1s ease-in-out infinite;
+}
+
+@keyframes ablage-puls {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 /* Fertige PDF hinzufuegen, als schmale Zeile unter der Mappenliste */
 .mappe-hinzu {
   margin-top: 10px;
