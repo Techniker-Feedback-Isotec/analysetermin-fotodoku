@@ -39,6 +39,10 @@ const kunden = erzeugeKundendienst({ token: MT_TOKEN, feldToken: MT_TOKEN_FELDER
 const TYPEN = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  // Der pdf.js-Worker heisst *.mjs; ohne JavaScript-Typ lehnt der Browser ihn
+  // ab, und das Inhaltsverzeichnis der Mappe blieb ohne Untertitel (11.09.2026)
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.pdf': 'application/pdf',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
