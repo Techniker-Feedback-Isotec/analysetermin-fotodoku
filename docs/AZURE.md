@@ -83,6 +83,13 @@ Projekte, Spalten und Feldtypen zehn Minuten und die Aufgabenliste eines
 Boards 45 Sekunden im Speicher; das Tippen im Suchfeld filtert im Browser
 und kostet keinen Abruf.
 
+## Zweige (seit 11.09.2026)
+
+`main` ist der Live-Stand und wird nur auf Yanns Wort ausgeliefert. Entwickelt
+wird auf `entwicklung`; dort liegt alles, was die Kollegen noch nicht haben.
+Ausliefern heisst: `git checkout main`, `git merge entwicklung`, dann die
+Schritte unten. Der zuletzt ausgelieferte Stand traegt ein Tag `live-<Datum>`.
+
 ## Ausliefern (immer PowerShell, nie Git Bash)
 
 ```powershell
