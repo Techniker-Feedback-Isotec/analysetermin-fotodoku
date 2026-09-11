@@ -20,6 +20,7 @@ import { zeichnungFuer, zeichnungHinweis } from './data/prinzipzeichnung'
 import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
 import Bildansicht from './Bildansicht'
+import ZeichenFenster from './ZeichenFenster'
 import { reichtextIstLeer, type Reichtext } from './lib/richtext'
 import type { SeitenZustand } from './lib/speicher'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
@@ -72,9 +73,24 @@ export interface FotoDokuPanelProps {
   start: SeitenZustand
   /** Meldet jede Aenderung des Zustands, damit sie im Geraet gespeichert wird */
   onZustand: (zustand: SeitenZustand) => void
+  /**
+   * Nur Prinzipskizze: die schon gezeichnete Fassung aus der Dokumentensammlung,
+   * damit sie sich jederzeit wieder oeffnen und weiterzeichnen laesst (die
+   * Markups liegen bearbeitbar in der PDF). null = noch keine gezeichnet.
+   */
+  vorhandene?: { blob: Blob; name: string } | null
 }
 
-export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument, start, onZustand }: FotoDokuPanelProps) {
+export default function FotoDokuPanel({
+  art,
+  kunde,
+  stapel,
+  onToast,
+  onDokument,
+  start,
+  onZustand,
+  vorhandene = null,
+}: FotoDokuPanelProps) {
   const [terminart, setTerminart] = useState<Terminart>(start.terminart)
   /** Index des gross gezeigten Fotos, oder null */
   const [ansichtIndex, setAnsichtIndex] = useState<number | null>(null)
@@ -87,6 +103,12 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
   const [pdfProgress, setPdfProgress] = useState<Progress | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [fertigePdf, setFertigePdf] = useState<{ blob: Blob; fileName: string } | null>(null)
+  /**
+   * Prinzipskizze im Zeichentool (Vollbild). Die aufgebaute PDF wird erst
+   * gezeichnet und dann uebernommen; ohne Zeichnung kommt sie nicht in die
+   * Sammlung und damit nicht in die Mappe (Yann, 11.09.2026).
+   */
+  const [zeichnung, setZeichnung] = useState<{ bytes: Uint8Array; name: string } | null>(null)
   // Reklamation: Beurteilung; Analysetermin und Prinzipskizze: Zusammenfassung.
   // Beide bleiben erhalten, wenn die Terminart wechselt. Geschrieben wird im
   // Textfenster, gespeichert als formatierter Text (Absaetze, fett, kursiv,
@@ -230,6 +252,13 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
   if (included.length === 0) missingHints.push(istSkizze ? 'mind. 1 Bild hinzufügen' : 'mind. 1 Foto hinzufügen')
 
   const handleCreatePdf = useCallback(async () => {
+    if (
+      istSkizze &&
+      vorhandene &&
+      !window.confirm('Es gibt schon eine gezeichnete Prinzipskizze. Neu aufbauen verwirft die Zeichnung. Fortfahren?')
+    ) {
+      return
+    }
     if (!canCreate || !objectPhoto || terminDate == null || !terminLabel) return
     try {
       // 1) Statische Assets (Teamfoto, Logo) + Mitarbeiterfoto laden
@@ -383,6 +412,18 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
           ]
             .filter((part) => part !== '')
             .join('_') + '.pdf'
+      if (istSkizze) {
+        // Erst zeichnen, dann uebernehmen: Das Zeichentool oeffnet sich im
+        // Vollbild, die Sammlung bekommt die PDF erst mit der Zeichnung.
+        setZeichnung({ bytes, name: fileName })
+        if (fehlerhafteFotos.size > 0) {
+          onToast(
+            'error',
+            `${fehlerhafteFotos.size} Foto(s) konnten nicht gelesen werden und fehlen in der PDF: ${[...fehlerhafteFotos].join(', ')}`,
+          )
+        }
+        return
+      }
       // Auf dem Handy nicht sofort herunterladen: Ein Download landet dort
       // unauffindbar unter "Dateien / Downloads". Stattdessen erscheint ein
       // Teilen-Knopf, denn navigator.share braucht einen eigenen Klick.
@@ -423,6 +464,7 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
     hasAssessment,
     beurteilung,
     hasSummary,
+    vorhandene,
     zusammenfassung,
     pageCount,
     art,
@@ -432,6 +474,31 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
   ])
 
   const progress = pdfProgress ?? stapel.fortschritt
+
+  /** Die gezeichnete PDF aus dem Zeichentool in die Sammlung uebernehmen */
+  const uebernimmZeichnung = useCallback(
+    (bytes: Uint8Array, anzahl: number) => {
+      if (!zeichnung) return
+      if (anzahl === 0) {
+        onToast('error', 'Bitte zuerst zeichnen. Ohne Zeichnung wird die Prinzipskizze nicht übernommen.')
+        return
+      }
+      const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
+      setFertigePdf({ blob, fileName: zeichnung.name })
+      onDokument(`pdf:${art}`, quelle, new File([blob], zeichnung.name, { type: 'application/pdf' }))
+      setZeichnung(null)
+      onToast('success', `Prinzipskizze übernommen: ${zeichnung.name} (${formatBytes(blob.size)})`)
+    },
+    [zeichnung, art, quelle, onDokument, onToast],
+  )
+
+  /** Die schon gezeichnete Prinzipskizze wieder im Zeichentool oeffnen */
+  const bearbeiteZeichnung = useCallback(async () => {
+    if (!vorhandene) return
+    setZeichnung({ bytes: new Uint8Array(await vorhandene.blob.arrayBuffer()), name: vorhandene.name })
+  }, [vorhandene])
+
+  const schliesseZeichnung = useCallback(() => setZeichnung(null), [])
 
   // ---------- Render ----------
 
@@ -687,9 +754,18 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
               <p className="hint-missing">Noch offen: {missingHints.join(' · ')}</p>
             )}
           </div>
-          <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
-            PDF erstellen ({pageCount} {pageCount === 1 ? 'Seite' : 'Seiten'})
-          </button>
+          <div className="aktion-knoepfe">
+            {istSkizze && vorhandene && (
+              <button type="button" className="btn-secondary" disabled={busy} onClick={() => void bearbeiteZeichnung()}>
+                Zeichnung bearbeiten
+              </button>
+            )}
+            <button type="button" className="btn-primary" disabled={!canCreate} onClick={() => void handleCreatePdf()}>
+              {istSkizze
+                ? `${vorhandene ? 'Neu aufbauen und zeichnen' : 'Zeichnen'} (${pageCount} ${pageCount === 1 ? 'Seite' : 'Seiten'})`
+                : `PDF erstellen (${pageCount} ${pageCount === 1 ? 'Seite' : 'Seiten'})`}
+            </button>
+          </div>
         </div>
         {fertigePdf && (
           <div className="ergebnis">
@@ -725,6 +801,14 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
               </button>
             </div>
           </div>
+        )}
+        {zeichnung && (
+          <ZeichenFenster
+            bytes={zeichnung.bytes}
+            name={zeichnung.name}
+            onGespeichert={uebernimmZeichnung}
+            onSchliessen={schliesseZeichnung}
+          />
         )}
         {fensterOffen && (
           <Textfenster

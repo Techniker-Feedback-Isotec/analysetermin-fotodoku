@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { erzeugeKundendienst, MeisterTaskFehler } from './server/meistertask.mjs'
@@ -101,6 +102,12 @@ export default defineConfig(() => ({
   server: { port: Number(process.env.PORT) || 5173 },
   build: {
     rollupOptions: {
+      // Zwei Seiten: die App und das Zeichentool (zeichnen.html), das die
+      // Prinzipskizze in einem Vollbild-iframe oeffnet (seit 11.09.2026).
+      input: {
+        index: fileURLToPath(new URL('./index.html', import.meta.url)),
+        zeichnen: fileURLToPath(new URL('./zeichnen.html', import.meta.url)),
+      },
       output: {
         // Asset-Dateinamen ASCII-sicher machen (Mitarbeiterfotos heissen
         // "Björn Morscheck.png"), damit kein Werkzeug in der Kette an Umlauten

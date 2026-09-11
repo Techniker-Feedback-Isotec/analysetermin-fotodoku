@@ -3089,3 +3089,30 @@ table {
 .kundensuche-eintrag.gespeichert.aktiv {
   background: #fdf0f0;
 }
+
+/* ---------- Zeichentool im Vollbild (Prinzipskizze, 11.09.2026) ---------- */
+
+.zeichenfenster {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #f1eeeb;
+}
+
+.zeichenfenster-rahmen {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+body.zeichnen-offen {
+  overflow: hidden;
+}
+
+.aktion-knoepfe {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}

@@ -120,6 +120,41 @@ export const ladeKundendaten = (eintrag: KundenEintrag) =>
 /** Link zur Aufgabe in MeisterTask. */
 export const meistertaskLink = (token: string) => `https://www.meistertask.com/app/task/${token}`
 
+export interface AnhangErgebnis {
+  id: number
+  name: string
+  /** Namen der Anhaenge derselben Art, die dafuer entfernt wurden */
+  ersetzt: string[]
+}
+
+/**
+ * Ein Dokument in die Kundenaufgabe in MeisterTask legen (Yann, 11.09.2026).
+ * Der Server ersetzt dort vorhandene Anhaenge derselben Art, damit je Art nur
+ * ein Original liegt. Die Datei geht roh im Rumpf, der Name als Parameter.
+ */
+export async function legeInMeisterTaskAb(aufgabeId: number, art: string, datei: File): Promise<AnhangErgebnis> {
+  let r: Response
+  try {
+    r = await fetch(
+      `/api/kunden/${aufgabeId}/anhang?art=${encodeURIComponent(art)}&name=${encodeURIComponent(datei.name)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': datei.type || 'application/octet-stream', Accept: 'application/json' },
+        body: datei,
+      },
+    )
+  } catch {
+    throw new ApiFehler('Keine Verbindung zum Server. Internetverbindung prüfen.', 0)
+  }
+  if (anmeldungFehlt(r)) {
+    erneutAnmelden()
+    throw new ApiFehler('Die Anmeldung ist abgelaufen. Die Seite meldet sich neu an.', r.status)
+  }
+  const daten = (await r.json()) as AnhangErgebnis & { fehler?: string }
+  if (!r.ok) throw new ApiFehler(daten.fehler ?? `Der Server antwortet mit ${r.status}.`, r.status)
+  return daten
+}
+
 /**
  * Ein POST an die Gemini-Weiterleitung. Liefert die Antwort roh zurueck, die
  * Fehlerbehandlung liegt beim Aufrufer (vorschau/lib/gemini.ts kennt Googles

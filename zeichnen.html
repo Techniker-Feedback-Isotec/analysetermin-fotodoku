@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#f1eeeb" />
+  <title>Prinzipskizze zeichnen</title>
+  <link rel="stylesheet" href="/src/zeichnen/style.css" />
+</head>
+<body>
+  <!-- Symbolvorrat: einmal definiert, ueberall per <use> eingesetzt -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-oeffnen" viewBox="0 0 20 20"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3.2l1.6 1.6h6.2A1.5 1.5 0 0 1 17 8.1V14a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14z"/></symbol>
+    <symbol id="i-blatt" viewBox="0 0 20 20"><path d="M6 3h5.5L15 6.5V16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M11.5 3v3.5H15"/><path d="M10 9.5v5M7.5 12h5"/></symbol>
+    <symbol id="i-foto" viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="11" rx="1.5"/><circle cx="7.5" cy="9" r="1.3"/><path d="M3.5 15l4-3.5 3 2.4 3-3.4 3.5 4"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 20 20"><path d="M7 10V4.8a1.2 1.2 0 0 1 2.4 0V9m0-4.2V3.7a1.2 1.2 0 0 1 2.4 0V9m0-3.8a1.2 1.2 0 0 1 2.4 0V11a1.2 1.2 0 0 1 2.4 0v2.3A4.7 4.7 0 0 1 11.9 18h-1.5a5 5 0 0 1-3.8-1.7L3.7 13c-.7-.8.3-2 1.3-1.5L7 12.6"/></symbol>
+    <symbol id="i-papierkorb" viewBox="0 0 20 20"><path d="M4 6h12M8 6V4.5h4V6M6 6l.7 10h6.6L14 6M8.5 9v4.5M11.5 9v4.5"/></symbol>
+    <symbol id="i-lasso" viewBox="0 0 20 20"><path d="M10 3.5c3.6 0 6.5 1.9 6.5 4.3S13.6 12 10 12 3.5 10.2 3.5 7.8 6.4 3.5 10 3.5z"/><path d="M6.5 11.5c-.8 1.2-.8 2.3 0 3.4.6.9 1.2 1.6 1 2.6"/></symbol>
+    <symbol id="i-gruppe" viewBox="0 0 20 20"><rect x="3" y="3" width="9" height="9" rx="1.5"/><rect x="8" y="8" width="9" height="9" rx="1.5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 20 20"><path d="M7 5.5 3.5 9 7 12.5"/><path d="M4 9h8a4 4 0 0 1 0 8H9"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 20 20"><path d="m13 5.5 3.5 3.5L13 12.5"/><path d="M16 9H8a4 4 0 0 0 0 8h3"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 20 20"><path d="M5 10h10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 20 20"><path d="M10 5v10M5 10h10"/></symbol>
+    <symbol id="i-seite" viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 7h6M7 10h6M7 13h4"/></symbol>
+    <symbol id="i-speichern" viewBox="0 0 20 20"><path d="M10 3v9m0 0-3.2-3.2M10 12l3.2-3.2"/><path d="M4 13.5V15a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 16 15v-1.5"/></symbol>
+    <symbol id="i-zahnrad" viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2.2M10 15.3v2.2M2.5 10h2.2M15.3 10h2.2M4.7 4.7l1.6 1.6M13.7 13.7l1.6 1.6M15.3 4.7l-1.6 1.6M6.3 13.7l-1.6 1.6"/></symbol>
+    <symbol id="i-nadel" viewBox="0 0 20 20"><path d="M7.5 2.5h5l-.7 4.3 2.7 2.7H5.5l2.7-2.7z"/><path d="M10 9.5V17.5"/></symbol>
+    <symbol id="i-zu" viewBox="0 0 20 20"><path d="M6.5 4.5 12 10l-5.5 5.5M13.5 4.5v11"/></symbol>
+    <symbol id="i-auf" viewBox="0 0 20 20"><path d="M13.5 4.5 8 10l5.5 5.5M6.5 4.5v11"/></symbol>
+    <symbol id="i-zurueck" viewBox="0 0 20 20"><path d="M9 5.5 4.5 10 9 14.5M5 10h10"/></symbol>
+  </svg>
+
+  <header class="kopf">
+    <div class="marke" title="ISOTEC Zeichentool"><span class="punkt"></span><span class="marke-text">Zeichentool</span></div>
+
+    <div class="gruppe">
+      <input type="file" id="datei-input" accept="application/pdf,image/*" multiple hidden />
+      <button class="btn" id="btn-oeffnen" title="PDF oder Bild öffnen"><svg><use href="#i-oeffnen"/></svg><span class="label">Öffnen</span></button>
+      <button class="btn" id="btn-leer" title="Ein weiteres leeres A4-Blatt hinten anhängen. Das bestehende Dokument bleibt erhalten."><svg><use href="#i-blatt"/></svg><span class="label">Blatt</span></button>
+      <button class="btn" id="btn-foto" title="Ein Foto auf die aktuelle Seite setzen (oder Datei aufs Blatt ziehen, oder Strg+V). Es wird nichts ersetzt."><svg><use href="#i-foto"/></svg><span class="label">Foto</span></button>
+    </div>
+
+    <div class="gruppe">
+      <button class="btn hand" id="btn-auswahl" title="Hand: Objekte greifen, verschieben, an den Punkten anpassen (V, Rechtsklick oder Esc)"><svg><use href="#i-hand"/></svg><span class="label">Hand</span></button>
+      <button class="btn" id="btn-lasso" title="Lasso: Bereich einkreisen, alle Objekte darin gemeinsam verschieben oder skalieren (L)"><svg><use href="#i-lasso"/></svg><span class="label">Lasso</span></button>
+      <button class="btn" id="btn-gruppe" title="Markierte Objekte zu einer Gruppe verbinden, die sich gemeinsam greifen lässt (G)" disabled><svg><use href="#i-gruppe"/></svg><span class="label">Gruppe</span></button>
+      <button class="btn ikon gefahr" id="btn-loeschen" title="Markierte Objekte löschen (Entf)"><svg><use href="#i-papierkorb"/></svg></button>
+    </div>
+
+    <div class="gruppe">
+      <button class="btn ikon" id="btn-undo" title="Rückgängig (Strg+Z)"><svg><use href="#i-undo"/></svg></button>
+      <button class="btn ikon" id="btn-redo" title="Wiederholen (Strg+Y)"><svg><use href="#i-redo"/></svg></button>
+    </div>
+
+    <div class="gruppe rechts">
+      <button class="btn ikon" id="btn-zoom-minus" title="Verkleinern (Strg+Mausrad)"><svg><use href="#i-minus"/></svg></button>
+      <span class="zoom-wert" id="zoom-wert">100 %</span>
+      <button class="btn ikon" id="btn-zoom-plus" title="Vergrößern (Strg+Mausrad)"><svg><use href="#i-plus"/></svg></button>
+      <button class="btn" id="btn-seite" title="Ganze Seite anzeigen"><svg><use href="#i-seite"/></svg><span class="label">Seite</span></button>
+    </div>
+
+    <button class="btn primaer" id="btn-speichern" title="Als PDF speichern (Strg+S)"><svg><use href="#i-speichern"/></svg><span class="label">Speichern</span></button>
+    <!-- Nur eingebettet in der Dokumentation: zurueck zur Prinzipskizze ohne zu speichern -->
+    <button class="btn nur-eingebettet" id="btn-schliessen" title="Zurück zur Prinzipskizze"><svg><use href="#i-zurueck"/></svg><span class="label">Zurück</span></button>
+  </header>
+
+  <main class="buehne">
+    <aside class="seiten-leiste">
+      <div class="leiste-titel">Seiten</div>
+      <div class="miniaturen" id="miniaturen"></div>
+    </aside>
+
+    <section class="ansicht" id="ansicht">
+      <div class="start" id="start">
+        <div class="start-karte">
+          <div class="start-bild">
+            <svg viewBox="0 0 96 96" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="18" y="12" width="60" height="72" rx="6" fill="#fff" stroke="#d8d5d3" stroke-width="2"/>
+              <path class="start-linie a" d="M30 32h36" stroke="#2323ff" stroke-width="4"/>
+              <path class="start-linie b" d="M30 46l10-8 12 10 14-12" stroke="#0a7d2e" stroke-width="3"/>
+              <path class="start-flaeche" d="M30 56h36v16H30z" fill="#2323ff" fill-opacity=".22" stroke="#2323ff" stroke-width="1.5"/>
+              <path class="start-kreuz" d="M56 62l6 6m0-6-6 6" stroke="#ff3b3b" stroke-width="2.5"/>
+            </svg>
+          </div>
+          <h1>Zeichnen und markieren im PDF</h1>
+          <p>PDF hierher ziehen, Fotos per Drag &amp; Drop oder Strg+V einfügen.</p>
+          <div class="start-knoepfe">
+            <button class="btn primaer gross" id="btn-oeffnen-2"><svg><use href="#i-oeffnen"/></svg><span class="label">PDF öffnen</span></button>
+            <button class="btn gross" id="btn-leer-2"><svg><use href="#i-blatt"/></svg><span class="label">Leeres Blatt A4</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="seiten" id="seiten"></div>
+    </section>
+
+    <aside class="vorlagen-leiste" id="vorlagen-leiste">
+      <div class="leiste-kopf">
+        <span class="leiste-name">Vorlagen</span>
+        <button class="leiste-knopf" id="btn-einstellung" title="Strichdicke oder Schriftgröße der gewählten Vorlage anpassen"><svg><use href="#i-zahnrad"/></svg></button>
+        <button class="leiste-knopf" id="btn-fixieren" title="Leiste offen halten. Ohne Fixierung klappt sie nach der Wahl einer Vorlage zu."><svg><use href="#i-nadel"/></svg></button>
+        <button class="leiste-knopf" id="btn-zuklappen" title="Leiste einklappen"><svg><use href="#i-zu"/></svg></button>
+      </div>
+      <div class="reiter" id="reiter">
+        <button class="reiter-knopf aktiv" data-reiter="gewerke">Gewerke</button>
+        <button class="reiter-knopf" data-reiter="aufmass">Aufmaß</button>
+        <button class="reiter-knopf" data-reiter="grundriss">Grundriss</button>
+      </div>
+      <div class="vorlagen" id="vorlagen"></div>
+      <button class="leiste-auf" id="btn-aufklappen" title="Vorlagen einblenden"><svg><use href="#i-auf"/></svg><span>Vorlagen</span></button>
+      <div class="einstellungen" id="einstellungen" hidden></div>
+    </aside>
+  </main>
+
+  <div class="status" id="status">Bereit</div>
+  <div class="ablage-hinweis"><span>Datei hier ablegen</span></div>
+
+  <script type="module" src="/src/zeichnen/main.js"></script>
+</body>
+</html>

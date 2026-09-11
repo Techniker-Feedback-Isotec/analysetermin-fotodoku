@@ -118,6 +118,9 @@ export default function App() {
    * eigenen (Besitzer = E-Mail der Anmeldung; ohne Besitzer = Entwicklung).
    * Teilen sich zwei Leute ein iPad, findet jeder nur seine.
    */
+  /** Die schon gezeichnete Prinzipskizze, damit die Seite sie wieder oeffnen kann */
+  const skizzeDok = dokumente.find((d) => d.schluessel === 'pdf:prinzipskizze')
+  const gezeichneteSkizze = skizzeDok ? { blob: skizzeDok.blob, name: skizzeDok.name } : null
   const gespeicherte = vorgang.liste.filter(
     (v) => v.id !== vorgang.id && (!v.besitzer || !ich?.email || v.besitzer === ich.email),
   )
@@ -296,6 +299,7 @@ export default function App() {
               onDokument={setzeDokument}
               start={vorgang.seiten.prinzipskizze}
               onZustand={zustandSkizze}
+              vorhandene={gezeichneteSkizze}
             />
           </div>
 
