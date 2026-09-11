@@ -402,11 +402,6 @@ export default function KundePanel({
       <section className="card" aria-labelledby="kunde-termin">
         <div className="karte-kopf">
           <h2 id="kunde-termin">Termin</h2>
-          <p>
-            Einmal eintragen, gilt für alle Unterlagen. Das Feld Kunde findet gespeicherte Vorgänge dieses
-            Geräts und sucht im Ersttermine-Board des Mitarbeiters; aus der Aufgabe kommen Anschrift und
-            Baujahr.
-          </p>
           <VorgangZeile
             status={speicher.status}
             gespeichertUm={speicher.gespeichertUm}
@@ -491,7 +486,7 @@ export default function KundePanel({
                 onAuswahl={(eintrag) => void uebernimmVorgang(eintrag)}
                 gespeicherte={speicher.gespeicherte}
                 onGespeichert={speicher.onOeffnen}
-                placeholder="Name tippen, Vorgang wählen"
+                placeholder="Name"
               />
             </div>
             <div className="eingabe">
@@ -513,11 +508,6 @@ export default function KundePanel({
                 onChange={(e) => onChange({ objektadresse: e.target.value })}
                 placeholder="nur wenn abweichend"
               />
-              <p className="eingabe-hinweis">
-                {daten.objektadresse.trim() === '' && daten.kundenadresse.trim() !== ''
-                  ? 'Leer = siehe Kundenadresse'
-                  : 'Nur wenn das Objekt anderswo liegt'}
-              </p>
             </div>
             <div className="eingabe">
               <label htmlFor="baujahr-input">Baujahr</label>
@@ -548,7 +538,6 @@ export default function KundePanel({
                 value={daten.termindatum}
                 onChange={(e) => onChange({ termindatum: e.target.value })}
               />
-              <p className="eingabe-hinweis">Leer = Datum aus den Fotos</p>
             </div>
             <div className="eingabe">
               <label id="gewerke-label">Sanierungskonzept</label>
@@ -614,24 +603,11 @@ export default function KundePanel({
       <section className="card" aria-labelledby="kunde-dokumente">
         <div className="karte-kopf">
           <h2 id="kunde-dokumente">Dokumente</h2>
-          {dokumente.length === 0 && (
-            <p>
-              Noch nichts da. Fertige PDFs und Videos der anderen Seiten erscheinen hier; ein Angebot oder
-              eine fertige Prinzipskizze lässt sich unten hinzufügen.
-            </p>
-          )}
         </div>
 
         <div className="mappe-zeile">
           <div className="mappe-text">
             <p className="mappe-titel">Angebotsmappe</p>
-            <p className="eingabe-hinweis">
-              {mappenFaehig.length === 0
-                ? 'Sobald eine Unterlage da ist, entsteht daraus eine Mappe mit Deckblatt und Inhaltsverzeichnis.'
-                : mappenTeile.length === 0
-                  ? 'Keine Unterlage ausgewählt.'
-                  : 'Deckblatt, Inhaltsverzeichnis, Warum ISOTEC, dann die angehakten Unterlagen in dieser Reihenfolge:'}
-            </p>
           </div>
           <button
             type="button"
@@ -780,11 +756,7 @@ export default function KundePanel({
             if (e.key === 'Enter' || e.key === ' ') pdfInputRef.current?.click()
           }}
         >
-          <span className="mappe-hinzu-titel">Fertige PDF hinzufügen</span>
-          <span className="dropzone-hint">
-            Angebot oder fertige Prinzipskizze hierher ziehen oder klicken. Sie wird Teil der Mappe und steht
-            im Inhaltsverzeichnis.
-          </span>
+          <span className="mappe-hinzu-titel">Fertige PDF hinzufügen (Angebot, Prinzipskizze)</span>
         </div>
 
         {/* Was nicht in die Mappe kann: die fertige Mappe selbst und Videos */}

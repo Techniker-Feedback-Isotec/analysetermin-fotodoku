@@ -155,20 +155,16 @@ export default function KundenSuche({
     }
   }
 
-  /** Die Zeile unter dem Feld: woher die Liste kommt, oder warum es keine gibt. */
+  /**
+   * Die Zeile unter dem Feld: nur noch Laden und Fehler. Die Erklaerungen
+   * (welches Board, wie viele Vorgaenge) sind seit dem 11.09.2026 weg, Yann:
+   * "es muss selbsterklaerend nutzbar sein".
+   */
   let hinweis: string
   if (verfuegbar === false) hinweis = 'Kundensuche nicht eingerichtet (kein MeisterTask-Zugang auf dem Server).'
-  else if (!mitarbeiter) hinweis = 'Mitarbeiter wählen, dann sucht das Feld in seinem MeisterTask-Board.'
   else if (laedt) hinweis = 'MeisterTask wird gelesen …'
   else if (fehler) hinweis = fehler
-  else if (liste?.board) {
-    // Die technische Leitung sucht im Reklamationsboard, dort zaehlen alle
-    // offenen Vorgaenge statt drei Spalten des Vertriebsablaufs.
-    hinweis =
-      liste.art === 'reklamation'
-        ? `${liste.eintraege.length} offene Vorgänge (${liste.board})`
-        : `${liste.eintraege.length} Vorgänge in Phase 0, Auftragsbesprechungen und Angebote (${liste.board})`
-  } else if (liste?.grund) hinweis = liste.grund
+  else if (liste && !liste.board && liste.grund) hinweis = liste.grund
   else hinweis = ''
 
   return (
