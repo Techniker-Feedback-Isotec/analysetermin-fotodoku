@@ -225,8 +225,8 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
   const setzeText = isReklamation ? setBeurteilung : setZusammenfassung
 
   const missingHints: string[] = []
-  if (!mitarbeiter.name) missingHints.push('Mitarbeiter auf der Seite Kunde wählen')
-  if (!objectPhoto) missingHints.push('Objektfoto auf der Seite Kunde hochladen')
+  if (!mitarbeiter.name) missingHints.push('Mitarbeiter auf der Seite Kunden wählen')
+  if (!objectPhoto) missingHints.push('Objektfoto auf der Seite Kunden hochladen')
   if (included.length === 0) missingHints.push(istSkizze ? 'mind. 1 Bild hinzufügen' : 'mind. 1 Foto hinzufügen')
 
   const handleCreatePdf = useCallback(async () => {
@@ -443,8 +443,8 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument,
           <h2 id={`${art}-titel`}>{istSkizze ? 'Prinzipskizze' : 'Fotodokumentation'}</h2>
           <p>
             {istSkizze
-              ? 'Deckblatt, freie Seite „Bauzeichnungen" für den Grundriss, dann die Bilder. Die Legende dort zeigt die auf der Seite Kunde gewählten Gewerke.'
-              : 'Mitarbeiter, Objektfoto und Kundendaten kommen von der Seite Kunde.'}
+              ? 'Deckblatt, freie Seite „Bauzeichnungen" für den Grundriss, dann die Bilder. Die Legende dort zeigt die auf der Seite Kunden gewählten Gewerke.'
+              : 'Mitarbeiter, Objektfoto und Kundendaten kommen von der Seite Kunden.'}
           </p>
         </div>
         <div className="felder">

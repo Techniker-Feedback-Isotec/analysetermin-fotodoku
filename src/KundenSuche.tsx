@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { ApiFehler, ladeKundenliste, type KundenEintrag, type Kundenliste } from './lib/api'
+import { formatDateShort } from './lib/format'
+import type { VorgangSatz } from './lib/speicher'
 
 /**
  * Das Feld "Kunde" ist zugleich die Suche in MeisterTask: Getippt wird frei,
@@ -10,6 +12,11 @@ import { ApiFehler, ladeKundenliste, type KundenEintrag, type Kundenliste } from
  *
  * Die Liste wird je Mitarbeiter einmal geladen und dann im Browser gefiltert:
  * so kostet das Tippen keinen einzigen Abruf des geteilten Kontingents.
+ *
+ * Seit dem 11.09.2026 stehen oben in der Liste die im Geraet gespeicherten
+ * Vorgaenge, die zur Eingabe passen (Yann: "wenn ich einen Kunden aufrufen
+ * moechte, suche ich einfach in der Namenszeile"). Eine Auswahl dort oeffnet
+ * den Vorgang mit allem, was dazu gespeichert ist.
  */
 
 export interface KundenSucheProps {
@@ -21,8 +28,35 @@ export interface KundenSucheProps {
   /** Ob der Server ueberhaupt ein MeisterTask-Token hat; null = noch unbekannt */
   verfuegbar: boolean | null
   onAuswahl: (eintrag: KundenEintrag) => void
+  /** Im Geraet gespeicherte Vorgaenge (ohne den offenen), neueste zuerst */
+  gespeicherte: VorgangSatz[]
+  onGespeichert: (id: string) => void
   placeholder?: string
 }
+
+/** Hoechstens so viele gespeicherte Vorgaenge oben in der Liste */
+const HOECHSTENS_GESPEICHERT = 6
+
+/** Ort aus der Kundenadresse: der Teil nach dem letzten Komma */
+function ortAus(adresse: string): string {
+  const teile = adresse.split(',').map((t) => t.trim()).filter(Boolean)
+  return teile.length > 1 ? teile[teile.length - 1] : ''
+}
+
+function passtGespeichert(v: VorgangSatz, suche: string): boolean {
+  const woerter = suche.toLowerCase().split(/\s+/).filter(Boolean)
+  if (woerter.length === 0) return true
+  const text = `${v.kunde.kunde} ${v.kunde.kundenadresse} ${v.kunde.objektadresse}`.toLowerCase()
+  return woerter.every((w) => text.includes(w))
+}
+
+/** Ohne Kundennamen laesst sich ein Vorgang in der Namenszeile nicht finden */
+function vorgangIstOhneNamen(v: VorgangSatz): boolean {
+  return v.kunde.kunde.trim() === ''
+}
+
+/** Ein Eintrag der aufgeklappten Liste: gespeicherter Vorgang oder MeisterTask-Treffer */
+type Zeile = { art: 'gespeichert'; vorgang: VorgangSatz } | { art: 'meistertask'; eintrag: KundenEintrag }
 
 const HOECHSTENS = 40
 
@@ -41,6 +75,8 @@ export default function KundenSuche({
   mitarbeiter,
   verfuegbar,
   onAuswahl,
+  gespeicherte,
+  onGespeichert,
   placeholder,
 }: KundenSucheProps) {
   const [liste, setListe] = useState<Kundenliste | null>(null)
@@ -84,27 +120,36 @@ export default function KundenSuche({
   }, [offen])
 
   const treffer = liste ? liste.eintraege.filter((e) => passt(e, wert)).slice(0, HOECHSTENS) : []
-  const zeigeListe = offen && liste !== null && liste.board !== null
+  const gespeicherteTreffer = gespeicherte
+    .filter((v) => !vorgangIstOhneNamen(v) && passtGespeichert(v, wert))
+    .slice(0, HOECHSTENS_GESPEICHERT)
+  const zeilen: Zeile[] = [
+    ...gespeicherteTreffer.map((vorgang): Zeile => ({ art: 'gespeichert', vorgang })),
+    ...treffer.map((eintrag): Zeile => ({ art: 'meistertask', eintrag })),
+  ]
+  const meistertaskBereit = liste !== null && liste.board !== null
+  const zeigeListe = offen && (meistertaskBereit || gespeicherteTreffer.length > 0)
 
-  function waehle(eintrag: KundenEintrag) {
+  function waehle(zeile: Zeile) {
     setOffen(false)
-    onAuswahl(eintrag)
+    if (zeile.art === 'gespeichert') onGespeichert(zeile.vorgang.id)
+    else onAuswahl(zeile.eintrag)
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!zeigeListe || treffer.length === 0) {
+    if (!zeigeListe || zeilen.length === 0) {
       if (e.key === 'ArrowDown') setOffen(true)
       return
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setAktiv((i) => Math.min(i + 1, treffer.length - 1))
+      setAktiv((i) => Math.min(i + 1, zeilen.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setAktiv((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      waehle(treffer[Math.min(aktiv, treffer.length - 1)])
+      waehle(zeilen[Math.min(aktiv, zeilen.length - 1)])
     } else if (e.key === 'Escape') {
       setOffen(false)
     }
@@ -148,33 +193,54 @@ export default function KundenSuche({
       />
       {zeigeListe && (
         <ul className="kundensuche-liste" id={listId} role="listbox">
-          {treffer.length === 0 ? (
+          {zeilen.length === 0 ? (
             <li className="kundensuche-leer">
-              {liste.eintraege.length === 0
+              {liste && liste.eintraege.length === 0
                 ? liste.art === 'reklamation'
                   ? 'Keine offenen Vorgänge im Reklamationsboard.'
                   : 'Keine offenen Vorgänge in Phase 0, Auftragsbesprechungen oder Angebote.'
                 : 'Kein Vorgang passt zur Eingabe.'}
             </li>
           ) : (
-            treffer.map((e, i) => (
-              <li
-                key={e.id}
-                role="option"
-                aria-selected={i === aktiv}
-                className={`kundensuche-eintrag${i === aktiv ? ' aktiv' : ''}`}
-                onMouseEnter={() => setAktiv(i)}
-                // pointerdown statt click: der Klick wuerde erst das Feld verlassen
-                // (blur) und die Liste schliessen, bevor er ankommt
-                onPointerDown={(ev) => {
-                  ev.preventDefault()
-                  waehle(e)
-                }}
-              >
-                <span className="kundensuche-name">{e.anzeige}</span>
-                <span className="kundensuche-spalte">{e.spalte}</span>
-              </li>
-            ))
+            zeilen.map((zeile, i) => {
+              const schluessel = zeile.art === 'gespeichert' ? `g-${zeile.vorgang.id}` : `m-${zeile.eintrag.id}`
+              const klassen = ['kundensuche-eintrag']
+              if (i === aktiv) klassen.push('aktiv')
+              if (zeile.art === 'gespeichert') klassen.push('gespeichert')
+              return (
+                <li
+                  key={schluessel}
+                  role="option"
+                  aria-selected={i === aktiv}
+                  className={klassen.join(' ')}
+                  onMouseEnter={() => setAktiv(i)}
+                  // pointerdown statt click: der Klick wuerde erst das Feld verlassen
+                  // (blur) und die Liste schliessen, bevor er ankommt
+                  onPointerDown={(ev) => {
+                    ev.preventDefault()
+                    waehle(zeile)
+                  }}
+                >
+                  {zeile.art === 'gespeichert' ? (
+                    <>
+                      <span className="kundensuche-name">
+                        {zeile.vorgang.kunde.kunde.trim()}
+                        {ortAus(zeile.vorgang.kunde.kundenadresse) && `, ${ortAus(zeile.vorgang.kunde.kundenadresse)}`}
+                      </span>
+                      <span className="kundensuche-spalte">
+                        auf diesem Gerät · {formatDateShort(zeile.vorgang.geaendert)} · {zeile.vorgang.anzahlFotos} Foto
+                        {zeile.vorgang.anzahlFotos === 1 ? '' : 's'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="kundensuche-name">{zeile.eintrag.anzeige}</span>
+                      <span className="kundensuche-spalte">{zeile.eintrag.spalte}</span>
+                    </>
+                  )}
+                </li>
+              )
+            })
           )}
         </ul>
       )}

@@ -3056,129 +3056,36 @@ table {
   text-overflow: clip;
 }
 
-/* ---------- Seite Kunde: Vorgaenge (Speicher im Geraet, 11.09.2026) ---------- */
+/* ---------- Seite Kunden: Speicherstand des Vorgangs (11.09.2026) ---------- */
 
-.vorgaenge-kopf {
+/* Eine Zeile im Kopf der Karte Termin, rechts: Stand, Neuer Vorgang, Loeschen */
+.vorgang-zeile {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 14px;
   flex-wrap: wrap;
-  gap: 10px 20px;
-}
-
-.vorgaenge-text {
-  min-width: 0;
-}
-
-.card .vorgaenge-text h2 {
-  margin: 0 0 2px;
-  font-size: 1.05rem;
-}
-
-.vorgaenge-status {
-  margin: 0;
+  margin-left: auto;
   font-size: 0.85rem;
-  color: #7a6f68;
 }
 
-.vorgaenge-status.status-fehler,
-.vorgaenge-status.status-aus {
+.vorgang-status {
+  color: #a99f98;
+}
+
+.vorgang-status.status-fehler,
+.vorgang-status.status-aus {
   color: var(--red);
 }
 
-.vorgaenge-knoepfe {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.vorgang-zeile .link-knopf {
+  font-size: 0.85rem;
 }
 
-.vorgangsliste {
-  list-style: none;
-  margin: 14px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.vorgang {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--grey);
-  border-radius: 8px;
-  background: var(--white);
-}
-
-.vorgang.aktiv {
-  border-color: var(--red);
-}
-
-.vorgang.alt {
+/* Gespeicherte Vorgaenge in der Kundensuche: leicht abgesetzt, damit man sie von MeisterTask unterscheidet */
+.kundensuche-eintrag.gespeichert {
   background: var(--light);
 }
 
-.vorgang-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.vorgang-name {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.vorgang-ort {
-  font-weight: 400;
-  color: #7a6f68;
-}
-
-.vorgang-marke {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  vertical-align: middle;
+.kundensuche-eintrag.gespeichert.aktiv {
   background: #fdf0f0;
-  color: var(--red);
-}
-
-.vorgang-marke-alt {
-  background: var(--grey);
-  color: #5c5350;
-}
-
-.vorgang-meta {
-  font-size: 0.8rem;
-  color: #a99f98;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.vorgang-knoepfe {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.btn-klein {
-  padding: 6px 12px;
-  font-size: 0.85rem;
-}
-
-.vorgaenge-fuss {
-  margin: 12px 0 0;
-  font-size: 0.8rem;
-  color: #a99f98;
 }

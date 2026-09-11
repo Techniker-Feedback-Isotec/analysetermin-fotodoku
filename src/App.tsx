@@ -1,6 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import KundePanel from './KundePanel'
-import Vorgaenge from './Vorgaenge'
 import { useVorgang } from './vorgang'
 import type { SeitenZustand } from './lib/speicher'
 import FotoDokuPanel from './FotoDokuPanel'
@@ -114,6 +113,14 @@ export default function App() {
   const { setSeite } = vorgang
   const zustandFotodoku = useCallback((z: SeitenZustand) => setSeite('fotodoku', z), [setSeite])
   const zustandSkizze = useCallback((z: SeitenZustand) => setSeite('prinzipskizze', z), [setSeite])
+  /**
+   * Gespeicherte Vorgaenge fuer die Kundensuche: ohne den offenen und nur die
+   * eigenen (Besitzer = E-Mail der Anmeldung; ohne Besitzer = Entwicklung).
+   * Teilen sich zwei Leute ein iPad, findet jeder nur seine.
+   */
+  const gespeicherte = vorgang.liste.filter(
+    (v) => v.id !== vorgang.id && (!v.besitzer || !ich?.email || v.besitzer === ich.email),
+  )
 
   /** Ein neues Dokument mit gleichem Schluessel ersetzt das alte; null entfernt es. */
   const setzeDokument = useCallback((schluessel: string, quelle: string, datei: File | null) => {
@@ -225,17 +232,6 @@ export default function App() {
       <div className="content">
         <main className="container">
           <div hidden={modus !== 'kunde'}>
-            <Vorgaenge
-              liste={vorgang.liste}
-              aktivId={vorgang.id}
-              status={vorgang.status}
-              gespeichertUm={vorgang.gespeichertUm}
-              verbrauch={vorgang.verbrauch}
-              ich={ich}
-              onNeu={vorgang.neu}
-              onOeffnen={(id) => void vorgang.oeffnen(id)}
-              onLoeschen={(id) => void vorgang.loeschen(id)}
-            />
             <KundePanel
               key={vorgang.id}
               daten={kunde}
@@ -249,6 +245,14 @@ export default function App() {
               ich={ich}
               mappeStart={vorgang.mappe}
               onMappe={vorgang.setMappe}
+              speicher={{
+                status: vorgang.status,
+                gespeichertUm: vorgang.gespeichertUm,
+                gespeicherte,
+                onNeu: vorgang.neu,
+                onOeffnen: (id) => void vorgang.oeffnen(id),
+                onLoeschen: () => void vorgang.loeschen(vorgang.id),
+              }}
             />
           </div>
 

@@ -9,7 +9,7 @@ import logo from './assets/isotec-logo.png'
 export type Modus = 'kunde' | 'foto' | 'video' | 'prinzipskizze' | 'vorschau'
 
 export const BEREICHE: { id: Modus; label: string; kurz: string }[] = [
-  { id: 'kunde', label: 'Kunde', kurz: 'Kunde' },
+  { id: 'kunde', label: 'Kunden', kurz: 'Kunden' },
   { id: 'foto', label: 'Fotodokumentation', kurz: 'Fotos' },
   { id: 'video', label: 'Videodokumentation', kurz: 'Videos' },
   { id: 'prinzipskizze', label: 'Prinzipskizze', kurz: 'Skizze' },

@@ -3,12 +3,14 @@ import { SALESPEOPLE } from './data/salespeople'
 import { GEWERKE } from './data/gewerke'
 import MultiSelect from './MultiSelect'
 import KundenSuche from './KundenSuche'
+import VorgangZeile from './VorgangZeile'
 import { ApiFehler, ladeKundendaten, meistertaskLink, type Ich, type KundenEintrag } from './lib/api'
 import { ACCEPT, isSupported, prepareImage } from './lib/bilder'
 import { logoBild, objektBild, visitenkarteBild } from './lib/deckblattbilder'
 import { formatBytes, formatDateTime, initialsOf, sanitizeFilePart } from './lib/format'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
-import type { MappenZustand } from './lib/speicher'
+import type { MappenZustand, VorgangSatz } from './lib/speicher'
+import type { SpeicherStatus } from './vorgang'
 import {
   CUSTOM_VALUE,
   anschriftenAus,
@@ -112,6 +114,16 @@ export interface KundePanelProps {
   /** Gespeicherte Mappenauswahl beim Aufsetzen; App.tsx setzt die Seite per `key` je Vorgang neu auf */
   mappeStart: MappenZustand
   onMappe: (zustand: MappenZustand) => void
+  /** Speicher im Geraet: Stand, Neuer Vorgang, Loeschen, gespeicherte Vorgaenge fuer die Suche */
+  speicher: {
+    status: SpeicherStatus
+    gespeichertUm: number | null
+    /** Gespeicherte Vorgaenge ohne den offenen, nur eigene, neueste zuerst */
+    gespeicherte: VorgangSatz[]
+    onNeu: () => void
+    onOeffnen: (id: string) => void
+    onLoeschen: () => void
+  }
 }
 
 /**
@@ -130,6 +142,7 @@ export default function KundePanel({
   ich,
   mappeStart,
   onMappe,
+  speicher,
 }: KundePanelProps) {
   const [spPhotoFailed, setSpPhotoFailed] = useState(false)
   const [dragOverObject, setDragOverObject] = useState(false)
@@ -390,9 +403,18 @@ export default function KundePanel({
         <div className="karte-kopf">
           <h2 id="kunde-termin">Termin</h2>
           <p>
-            Einmal eintragen, gilt für alle Unterlagen. Das Feld Kunde sucht im Ersttermine-Board des
-            Mitarbeiters und übernimmt Anschrift und Baujahr aus der Aufgabe.
+            Einmal eintragen, gilt für alle Unterlagen. Das Feld Kunde findet gespeicherte Vorgänge dieses
+            Geräts und sucht im Ersttermine-Board des Mitarbeiters; aus der Aufgabe kommen Anschrift und
+            Baujahr.
           </p>
+          <VorgangZeile
+            status={speicher.status}
+            gespeichertUm={speicher.gespeichertUm}
+            hatInhalt={speicher.gespeichertUm !== null}
+            kundenname={daten.kunde}
+            onNeu={speicher.onNeu}
+            onLoeschen={speicher.onLoeschen}
+          />
         </div>
 
         <div className="kunde-raster">
@@ -467,6 +489,8 @@ export default function KundePanel({
                 mitarbeiter={mitarbeiter.eigen ? '' : mitarbeiter.name}
                 verfuegbar={ich ? ich.meistertask : null}
                 onAuswahl={(eintrag) => void uebernimmVorgang(eintrag)}
+                gespeicherte={speicher.gespeicherte}
+                onGespeichert={speicher.onOeffnen}
                 placeholder="Name tippen, Vorgang wählen"
               />
             </div>
