@@ -11,26 +11,89 @@ import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
 import {
   CUSTOM_VALUE,
   anschriftenAus,
+  mappenFaehig as istMappenFaehig,
+  mappenRang,
   mitarbeiterVon,
   objektadresseText,
   type Dokument,
   type DokumentFn,
+  type HochladenFn,
   type Kundendaten,
   type ToastFn,
 } from './kunde'
 
-/**
- * Vorgegebene Reihenfolge der Unterlagen in der Angebotsmappe (Yann,
- * 08.09.2026): erst die Prinzipskizze, dann die Sanierungsvorschau, zuletzt
- * die Fotodokumentation. Seit dem 10.09.2026 ist sie nur noch die Vorgabe,
- * umsortieren geht in der Mappenliste. Nur diese drei koennen in die Mappe;
- * die Mappe selbst und Videos nicht.
- */
-const MAPPEN_REIHENFOLGE = ['Prinzipskizze', 'Sanierungsvorschau', 'Fotodokumentation']
-
 /** Am Rechner wird heruntergeladen, am Handy zusaetzlich geteilt. */
 const PDF_TEILBAR = typTeilbar('application/pdf', 'dokument.pdf')
 const VIDEO_TEILBAR = typTeilbar('video/mp4', 'video.mp4')
+
+/**
+ * Reihenfolge der Unterlagen in der Mappe: erst die gemerkte Folge, dann
+ * alles Neue nach seinem Startplatz einsortiert (Prinzipskizze, Angebot,
+ * Fotodokumentation). So landet ein spaeter hochgeladenes Angebot vor der
+ * Fotodokumentation, ohne die Sortierung von Hand anzutasten.
+ */
+function sortiereMappe(kandidaten: Dokument[], folge: string[]): Dokument[] {
+  const geordnet = folge
+    .map((id) => kandidaten.find((d) => d.id === id))
+    .filter((d): d is Dokument => d !== undefined)
+  const neue = kandidaten
+    .filter((d) => !folge.includes(d.id))
+    .sort((a, b) => mappenRang(a) - mappenRang(b) || a.erstellt - b.erstellt)
+  for (const dok of neue) {
+    const platz = geordnet.findIndex((d) => mappenRang(d) > mappenRang(dok))
+    if (platz < 0) geordnet.push(dok)
+    else geordnet.splice(platz, 0, dok)
+  }
+  return geordnet
+}
+
+/** Prueft die ersten Bytes: eine PDF beginnt mit "%PDF". Endung und Typ luegen gern. */
+async function istPdf(datei: File): Promise<boolean> {
+  try {
+    const kopf = new TextDecoder('latin1').decode(await datei.slice(0, 5).arrayBuffer())
+    return kopf.startsWith('%PDF')
+  } catch {
+    return false
+  }
+}
+
+/* Kleine Symbole fuer die Knoepfe an jeder Datei, im Strichstil der Navigation. */
+const strich = {
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+}
+
+function SymbolLaden() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" {...strich} aria-hidden="true">
+      <path d="M10 3v10" />
+      <path d="m6 9.5 4 4 4-4" />
+      <path d="M3.5 16.5h13" />
+    </svg>
+  )
+}
+
+function SymbolTeilen() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" {...strich} aria-hidden="true">
+      <circle cx="15" cy="4.5" r="2.2" />
+      <circle cx="5" cy="10" r="2.2" />
+      <circle cx="15" cy="15.5" r="2.2" />
+      <path d="m7 9 6-3.4M7 11l6 3.4" />
+    </svg>
+  )
+}
+
+function SymbolEntfernen() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" {...strich} aria-hidden="true">
+      <path d="m5 5 10 10M15 5 5 15" />
+    </svg>
+  )
+}
 
 export interface KundePanelProps {
   daten: Kundendaten
@@ -38,6 +101,10 @@ export interface KundePanelProps {
   dokumente: Dokument[]
   onEntfernen: (id: string) => void
   onDokument: DokumentFn
+  /** Fertige PDF von aussen aufnehmen (Angebot, fertige Prinzipskizze) */
+  onHochladen: HochladenFn
+  /** Titel einer Unterlage fuer die Mappe aendern */
+  onTitel: (id: string, titel: string) => void
   onToast: ToastFn
   /** Wer angemeldet ist und was der Server kann; null bis /api/ich geantwortet hat */
   ich: Ich | null
@@ -53,6 +120,8 @@ export default function KundePanel({
   dokumente,
   onEntfernen,
   onDokument,
+  onHochladen,
+  onTitel,
   onToast,
   ich,
 }: KundePanelProps) {
@@ -65,19 +134,25 @@ export default function KundePanel({
    * Unterlagen, die NICHT in die Mappe sollen (Yann, 09.09.2026: es muss nur
    * auswaehlbar sein, welches Dokument mitkommt). Abgewaehlt wird selten,
    * deshalb merkt sich die Seite die Ausnahmen statt der Auswahl - so ist eine
-   * neu erstellte Unterlage automatisch dabei.
+   * neu erstellte oder hochgeladene Unterlage automatisch dabei. Gemerkt
+   * werden Dokument-Ids, weil es seit dem 11.09.2026 mehrere Unterlagen mit
+   * demselben Titel geben kann (erstellte und hochgeladene Prinzipskizze).
    */
   const [nichtInMappe, setNichtInMappe] = useState<string[]>([])
   /**
-   * Reihenfolge der Unterlagen in der Mappe, als Liste der Quellen. Beginnt
-   * mit der Vorgabe und wird per Pfeil oder Ziehen umgestellt (Yann,
-   * 10.09.2026).
+   * Reihenfolge der Unterlagen in der Mappe, als Liste der Dokument-Ids. Was
+   * hier nicht steht, sortiert `sortiereMappe` nach seinem Startplatz ein;
+   * Pfeil oder Ziehen schreiben die ganze Folge fest (Yann, 10.09.2026).
    */
-  const [mappenFolge, setMappenFolge] = useState<string[]>(MAPPEN_REIHENFOLGE)
+  const [mappenFolge, setMappenFolge] = useState<string[]>([])
   /** Gezogene und ins Visier genommene Unterlage beim Umsortieren */
-  const [ziehtQuelle, setZiehtQuelle] = useState<string | null>(null)
-  const [zielQuelle, setZielQuelle] = useState<string | null>(null)
+  const [ziehtId, setZiehtId] = useState<string | null>(null)
+  const [zielId, setZielId] = useState<string | null>(null)
+  /** Titel gerade in Bearbeitung: solange ist die Zeile nicht ziehbar, sonst laesst sich kein Text markieren */
+  const [bearbeitetId, setBearbeitetId] = useState<string | null>(null)
+  const [dragOverPdf, setDragOverPdf] = useState(false)
   const objectInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const mitarbeiter = mitarbeiterVon(daten)
 
@@ -142,47 +217,61 @@ export default function KundePanel({
     }
   }
 
-  /** Alles, was grundsaetzlich in die Mappe koennte, in der gewaehlten Reihenfolge. */
-  const mappenFaehig = mappenFolge
-    .map((quelle) => dokumente.find((d) => d.art === 'pdf' && d.quelle === quelle))
-    .filter((d): d is Dokument => d !== undefined)
+  /** Alles, was in die Mappe koennte, in der gewaehlten Reihenfolge. */
+  const mappenFaehig = sortiereMappe(dokumente.filter(istMappenFaehig), mappenFolge)
 
   /** Die tatsaechlich angehakten Unterlagen. */
-  const mappenTeile = mappenFaehig.filter((d) => !nichtInMappe.includes(d.quelle))
+  const mappenTeile = mappenFaehig.filter((d) => !nichtInMappe.includes(d.id))
 
-  const schalteMappe = (quelle: string, dabei: boolean) =>
-    setNichtInMappe((bisher) => (dabei ? bisher.filter((q) => q !== quelle) : [...bisher, quelle]))
+  /** Was nicht in die Mappe kann: die Mappe selbst und Videos. Reine Ablage. */
+  const weitereDateien = dokumente.filter((d) => !istMappenFaehig(d))
 
-  /**
-   * Eine Unterlage einen Platz nach oben oder unten. Gezaehlt wird nur unter
-   * den vorhandenen Unterlagen: Fehlt eine der drei, sollen die Pfeile der
-   * uebrigen trotzdem sinnvoll wirken.
-   */
-  function verschiebeMappe(quelle: string, richtung: -1 | 1) {
-    const vorhanden = mappenFaehig.map((d) => d.quelle)
-    const i = vorhanden.indexOf(quelle)
+  const schalteMappe = (id: string, dabei: boolean) =>
+    setNichtInMappe((bisher) => (dabei ? bisher.filter((q) => q !== id) : [...bisher, id]))
+
+  /** Eine Unterlage einen Platz nach oben oder unten. */
+  function verschiebeMappe(id: string, richtung: -1 | 1) {
+    const vorhanden = mappenFaehig.map((d) => d.id)
+    const i = vorhanden.indexOf(id)
     const j = i + richtung
     if (i < 0 || j < 0 || j >= vorhanden.length) return
     const neu = [...vorhanden]
     ;[neu[i], neu[j]] = [neu[j], neu[i]]
-    // Quellen ohne Dokument hinten anhaengen, damit sie nicht verloren gehen
-    setMappenFolge([...neu, ...mappenFolge.filter((q) => !neu.includes(q))])
+    setMappenFolge(neu)
   }
 
   /** Gezogene Unterlage an die Stelle der Ziel-Unterlage setzen. */
-  function ziehenAufMappe(zielId: string) {
-    const quelle = ziehtQuelle
-    setZiehtQuelle(null)
-    setZielQuelle(null)
-    if (!quelle || quelle === zielId) return
-    const vorhanden = mappenFaehig.map((d) => d.quelle)
-    const von = vorhanden.indexOf(quelle)
-    const nach = vorhanden.indexOf(zielId)
+  function ziehenAufMappe(ziel: string) {
+    const id = ziehtId
+    setZiehtId(null)
+    setZielId(null)
+    if (!id || id === ziel) return
+    const vorhanden = mappenFaehig.map((d) => d.id)
+    const von = vorhanden.indexOf(id)
+    const nach = vorhanden.indexOf(ziel)
     if (von < 0 || nach < 0) return
     const neu = [...vorhanden]
     const [bewegt] = neu.splice(von, 1)
     neu.splice(nach, 0, bewegt)
-    setMappenFolge([...neu, ...mappenFolge.filter((q) => !neu.includes(q))])
+    setMappenFolge(neu)
+  }
+
+  /**
+   * Fertige PDFs von aussen aufnehmen (Yann, 11.09.2026: Angebot und fertige
+   * Prinzipskizze sollen Teil der Mappe sein). Geprueft wird der Dateikopf,
+   * nicht die Endung, damit die Mappe spaeter nicht an einer falsch benannten
+   * Datei scheitert.
+   */
+  async function nimmPdfs(files: FileList | null) {
+    if (!files || files.length === 0) return
+    const abgelehnt: string[] = []
+    for (const datei of Array.from(files)) {
+      if (await istPdf(datei)) onHochladen(datei)
+      else abgelehnt.push(datei.name)
+    }
+    if (abgelehnt.length > 0) {
+      onToast('error', `Keine PDF, nicht aufgenommen: ${abgelehnt.join(', ')}`)
+    }
   }
 
   /**
@@ -201,8 +290,9 @@ export default function KundePanel({
       ])
       const teile = await Promise.all(
         mappenTeile.map(async (d) => ({
-          titel: d.quelle,
+          titel: d.titel.trim() || d.quelle,
           bytes: new Uint8Array(await d.blob.arrayBuffer()),
+          alleSeiten: d.hochgeladen,
         })),
       )
       const bytes = await erzeugeAngebotsmappe({
@@ -235,11 +325,53 @@ export default function KundePanel({
   }
 
   async function teile(dok: Dokument) {
-    const ergebnis = await teileDateien([new File([dok.blob], dok.name, { type: dok.blob.type })], dok.quelle)
+    const ergebnis = await teileDateien([new File([dok.blob], dok.name, { type: dok.blob.type })], dok.titel)
     if (ergebnis === 'nicht moeglich') {
       onToast('error', 'Teilen hat nicht geklappt, die Datei wird stattdessen gespeichert.')
       speichereDatei(dok.blob, dok.name)
     }
+  }
+
+  /**
+   * Die kleinen Knoepfe hinter jeder Datei: herunterladen, am Handy teilen,
+   * entfernen. Bis zum 11.09.2026 standen hier grosse rote Knoepfe je Datei,
+   * die die Liste dominiert haben (Yann: "entferne diese").
+   */
+  function dateiKnoepfe(dok: Dokument) {
+    const teilbar = dok.art === 'pdf' ? PDF_TEILBAR : VIDEO_TEILBAR
+    return (
+      <div className="datei-knoepfe">
+        <button
+          type="button"
+          className="btn-symbol"
+          onClick={() => speichereDatei(dok.blob, dok.name)}
+          aria-label={`${dok.name} herunterladen`}
+          title="Herunterladen"
+        >
+          <SymbolLaden />
+        </button>
+        {teilbar && (
+          <button
+            type="button"
+            className="btn-symbol"
+            onClick={() => void teile(dok)}
+            aria-label={`${dok.name} teilen`}
+            title="Teilen"
+          >
+            <SymbolTeilen />
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn-symbol btn-symbol-entfernen"
+          onClick={() => onEntfernen(dok.id)}
+          aria-label={`${dok.name} entfernen`}
+          title="Entfernen"
+        >
+          <SymbolEntfernen />
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -447,8 +579,13 @@ export default function KundePanel({
 
       <section className="card" aria-labelledby="kunde-dokumente">
         <div className="karte-kopf">
-          <h2 id="kunde-dokumente">Erstellte Dokumente</h2>
-          {dokumente.length === 0 && <p>Noch nichts erstellt. Fertige PDFs und Videos erscheinen hier.</p>}
+          <h2 id="kunde-dokumente">Dokumente</h2>
+          {dokumente.length === 0 && (
+            <p>
+              Noch nichts da. Fertige PDFs und Videos der anderen Seiten erscheinen hier; ein Angebot oder
+              eine fertige Prinzipskizze lässt sich unten hinzufügen.
+            </p>
+          )}
         </div>
 
         <div className="mappe-zeile">
@@ -456,10 +593,10 @@ export default function KundePanel({
             <p className="mappe-titel">Angebotsmappe</p>
             <p className="eingabe-hinweis">
               {mappenFaehig.length === 0
-                ? 'Sobald eine Unterlage fertig ist, entsteht daraus eine Mappe mit Deckblatt und Inhaltsverzeichnis.'
+                ? 'Sobald eine Unterlage da ist, entsteht daraus eine Mappe mit Deckblatt und Inhaltsverzeichnis.'
                 : mappenTeile.length === 0
                   ? 'Keine Unterlage ausgewählt.'
-                  : 'Deckblatt, Inhaltsverzeichnis, Warum ISOTEC, dann die Unterlagen in dieser Reihenfolge:'}
+                  : 'Deckblatt, Inhaltsverzeichnis, Warum ISOTEC, dann die angehakten Unterlagen in dieser Reihenfolge:'}
             </p>
           </div>
           <button
@@ -473,60 +610,86 @@ export default function KundePanel({
         </div>
 
         {/* Auswahl und Reihenfolge der Unterlagen an einer Stelle: anhaken,
-            was mitkommt, und per Pfeil oder Ziehen sortieren (Yann, 10.09.2026) */}
+            was mitkommt, und per Pfeil oder Ziehen sortieren (Yann, 10.09.2026).
+            Seit dem 11.09.2026 haengen die Knoepfe zum Herunterladen direkt
+            an jeder Zeile; eine zweite Liste gibt es nicht mehr. */}
         {mappenFaehig.length > 0 && (
           <ul className="mappenliste">
             {mappenFaehig.map((dok, index) => {
-              const dabei = !nichtInMappe.includes(dok.quelle)
+              const dabei = !nichtInMappe.includes(dok.id)
+              const hakenId = `mappe-${dok.id}`
               const klassen = ['mappenteil']
               if (!dabei) klassen.push('aus')
-              if (ziehtQuelle === dok.quelle) klassen.push('zieht')
-              if (zielQuelle === dok.quelle && ziehtQuelle !== dok.quelle) klassen.push('ziehziel')
+              if (ziehtId === dok.id) klassen.push('zieht')
+              if (zielId === dok.id && ziehtId !== dok.id) klassen.push('ziehziel')
               return (
                 <li
-                  key={dok.quelle}
+                  key={dok.id}
                   className={klassen.join(' ')}
-                  draggable
+                  draggable={bearbeitetId !== dok.id}
                   onDragStart={(e) => {
-                    setZiehtQuelle(dok.quelle)
+                    setZiehtId(dok.id)
                     e.dataTransfer.effectAllowed = 'move'
                   }}
                   onDragEnd={() => {
-                    setZiehtQuelle(null)
-                    setZielQuelle(null)
+                    setZiehtId(null)
+                    setZielId(null)
                   }}
                   onDragOver={(e) => {
-                    if (!ziehtQuelle) return
+                    if (!ziehtId) return
                     e.preventDefault()
                     e.dataTransfer.dropEffect = 'move'
-                    setZielQuelle(dok.quelle)
+                    setZielId(dok.id)
                   }}
                   onDragLeave={() => {
-                    if (zielQuelle === dok.quelle) setZielQuelle(null)
+                    if (zielId === dok.id) setZielId(null)
                   }}
                   onDrop={(e) => {
-                    if (!ziehtQuelle) return
+                    if (!ziehtId) return
                     e.preventDefault()
-                    ziehenAufMappe(dok.quelle)
+                    ziehenAufMappe(dok.id)
                   }}
                 >
-                  <label className="mappenteil-haken">
+                  <label className="mappenteil-haken" htmlFor={hakenId}>
                     <input
+                      id={hakenId}
                       type="checkbox"
                       checked={dabei}
-                      onChange={(e) => schalteMappe(dok.quelle, e.target.checked)}
+                      onChange={(e) => schalteMappe(dok.id, e.target.checked)}
                     />
                     <span className="mappenteil-nummer">{dabei ? `${mappenTeile.indexOf(dok) + 1}.` : '—'}</span>
-                    <span className="mappenteil-name">{dok.quelle}</span>
                   </label>
-                  <span className="mappenteil-meta">{formatBytes(dok.blob.size)}</span>
+                  <div className="mappenteil-text">
+                    {dok.hochgeladen ? (
+                      // Hochgeladene PDFs: der Titel fuer Inhaltsverzeichnis und
+                      // Trennblatt ist geraten (aus dem Dateinamen) und bleibt aenderbar.
+                      <input
+                        type="text"
+                        className="mappenteil-titel"
+                        value={dok.titel}
+                        onChange={(e) => onTitel(dok.id, e.target.value)}
+                        onFocus={() => setBearbeitetId(dok.id)}
+                        onBlur={() => setBearbeitetId(null)}
+                        placeholder="Titel in der Mappe"
+                        aria-label="Titel in der Mappe"
+                      />
+                    ) : (
+                      <label className="mappenteil-name" htmlFor={hakenId}>
+                        {dok.titel}
+                      </label>
+                    )}
+                    <span className="mappenteil-meta">
+                      {dok.name} · {formatBytes(dok.blob.size)} ·{' '}
+                      {dok.hochgeladen ? 'hochgeladen' : formatDateTime(dok.erstellt)}
+                    </span>
+                  </div>
                   <div className="move-buttons">
                     <button
                       type="button"
                       className="btn-move"
-                      onClick={() => verschiebeMappe(dok.quelle, -1)}
+                      onClick={() => verschiebeMappe(dok.id, -1)}
                       disabled={index === 0}
-                      aria-label={`${dok.quelle} nach oben`}
+                      aria-label={`${dok.titel} nach oben`}
                       title="Nach oben"
                     >
                       ↑
@@ -534,56 +697,80 @@ export default function KundePanel({
                     <button
                       type="button"
                       className="btn-move"
-                      onClick={() => verschiebeMappe(dok.quelle, 1)}
+                      onClick={() => verschiebeMappe(dok.id, 1)}
                       disabled={index === mappenFaehig.length - 1}
-                      aria-label={`${dok.quelle} nach unten`}
+                      aria-label={`${dok.titel} nach unten`}
                       title="Nach unten"
                     >
                       ↓
                     </button>
                   </div>
+                  {dateiKnoepfe(dok)}
                 </li>
               )
             })}
           </ul>
         )}
-        {dokumente.length > 0 && (
-          <ul className="dokumente">
-            {dokumente.map((dok) => {
-              const teilbar = dok.art === 'pdf' ? PDF_TEILBAR : VIDEO_TEILBAR
-              return (
-                // Auswahl und Reihenfolge fuer die Mappe stehen oben in der
-                // Mappenliste; hier geht es nur ums Ablegen und Weitergeben.
-                <li key={dok.id} className="dokument">
-                  <div className="dokument-info">
-                    <p className="file-name">{dok.name}</p>
-                    <p className="file-meta">
+
+        {/* Fertige PDFs von aussen: Angebot, fertige Prinzipskizze (Yann, 11.09.2026) */}
+        <input
+          ref={pdfInputRef}
+          className="visually-hidden"
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          onChange={(e) => {
+            void nimmPdfs(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <div
+          className={`dropzone dropzone-zeile mappe-hinzu${dragOverPdf ? ' dropzone-active' : ''}`}
+          onDragOver={(e) => {
+            // Nur echte Dateien annehmen, nicht das Umsortieren der Zeilen darueber
+            if (ziehtId || !Array.from(e.dataTransfer.types).includes('Files')) return
+            e.preventDefault()
+            setDragOverPdf(true)
+          }}
+          onDragLeave={() => setDragOverPdf(false)}
+          onDrop={(e) => {
+            if (ziehtId) return
+            e.preventDefault()
+            setDragOverPdf(false)
+            void nimmPdfs(e.dataTransfer.files)
+          }}
+          onClick={() => pdfInputRef.current?.click()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') pdfInputRef.current?.click()
+          }}
+        >
+          <span className="mappe-hinzu-titel">Fertige PDF hinzufügen</span>
+          <span className="dropzone-hint">
+            Angebot oder fertige Prinzipskizze hierher ziehen oder klicken. Sie wird Teil der Mappe und steht
+            im Inhaltsverzeichnis.
+          </span>
+        </div>
+
+        {/* Was nicht in die Mappe kann: die fertige Mappe selbst und Videos */}
+        {weitereDateien.length > 0 && (
+          <>
+            <p className="dateien-titel">Weitere Dateien</p>
+            <ul className="mappenliste">
+              {weitereDateien.map((dok) => (
+                <li key={dok.id} className="mappenteil mappenteil-still">
+                  <div className="mappenteil-text">
+                    <span className="mappenteil-name">{dok.name}</span>
+                    <span className="mappenteil-meta">
                       {dok.quelle} · {formatBytes(dok.blob.size)} · {formatDateTime(dok.erstellt)}
-                    </p>
+                    </span>
                   </div>
-                  <div className="dokument-knoepfe">
-                    <button type="button" className="btn-primary" onClick={() => speichereDatei(dok.blob, dok.name)}>
-                      Herunterladen
-                    </button>
-                    {teilbar && (
-                      <button type="button" className="btn-secondary" onClick={() => void teile(dok)}>
-                        Teilen
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn-remove"
-                      onClick={() => onEntfernen(dok.id)}
-                      aria-label={`${dok.name} entfernen`}
-                      title="Entfernen"
-                    >
-                      ✕
-                    </button>
-                  </div>
+                  {dateiKnoepfe(dok)}
                 </li>
-              )
-            })}
-          </ul>
+              ))}
+            </ul>
+          </>
         )}
       </section>
     </div>

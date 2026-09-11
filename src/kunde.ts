@@ -137,7 +137,7 @@ export function manuellesTermindatum(daten: Kundendaten): number | null {
   return Number.isNaN(d.getTime()) ? null : d.getTime()
 }
 
-/** Ein erstelltes Dokument, gesammelt auf der Seite Kunde */
+/** Ein erstelltes oder hochgeladenes Dokument, gesammelt auf der Seite Kunde */
 export interface Dokument {
   id: string
   /** Fachlicher Schluessel; ein neues Dokument mit gleichem Schluessel ersetzt das alte */
@@ -146,12 +146,61 @@ export interface Dokument {
   art: 'pdf' | 'video'
   blob: Blob
   url: string
-  /** Seite, auf der es entstanden ist */
+  /** Seite, auf der es entstanden ist; bei fremden PDFs "Hochgeladen" */
   quelle: string
+  /**
+   * Ueberschrift im Inhaltsverzeichnis und auf dem Trennblatt der Mappe. Bei
+   * erstellten Unterlagen ist das die Quelle, bei hochgeladenen der erkannte
+   * oder eingetragene Titel (Yann, 11.09.2026: Angebot und fertige
+   * Prinzipskizze sollen Bestandteil der Mappe sein und im Inhalt stehen).
+   */
+  titel: string
+  /**
+   * Von aussen hochgeladen statt hier erstellt. Solche PDFs haben kein eigenes
+   * Deckblatt, das die Mappe weglassen koennte: alle Seiten kommen mit.
+   */
+  hochgeladen: boolean
   erstellt: number
+}
+
+/** Quelle der von aussen hochgeladenen PDFs */
+export const QUELLE_HOCHGELADEN = 'Hochgeladen'
+
+/**
+ * Vorgegebene Reihenfolge der Unterlagen in der Angebotsmappe (Yann,
+ * 11.09.2026): Prinzipskizze, Angebot, Fotodokumentation. Die
+ * Sanierungsvorschau gehoert fachlich zur Prinzipskizze und steht deshalb
+ * hinter ihr; alles Unbekannte kommt ans Ende. Umsortieren geht in der
+ * Mappenliste, das hier ist nur der Startplatz.
+ */
+const MAPPEN_RANG = ['Prinzipskizze', 'Sanierungsvorschau', 'Angebot', 'Fotodokumentation']
+
+/** Startplatz einer Unterlage in der Mappe; kleiner = weiter vorn. */
+export function mappenRang(dok: Dokument): number {
+  const i = MAPPEN_RANG.findIndex((t) => t.toLowerCase() === dok.titel.trim().toLowerCase())
+  return i < 0 ? MAPPEN_RANG.length : i
+}
+
+/** Kann diese Datei in die Mappe? Nur PDFs, und die Mappe selbst nicht noch einmal. */
+export function mappenFaehig(dok: Dokument): boolean {
+  return dok.art === 'pdf' && dok.quelle !== 'Angebotsmappe'
+}
+
+/**
+ * Titel einer hochgeladenen PDF aus ihrem Dateinamen raten: "Angebot" und
+ * "Prinzipskizze" werden erkannt, alles andere behaelt seinen Namen ohne
+ * Endung. Der Titel bleibt in der Mappenliste aenderbar.
+ */
+export function titelAusDateiname(dateiname: string): string {
+  const ohneEndung = dateiname.replace(/\.pdf$/i, '').trim()
+  if (/angebot/i.test(ohneEndung)) return 'Angebot'
+  if (/prinzip|skizze/i.test(ohneEndung)) return 'Prinzipskizze'
+  return ohneEndung || 'Dokument'
 }
 
 export type ToastKind = 'info' | 'error' | 'success'
 export type ToastFn = (kind: ToastKind, text: string) => void
 /** Meldet ein fertiges Dokument (oder null = entfernen) an die Sammlung auf der Seite Kunde */
 export type DokumentFn = (schluessel: string, quelle: string, datei: File | null) => void
+/** Nimmt eine von aussen mitgebrachte PDF in die Sammlung auf */
+export type HochladenFn = (datei: File) => void

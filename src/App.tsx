@@ -6,9 +6,11 @@ import { useFotostapel } from './fotostapel'
 import { abmelden, ladeIch, type Ich } from './lib/api'
 import {
   LEERE_KUNDENDATEN,
+  QUELLE_HOCHGELADEN,
   mitarbeiterFuerAnmeldung,
   mitarbeiterVon,
   objektadresseEcht,
+  titelAusDateiname,
   type Dokument,
   type Kundendaten,
   type ToastKind,
@@ -114,11 +116,42 @@ export default function App() {
         blob: datei,
         url: URL.createObjectURL(datei),
         quelle,
+        titel: quelle,
+        hochgeladen: false,
         erstellt: Date.now(),
       }
       // Neueste zuerst
       return [neu, ...rest]
     })
+  }, [])
+
+  /**
+   * Eine fertige PDF von aussen (Angebot, fertige Prinzipskizze) in die
+   * Sammlung aufnehmen, damit sie Teil der Mappe werden kann (Yann,
+   * 11.09.2026). Jede Datei ist ein eigenes Dokument, nichts wird ersetzt.
+   */
+  const ladeDokumentHoch = useCallback((datei: File) => {
+    setDokumente((bisher) => {
+      const id = crypto.randomUUID()
+      const neu: Dokument = {
+        id,
+        schluessel: `upload:${id}`,
+        name: datei.name,
+        art: 'pdf',
+        blob: datei,
+        url: URL.createObjectURL(datei),
+        quelle: QUELLE_HOCHGELADEN,
+        titel: titelAusDateiname(datei.name),
+        hochgeladen: true,
+        erstellt: Date.now(),
+      }
+      return [neu, ...bisher]
+    })
+  }, [])
+
+  /** Titel einer Unterlage fuer Inhaltsverzeichnis und Trennblatt aendern */
+  const benenneDokument = useCallback((id: string, titel: string) => {
+    setDokumente((bisher) => bisher.map((d) => (d.id === id ? { ...d, titel } : d)))
   }, [])
 
   const entferneDokument = useCallback((id: string) => {
@@ -184,6 +217,8 @@ export default function App() {
               dokumente={dokumente}
               onEntfernen={entferneDokument}
               onDokument={setzeDokument}
+              onHochladen={ladeDokumentHoch}
+              onTitel={benenneDokument}
               onToast={pushToast}
               ich={ich}
             />

@@ -25,7 +25,8 @@ import { zeichneKapitel, zeichneTrennblatt } from '../mappe/seiten'
  *
  * Vorher trug jede Unterlage ihr eigenes Deckblatt mit Objektfoto mitten in
  * der Mappe. Einzeln erzeugt behalten die Unterlagen ihr Deckblatt, nur in der
- * Mappe faellt es weg.
+ * Mappe faellt es weg. Hochgeladene PDFs (Angebot, fertige Prinzipskizze;
+ * Yann, 11.09.2026) haben kein solches Deckblatt und kommen vollstaendig mit.
  */
 
 const RED = rgb(213 / 255, 19 / 255, 23 / 255)
@@ -39,6 +40,11 @@ export interface MappenTeil {
   /** Ueberschrift im Inhaltsverzeichnis und auf dem Trennblatt */
   titel: string
   bytes: Uint8Array
+  /**
+   * Alle Seiten uebernehmen statt die erste als Deckblatt wegzulassen. Fuer
+   * PDFs, die nicht hier entstanden sind und deshalb kein Deckblatt tragen.
+   */
+  alleSeiten?: boolean
 }
 
 export interface MappenDaten {
@@ -76,9 +82,10 @@ export async function erzeugeAngebotsmappe(daten: MappenDaten): Promise<Uint8Arr
     const quelle = await PDFDocument.load(teil.bytes)
     // Die erste Seite ist das Deckblatt der Unterlage; in der Mappe uebernimmt
     // das Trennblatt diese Rolle. Haette eine Unterlage nur diese eine Seite,
-    // bliebe nichts uebrig - dann kommt sie vollstaendig mit.
+    // bliebe nichts uebrig - dann kommt sie vollstaendig mit. Hochgeladene
+    // PDFs haben kein Deckblatt und kommen immer ganz.
     const seiten = quelle.getPageIndices()
-    const inhalt = seiten.length > 1 ? seiten.slice(1) : seiten
+    const inhalt = teil.alleSeiten || seiten.length <= 1 ? seiten : seiten.slice(1)
     geladen.push({ titel: teil.titel, quelle, inhalt, umfang: inhalt.length })
   }
 

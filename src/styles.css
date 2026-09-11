@@ -1272,44 +1272,13 @@ input[type='checkbox'] {
   margin: 0;
 }
 
-/* ---------- Seite Kunde: erstellte Dokumente ---------- */
-
-.dokumente {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.dokument {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  border: 1px solid var(--grey);
-  border-radius: 8px;
-  background: var(--light);
-  padding: 10px 12px;
-}
-
-.dokument-knoepfe {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
+/* ---------- Seite Kunde: Dokumente ---------- */
 
 /*
- * Haekchen fuer die Angebotsmappe. An dieser Stelle stand bis zum 09.09.2026
- * ein Vorschaufenster je Dokument (PDF im eingebetteten Betrachter, Video mit
- * Bedienleiste). Yann braucht es nicht, und die Liste ist ohne die eingebetteten
- * Betrachter deutlich leichter.
- */
-/*
- * Angebotsmappe: welche Unterlagen mitkommen und in welcher Reihenfolge.
- * Beides steht seit dem 10.09.2026 an einer Stelle, direkt unter dem Knopf;
- * die Liste der erstellten Dokumente darunter ist nur noch Ablage.
+ * Bis zum 09.09.2026 stand hier ein Vorschaufenster je Dokument, bis zum
+ * 11.09.2026 eine zweite Liste mit grossen roten Knoepfen zum Herunterladen.
+ * Beides ist weg: Es gibt eine Liste, in der Auswahl, Reihenfolge und die
+ * kleinen Knoepfe (laden, teilen, entfernen) an jeder Zeile haengen.
  */
 .mappenliste {
   list-style: none;
@@ -1348,9 +1317,45 @@ input[type='checkbox'] {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Zeilen ohne Haken (Mappe, Videos): nichts zu ziehen */
+.mappenteil-still {
+  cursor: default;
+  background: var(--light);
+}
+
+.mappenteil-text {
   flex: 1;
   min-width: 0;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Titel einer hochgeladenen PDF, aenderbar, sieht erst beim Fokus wie ein Feld aus */
+.mappenteil-titel {
+  font: inherit;
+  font-weight: 600;
+  color: var(--brown);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  padding: 1px 6px;
+  margin-left: -7px;
+  max-width: 100%;
+}
+
+.mappenteil-titel:hover {
+  border-color: var(--grey);
+}
+
+.mappenteil-titel:focus {
+  border-color: var(--red);
+  background: var(--white);
+  outline: none;
 }
 
 .mappenteil-haken input {
@@ -1376,25 +1381,76 @@ input[type='checkbox'] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mappenteil-still .mappenteil-name {
+  cursor: default;
 }
 
 .mappenteil-meta {
-  flex-shrink: 0;
   font-size: 0.8rem;
   color: #a99f98;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dokument-info {
-  min-width: 0;
-  flex: 1;
+/* Kleine Symbolknoepfe an jeder Datei: laden, teilen, entfernen */
+.datei-knoepfe {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 4px;
 }
 
-.dokument-info .file-name {
-  word-break: break-all;
+.btn-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #8a8a8a;
+  cursor: pointer;
+  padding: 0;
 }
 
-.dokument-info .file-meta {
-  margin-top: 2px;
+.btn-symbol:hover {
+  color: var(--red);
+  background: #fdf0f0;
+}
+
+.btn-symbol-entfernen {
+  margin-left: 4px;
+}
+
+/* Fertige PDF hinzufuegen, als schmale Zeile unter der Mappenliste */
+.mappe-hinzu {
+  margin-top: 10px;
+  cursor: pointer;
+  gap: 4px 12px;
+}
+
+.mappe-hinzu-titel {
+  font-weight: 600;
+}
+
+.mappe-hinzu .dropzone-hint {
+  font-size: 0.85rem;
+}
+
+.dateien-titel {
+  margin: 20px 0 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7a6f68;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 /* Kurzer Platzhalter, waehrend eine spaet geladene Seite ankommt */
@@ -2541,18 +2597,22 @@ table {
     height: 150px;
   }
 
-  /* Erstellte Dokumente: Angaben oben, Knoepfe darunter */
-  .dokument {
+  /* Dokumente: Haken und Text oben, Pfeile und Knoepfe in einer zweiten Zeile */
+  .mappenteil {
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 8px 12px;
   }
 
-  .dokument-info {
-    flex: 1 1 140px;
+  .mappenteil-text {
+    flex: 1 1 160px;
   }
 
-  .dokument-knoepfe {
-    flex: 1 0 100%;
+  .mappenteil .move-buttons {
+    margin-left: 0;
+  }
+
+  .mappenteil .datei-knoepfe {
+    margin-left: auto;
   }
 
   /* Bilderliste: kleineres Vorschaubild, damit Name und Knoepfe Platz haben */
