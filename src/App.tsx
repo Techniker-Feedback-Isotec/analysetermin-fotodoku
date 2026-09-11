@@ -1,5 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import KundePanel from './KundePanel'
+import Vorgaenge from './Vorgaenge'
+import { useVorgang } from './vorgang'
+import type { SeitenZustand } from './lib/speicher'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
 import { useFotostapel } from './fotostapel'
@@ -101,6 +104,17 @@ export default function App() {
    */
   const stapel = useFotostapel(pushToast)
 
+  /**
+   * Der Vorgang im Geraet: Kundendaten, Fotos, Dokumente, Seitenzustaende und
+   * Mappenauswahl werden fortlaufend in IndexedDB geschrieben und beim Start
+   * wiederhergestellt (Yann, 11.09.2026). Die Seiten bekommen `key={vorgang.id}`,
+   * damit ein Vorgangswechsel sie mit dem gespeicherten Zustand neu aufsetzt.
+   */
+  const vorgang = useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, ich, onToast: pushToast })
+  const { setSeite } = vorgang
+  const zustandFotodoku = useCallback((z: SeitenZustand) => setSeite('fotodoku', z), [setSeite])
+  const zustandSkizze = useCallback((z: SeitenZustand) => setSeite('prinzipskizze', z), [setSeite])
+
   /** Ein neues Dokument mit gleichem Schluessel ersetzt das alte; null entfernt es. */
   const setzeDokument = useCallback((schluessel: string, quelle: string, datei: File | null) => {
     setDokumente((bisher) => {
@@ -191,8 +205,8 @@ export default function App() {
               </p>
             ) : (
               <p className="privacy-note">
-                <span aria-hidden="true">🔒</span> Fotos und Videos bleiben im Browser. Kundendaten
-                kommen aus MeisterTask.
+                <span aria-hidden="true">🔒</span> Fotos, Videos und Vorgänge bleiben auf diesem
+                Gerät. Kundendaten kommen aus MeisterTask.
               </p>
             )}
             {ich?.anmeldung === 'easyauth' && (
@@ -211,7 +225,19 @@ export default function App() {
       <div className="content">
         <main className="container">
           <div hidden={modus !== 'kunde'}>
+            <Vorgaenge
+              liste={vorgang.liste}
+              aktivId={vorgang.id}
+              status={vorgang.status}
+              gespeichertUm={vorgang.gespeichertUm}
+              verbrauch={vorgang.verbrauch}
+              ich={ich}
+              onNeu={vorgang.neu}
+              onOeffnen={(id) => void vorgang.oeffnen(id)}
+              onLoeschen={(id) => void vorgang.loeschen(id)}
+            />
             <KundePanel
+              key={vorgang.id}
               daten={kunde}
               onChange={aendereKunde}
               dokumente={dokumente}
@@ -221,16 +247,21 @@ export default function App() {
               onTitel={benenneDokument}
               onToast={pushToast}
               ich={ich}
+              mappeStart={vorgang.mappe}
+              onMappe={vorgang.setMappe}
             />
           </div>
 
           <div hidden={modus !== 'foto'}>
             <FotoDokuPanel
+              key={vorgang.id}
               art="fotodoku"
               kunde={kunde}
               stapel={stapel}
               onToast={pushToast}
               onDokument={setzeDokument}
+              start={vorgang.seiten.fotodoku}
+              onZustand={zustandFotodoku}
             />
           </div>
 
@@ -253,11 +284,14 @@ export default function App() {
 
           <div hidden={modus !== 'prinzipskizze'}>
             <FotoDokuPanel
+              key={vorgang.id}
               art="prinzipskizze"
               kunde={kunde}
               stapel={stapel}
               onToast={pushToast}
               onDokument={setzeDokument}
+              start={vorgang.seiten.prinzipskizze}
+              onZustand={zustandSkizze}
             />
           </div>
 

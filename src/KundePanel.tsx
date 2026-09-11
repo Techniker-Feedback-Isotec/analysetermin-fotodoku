@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SALESPEOPLE } from './data/salespeople'
 import { GEWERKE } from './data/gewerke'
 import MultiSelect from './MultiSelect'
@@ -8,6 +8,7 @@ import { ACCEPT, isSupported, prepareImage } from './lib/bilder'
 import { logoBild, objektBild, visitenkarteBild } from './lib/deckblattbilder'
 import { formatBytes, formatDateTime, initialsOf, sanitizeFilePart } from './lib/format'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
+import type { MappenZustand } from './lib/speicher'
 import {
   CUSTOM_VALUE,
   anschriftenAus,
@@ -108,6 +109,9 @@ export interface KundePanelProps {
   onToast: ToastFn
   /** Wer angemeldet ist und was der Server kann; null bis /api/ich geantwortet hat */
   ich: Ich | null
+  /** Gespeicherte Mappenauswahl beim Aufsetzen; App.tsx setzt die Seite per `key` je Vorgang neu auf */
+  mappeStart: MappenZustand
+  onMappe: (zustand: MappenZustand) => void
 }
 
 /**
@@ -124,6 +128,8 @@ export default function KundePanel({
   onTitel,
   onToast,
   ich,
+  mappeStart,
+  onMappe,
 }: KundePanelProps) {
   const [spPhotoFailed, setSpPhotoFailed] = useState(false)
   const [dragOverObject, setDragOverObject] = useState(false)
@@ -138,13 +144,17 @@ export default function KundePanel({
    * werden Dokument-Ids, weil es seit dem 11.09.2026 mehrere Unterlagen mit
    * demselben Titel geben kann (erstellte und hochgeladene Prinzipskizze).
    */
-  const [nichtInMappe, setNichtInMappe] = useState<string[]>([])
+  const [nichtInMappe, setNichtInMappe] = useState<string[]>(mappeStart.nichtInMappe)
   /**
    * Reihenfolge der Unterlagen in der Mappe, als Liste der Dokument-Ids. Was
    * hier nicht steht, sortiert `sortiereMappe` nach seinem Startplatz ein;
    * Pfeil oder Ziehen schreiben die ganze Folge fest (Yann, 10.09.2026).
    */
-  const [mappenFolge, setMappenFolge] = useState<string[]>([])
+  const [mappenFolge, setMappenFolge] = useState<string[]>(mappeStart.mappenFolge)
+  // Auswahl und Reihenfolge gehoeren zum Vorgang und werden im Geraet gespeichert
+  useEffect(() => {
+    onMappe({ nichtInMappe, mappenFolge })
+  }, [nichtInMappe, mappenFolge, onMappe])
   /** Gezogene und ins Visier genommene Unterlage beim Umsortieren */
   const [ziehtId, setZiehtId] = useState<string | null>(null)
   const [zielId, setZielId] = useState<string | null>(null)

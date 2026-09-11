@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { visitenkarteVon } from './data/visitenkarten'
 import type { DeckblattBild } from './lib/deckblatt'
 import type { PdfPhoto } from './lib/pdf'
@@ -21,6 +21,7 @@ import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
 import Bildansicht from './Bildansicht'
 import { reichtextIstLeer, type Reichtext } from './lib/richtext'
+import type { SeitenZustand } from './lib/speicher'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
 import {
   TERMINARTEN,
@@ -63,18 +64,26 @@ export interface FotoDokuPanelProps {
   stapel: Fotostapel
   onToast: ToastFn
   onDokument: DokumentFn
+  /**
+   * Gespeicherter Zustand dieser Seite beim Aufsetzen (vorgang.ts). Gelesen
+   * wird er nur einmal; App.tsx setzt die Seite beim Vorgangswechsel ueber
+   * `key` neu auf, damit hier kein Abgleich noetig ist.
+   */
+  start: SeitenZustand
+  /** Meldet jede Aenderung des Zustands, damit sie im Geraet gespeichert wird */
+  onZustand: (zustand: SeitenZustand) => void
 }
 
-export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument }: FotoDokuPanelProps) {
-  const [terminart, setTerminart] = useState<Terminart>('Analysetermin')
+export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument, start, onZustand }: FotoDokuPanelProps) {
+  const [terminart, setTerminart] = useState<Terminart>(start.terminart)
   /** Index des gross gezeigten Fotos, oder null */
   const [ansichtIndex, setAnsichtIndex] = useState<number | null>(null)
   /** Bilder, die auf dieser Seite nicht mitsollen; im Stapel bleiben sie */
-  const [ausgeschlossen, setAusgeschlossen] = useState<string[]>([])
+  const [ausgeschlossen, setAusgeschlossen] = useState<string[]>(start.ausgeschlossen)
   /** Selbst gewaehlte Reihenfolge dieser Seite; null = chronologisch */
-  const [sortierung, setSortierung] = useState<string[] | null>(null)
-  const [keepDuplicates, setKeepDuplicates] = useState(false)
-  const [extraCompression, setExtraCompression] = useState(true)
+  const [sortierung, setSortierung] = useState<string[] | null>(start.sortierung)
+  const [keepDuplicates, setKeepDuplicates] = useState(start.keepDuplicates)
+  const [extraCompression, setExtraCompression] = useState(start.extraCompression)
   const [pdfProgress, setPdfProgress] = useState<Progress | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [fertigePdf, setFertigePdf] = useState<{ blob: Blob; fileName: string } | null>(null)
@@ -82,9 +91,14 @@ export default function FotoDokuPanel({ art, kunde, stapel, onToast, onDokument 
   // Beide bleiben erhalten, wenn die Terminart wechselt. Geschrieben wird im
   // Textfenster, gespeichert als formatierter Text (Absaetze, fett, kursiv,
   // unterstrichen, Aufzaehlung) - genau so kommt er in die PDF.
-  const [beurteilung, setBeurteilung] = useState<Reichtext>([])
-  const [zusammenfassung, setZusammenfassung] = useState<Reichtext>([])
+  const [beurteilung, setBeurteilung] = useState<Reichtext>(start.beurteilung)
+  const [zusammenfassung, setZusammenfassung] = useState<Reichtext>(start.zusammenfassung)
   const [fensterOffen, setFensterOffen] = useState(false)
+
+  // Jede Aenderung nach oben melden, damit der Vorgang im Geraet gespeichert wird
+  useEffect(() => {
+    onZustand({ terminart, ausgeschlossen, sortierung, keepDuplicates, extraCompression, beurteilung, zusammenfassung })
+  }, [terminart, ausgeschlossen, sortierung, keepDuplicates, extraCompression, beurteilung, zusammenfassung, onZustand])
   const [dragPhotoId, setDragPhotoId] = useState<string | null>(null)
   const [dragOverPhotoId, setDragOverPhotoId] = useState<string | null>(null)
 

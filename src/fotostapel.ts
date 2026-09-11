@@ -20,6 +20,10 @@ export interface Fotostapel {
   fortschritt: Progress | null
   hinzufuegen: (dateien: FileList | File[]) => Promise<void>
   drehen: (id: string) => Promise<void>
+  /** Gespeicherte Fotos zurueckholen (Vorschauen entstehen neu); liefert den fertigen Stapel */
+  wiederherstellen: (saetze: Omit<TerminPhoto, 'thumbUrl'>[]) => Promise<TerminPhoto[]>
+  /** Alles verwerfen, etwa beim Wechsel des Vorgangs */
+  leeren: () => void
 }
 
 export function useFotostapel(onToast: ToastFn): Fotostapel {
@@ -95,5 +99,43 @@ export function useFotostapel(onToast: ToastFn): Fotostapel {
     [onToast],
   )
 
-  return { fotos, fortschritt, hinzufuegen, drehen }
+  const leeren = useCallback(() => {
+    for (const f of fotosRef.current) URL.revokeObjectURL(f.thumbUrl)
+    fotosRef.current = []
+    setFotos([])
+    setFortschritt(null)
+  }, [])
+
+  /**
+   * Fotos aus dem Speicher des Geraets zurueckholen (siehe vorgang.ts). Die
+   * Blobs sind noch da, nur die Vorschau-Adressen nicht: Sie entstehen hier
+   * nacheinander neu, mit Fortschritt, und jedes fertige Foto erscheint sofort.
+   */
+  const wiederherstellen = useCallback(
+    async (saetze: Omit<TerminPhoto, 'thumbUrl'>[]) => {
+      leeren()
+      const fertig: TerminPhoto[] = []
+      for (let i = 0; i < saetze.length; i++) {
+        const satz = saetze[i]
+        setFortschritt({
+          label: `Foto ${i + 1}/${saetze.length} wird wiederhergestellt: ${satz.fileName}`,
+          done: i,
+          total: saetze.length,
+        })
+        try {
+          const thumbUrl = await makeThumbnailUrl(satz.workingBlob, satz.orientation, 512, satz.rotation)
+          const foto = { ...satz, thumbUrl }
+          fertig.push(foto)
+          setFotos((bisher) => [...bisher, foto])
+        } catch {
+          onToast('error', `Gespeichertes Foto nicht lesbar, übersprungen: ${satz.fileName}`)
+        }
+      }
+      setFortschritt(null)
+      return fertig
+    },
+    [leeren, onToast],
+  )
+
+  return { fotos, fortschritt, hinzufuegen, drehen, wiederherstellen, leeren }
 }
