@@ -42,6 +42,8 @@ const state = {
   auswahl: null,       // { seite, items, item (nur bei genau einem), punkt?, ecke? }
   leisteZu: false,     // Vorlagenleiste eingeklappt
   fixiert: !touchGeraet, // Leiste bleibt nach der Vorlagenwahl offen (auf dem iPad klappt sie zu)
+  reiter: 'gewerke',   // aktiver Reiter der Vorlagenleiste; 'grundriss' blendet das Raster ein
+  zuschnitt: false,    // Hand mit gewaehltem Foto: Griffe schneiden statt zu skalieren
   pfad: null,          // Polygon in Arbeit: { seite, item }
   linie: null,         // Gerade in Arbeit: { seite, item, start }
   verlauf: [],
@@ -179,6 +181,10 @@ function probe(v) {
 function baueVorlagen(reiter) {
   el.vorlagen.innerHTML = '';
   schliesseEinstellungen();
+  // Das Raster gehoert zum Grundriss: dort zeigt es die Verhaeltnisse, auf
+  // Fotos und Gewerkeflaechen wuerde es nur stoeren (Yann, 12.09.2026).
+  state.reiter = reiter;
+  zeichneAlles();
   const gruppen = { aufmass: [AUFMASS], grundriss: [GRUNDRISS] }[reiter] || GEWERKE;
   const knopfFuer = (v, breit) => {
     const knopf = document.createElement('button');
@@ -312,6 +318,11 @@ function markiereVorlage() {
   const gruppe = mehrere && a.items.every((i) => i.gruppe && i.gruppe === a.items[0].gruppe);
   $('btn-gruppe').disabled = !mehrere;
   $('btn-gruppe').querySelector('.label').textContent = gruppe ? 'Lösen' : 'Gruppe';
+  // Zuschneiden gibt es nur fuer genau ein gewaehltes Foto in der Hand
+  const foto = state.tool === 'auswahl' && !!a && !!a.item && a.item.t === 'img';
+  if (!foto) state.zuschnitt = false;
+  $('btn-zuschneiden').disabled = !foto;
+  $('btn-zuschneiden').classList.toggle('aktiv', state.zuschnitt);
   el.seiten.classList.toggle('zeichnen', state.tool !== 'auswahl');
   $('zoom-wert').textContent = Math.round(state.zoom * 100) + ' %';
   $('btn-undo').disabled = !state.verlauf.length;
@@ -547,6 +558,7 @@ function zeichneSeite(s) {
   ctx.clearRect(0, 0, s.cInk.width, s.cInk.height);
   const k = state.zoom * dprAktuell();
   ctx.setTransform(k, 0, 0, k, 0, 0);
+  if (state.reiter === 'grundriss') malRaster(ctx, s);
   for (const it of s.items) zeichneItem(ctx, it, state.bilder, true);
   if (s.entwurf) zeichneItem(ctx, s.entwurf, state.bilder, true);
   if (s.hilfen && s.hilfen.length) malHilfen(ctx, s.hilfen);
@@ -562,6 +574,46 @@ function zeichneAlles() {
 }
 
 const ecken = (b) => [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]];
+
+/* --------------------------------------------------------------- Raster */
+
+/** Ein Millimeter in PDF-Punkten; das Raster liegt bei 5 und 10 Millimetern. */
+const MM = 72 / 25.4;
+const RASTER = { klein: 5 * MM, gross: 10 * MM };
+
+/**
+ * Raster fuer den Grundriss (Yann, 12.09.2026): feine Linien alle 5 mm,
+ * kraeftigere alle 10 mm, damit die Verhaeltnisse beim Zeichnen sichtbar sind.
+ * Nur auf dem Bildschirm; der Export zeichnet die Objekte neu und kennt es nicht.
+ */
+function malRaster(ctx, s) {
+  const z = state.zoom;
+  ctx.save();
+  const linien = (schritt, farbe, dicke) => {
+    ctx.strokeStyle = farbe;
+    ctx.lineWidth = dicke / z;
+    ctx.beginPath();
+    for (let x = schritt; x < s.breite; x += schritt) { ctx.moveTo(x, 0); ctx.lineTo(x, s.hoehe); }
+    for (let y = schritt; y < s.hoehe; y += schritt) { ctx.moveTo(0, y); ctx.lineTo(s.breite, y); }
+    ctx.stroke();
+  };
+  // Das feine Raster erst, wenn seine Linien mindestens 7 Pixel auseinander liegen
+  if (RASTER.klein * z >= 7) linien(RASTER.klein, 'rgba(86, 74, 68, .10)', 0.6);
+  linien(RASTER.gross, 'rgba(86, 74, 68, .22)', 0.8);
+  ctx.restore();
+}
+
+/** Griffe zum Zuschneiden eines Fotos: vier Ecken und vier Kantenmitten. */
+const ZUSCHNITT_GRIFFE = [
+  { l: true, t: true }, { r: true, t: true }, { l: true, b: true }, { r: true, b: true },
+  { t: true }, { b: true }, { l: true }, { r: true },
+];
+function zuschnittGriffe(b) {
+  return [
+    ...ecken(b),
+    [b.x + b.w / 2, b.y], [b.x + b.w / 2, b.y + b.h], [b.x, b.y + b.h / 2], [b.x + b.w, b.y + b.h / 2],
+  ];
+}
 
 /**
  * Griffe eines Objekts. Polygone: jeder Eckpunkt. Linien: beide Enden.
@@ -630,6 +682,20 @@ function malAuswahl(ctx, a) {
   }
   const it = a.item;
   const b = bbox(it, ctx);
+  if (state.zuschnitt && it.t === 'img') {
+    // Zuschneiden: brauner Rahmen, acht kraeftige Griffe an Ecken und Kanten
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#564A44';
+    ctx.lineWidth = 1.6 / state.zoom;
+    ctx.strokeRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = '#564A44';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.2 / state.zoom;
+    const q = (touchGeraet ? 14 : 10) / state.zoom;
+    for (const [x, y] of zuschnittGriffe(b)) { ctx.fillRect(x - q / 2, y - q / 2, q, q); ctx.strokeRect(x - q / 2, y - q / 2, q, q); }
+    ctx.restore();
+    return;
+  }
   if (it.t !== 'line') ctx.strokeRect(b.x, b.y, b.w, b.h);
   ctx.setLineDash([]);
   ctx.fillStyle = '#fff';
@@ -667,6 +733,15 @@ function malAnker(ctx, pfad) {
     ctx.strokeStyle = farbe;
     ctx.stroke();
   }
+  // Der Vorschaupunkt: dort wuerde der naechste Punkt liegen (Stift schwebt
+  // oder liegt noch auf, gesetzt wird erst beim Abheben)
+  const [vx, vy] = pts[pts.length - 1];
+  ctx.beginPath();
+  ctx.arc(vx, vy, r * 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, .85)';
+  ctx.fill();
+  ctx.strokeStyle = farbe;
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -730,12 +805,24 @@ function fangWinkel(s) {
  * bearbeitete Objekt aus.
  */
 function fange(s, p, anker, erzwinge, ausser, frei) {
-  if (frei && !erzwinge) return { x: p.x, y: p.y, hilfen: [] };
-  const tolP = FANG.punkt / state.zoom, tolL = FANG.linie / state.zoom;
+  // Mit dem Finger oder Stift darf der Magnet etwas weiter greifen als mit der Maus
+  const tolP = (touchGeraet ? 12 : FANG.punkt) / state.zoom, tolL = (touchGeraet ? 9 : FANG.linie) / state.zoom;
   const pts = fangPunkte(s, ausser);
   const hilfen = [];
   let x = p.x, y = p.y;
   const istAnker = (q) => anker && q[0] === anker.x && q[1] === anker.y;
+
+  /*
+   * Freie Vorlagen (Gewerkeflaechen) liegen punktgenau unter dem Zeiger, ohne
+   * Winkel- und Achsenfang (Yann, 10.09.2026). Seit dem 12.09.2026 gilt nur
+   * noch eine Ausnahme: Ganz nah an einem Eckpunkt oder einer Kante eines
+   * vorhandenen Polygons dockt der Punkt an ("ganz simpel an ein bestehendes
+   * andocken koennen"), sonst bleibt er, wo er ist.
+   */
+  if (frei && !erzwinge) {
+    const m = magnet(s, p, pts, ausser, tolP, tolL, istAnker);
+    return m ? { x: m.x, y: m.y, hilfen: [{ typ: 'punkt', x: m.x, y: m.y }] } : { x: p.x, y: p.y, hilfen: [] };
+  }
 
   let fest = null;
   if (anker) {
@@ -759,15 +846,11 @@ function fange(s, p, anker, erzwinge, ausser, frei) {
   }
 
   if (!erzwinge) {
-    let naechster = null, nd = tolP;
-    for (const q of pts) {
-      if (istAnker(q)) continue;
-      const d = Math.hypot(q[0] - p.x, q[1] - p.y);
-      if (d < nd) { nd = d; naechster = q; }
-    }
-    if (naechster) {
-      hilfen.push({ typ: 'punkt', x: naechster[0], y: naechster[1] });
-      return { x: naechster[0], y: naechster[1], hilfen };
+    // Eckpunkt oder Kante eines vorhandenen Objekts in Reichweite: andocken
+    const m = magnet(s, p, pts, ausser, tolP, tolL, istAnker);
+    if (m) {
+      hilfen.push({ typ: 'punkt', x: m.x, y: m.y });
+      return { x: m.x, y: m.y, hilfen };
     }
   }
 
@@ -790,7 +873,50 @@ function fange(s, p, anker, erzwinge, ausser, frei) {
       if (q) { y = q[1]; hilfen.push({ typ: 'h', y, x1: Math.min(x, q[0]), x2: Math.max(x, q[0]) }); }
     }
   }
+
+  // Im Grundriss rastet, was sonst nirgends angedockt hat, auf das 5-mm-Raster
+  if (state.reiter === 'grundriss' && fest !== 'schraeg') {
+    const g = RASTER.klein;
+    if (fest !== 'x' && !hilfen.some((h) => h.typ === 'v')) x = Math.round(x / g) * g;
+    if (fest !== 'y' && !hilfen.some((h) => h.typ === 'h')) y = Math.round(y / g) * g;
+  }
   return { x, y, hilfen };
+}
+
+/**
+ * Der Magnet: zuerst der naechste Eckpunkt in Reichweite, sonst der naechste
+ * Punkt auf einer Kante eines Polygons oder einer Geraden. Liefert null, wenn
+ * nichts nah genug liegt. Der Anker (letzter fester Punkt) zaehlt nicht,
+ * sonst klebte die neue Kante an ihrem eigenen Anfang.
+ */
+function magnet(s, p, pts, ausser, tolP, tolL, istAnker) {
+  let best = null, bd = tolP;
+  for (const q of pts) {
+    if (istAnker(q)) continue;
+    const d = Math.hypot(q[0] - p.x, q[1] - p.y);
+    if (d < bd) { bd = d; best = { x: q[0], y: q[1] }; }
+  }
+  if (best) return best;
+  bd = tolL;
+  const pruefe = (a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const l2 = dx * dx + dy * dy;
+    if (!l2) return;
+    const t = Math.max(0, Math.min(1, ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / l2));
+    const x = a[0] + t * dx, y = a[1] + t * dy;
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < bd) { bd = d; best = { x, y }; }
+  };
+  for (const it of s.items) {
+    if (it === ausser) continue;
+    if (it.t === 'line') pruefe([it.x1, it.y1], [it.x2, it.y2]);
+    else if (it.t === 'poly') for (let i = 0; i < it.pts.length; i++) pruefe(it.pts[i], it.pts[(i + 1) % it.pts.length]);
+    else if (it.t === 'rect') {
+      const e = ecken(bbox(it));
+      pruefe(e[0], e[1]); pruefe(e[1], e[3]); pruefe(e[3], e[2]); pruefe(e[2], e[0]);
+    }
+  }
+  return best;
 }
 
 /** Der Bezugspunkt fuer die Richtung: Anfang der Linie oder letzter fester Polygonpunkt. */
@@ -909,6 +1035,17 @@ function verdrahteSeite(s) {
           if (p.x >= g.x && p.x <= g.x + g.w && p.y >= g.y && p.y <= g.y + g.h) { schnappschuss(); modus = 'schieben'; start = p; return; }
         } else {
           const it = a.item;
+          if (state.zuschnitt && it.t === 'img') {
+            // Zuschneiden: ein Griff an Ecke oder Kante schneidet, alles andere verschiebt
+            const b = bbox(it, ctx2);
+            const zi = zuschnittGriffe(b).findIndex(([x, y]) => Math.hypot(p.x - x, p.y - y) < griffRadius);
+            if (zi >= 0) {
+              schnappschuss();
+              modus = 'zuschneiden'; start = p;
+              alt = { x: it.x, y: it.y, w2: it.w2, h2: it.h2, sx: it.sx, sy: it.sy, sw: it.sw, sh: it.sh, griff: ZUSCHNITT_GRIFFE[zi] };
+              return;
+            }
+          }
           const idx = griffe(it, ctx2).findIndex(([x, y]) => Math.hypot(p.x - x, p.y - y) < griffRadius);
           if (idx >= 0) {
             schnappschuss();
@@ -936,7 +1073,18 @@ function verdrahteSeite(s) {
     s.hilfen = [];
     switch (state.tool) {
       case 'linie': linieKlick(s, p); return;
-      case 'polygon': pfadKlick(s, p); punktGesetzt = true; return;
+      case 'polygon':
+        // Der erste Punkt sitzt sofort, damit die Kante gleich mitlaeuft. Jeder
+        // weitere wird erst beim Abheben gesetzt: Solange Stift oder Finger
+        // aufliegen, zeigt die Vorschaukante, wo er landen wuerde (Yann,
+        // 12.09.2026: "ich muss immer einen Punkt anklicken und erst im
+        // Nachhinein wird die Linie gezogen"). Ein schwebender Stift (iPad
+        // Pro mit Pencil) bewegt die Vorschau schon vor dem Aufsetzen.
+        if (!state.pfad || state.pfad.seite !== s) { pfadKlick(s, p); punktGesetzt = true; return; }
+        modus = 'punkt-setzen';
+        state.pfad.item.pts[state.pfad.item.pts.length - 1] = [p.x, p.y];
+        zeichneSeite(s);
+        return;
       case 'text': textEingabe(s, p.x, p.y); return;
       case 'callout': setzeCallout(s, p); return;
       case 'kreuz': {
@@ -1012,6 +1160,28 @@ function verdrahteSeite(s) {
       else if (it.t === 'callout') { it.zx = f.x; it.zy = f.y; }
       s.hilfen = f.hilfen;
       zeichneSeite(s);
+    } else if (modus === 'zuschneiden') {
+      // Der Bildinhalt bleibt liegen, nur der sichtbare Ausschnitt wandert mit
+      // dem Griff. Nach aussen gezogen kommt Verdecktes bis zum Bildrand zurueck.
+      const it = state.auswahl.item;
+      const bild = state.bilder[it.bild];
+      const natW = (bild && bild.el && bild.el.naturalWidth) || 1;
+      const natH = (bild && bild.el && bild.el.naturalHeight) || 1;
+      const q = { sx: alt.sx ?? 0, sy: alt.sy ?? 0, sw: alt.sw ?? natW, sh: alt.sh ?? natH };
+      const kx = alt.w2 / q.sw, ky = alt.h2 / q.sh; // Seitenpunkte je Bildpixel
+      const minX = alt.x - q.sx * kx, minY = alt.y - q.sy * ky;
+      const maxX = minX + natW * kx, maxY = minY + natH * ky;
+      const klemme = (v, a, b) => Math.max(a, Math.min(b, v));
+      const g = alt.griff, mind = 12 / state.zoom;
+      let x1 = alt.x, y1 = alt.y, x2 = alt.x + alt.w2, y2 = alt.y + alt.h2;
+      if (g.l) x1 = klemme(p.x, minX, x2 - mind);
+      if (g.r) x2 = klemme(p.x, x1 + mind, maxX);
+      if (g.t) y1 = klemme(p.y, minY, y2 - mind);
+      if (g.b) y2 = klemme(p.y, y1 + mind, maxY);
+      it.x = x1; it.y = y1; it.w2 = x2 - x1; it.h2 = y2 - y1;
+      it.sx = (x1 - minX) / kx; it.sy = (y1 - minY) / ky;
+      it.sw = it.w2 / kx; it.sh = it.h2 / ky;
+      zeichneSeite(s);
     } else if (modus === 'schieben') {
       for (const it of state.auswahl.items) verschiebe(it, p.x - start.x, p.y - start.y);
       start = p;
@@ -1052,6 +1222,20 @@ function verdrahteSeite(s) {
       return;
     }
     const p = punkt(s, e);
+    // Polygon: der Punkt sitzt erst beim Abheben, dort wo die Vorschau zuletzt lag.
+    // Ein abgebrochener Zeiger (zweiter Finger, Systemgeste) setzt nichts.
+    if (modus === 'punkt-setzen') {
+      modus = null;
+      if (e.type === 'pointerup' && state.pfad && state.pfad.seite === s) {
+        const f = fange(s, p, ankerFuer(s), e.shiftKey, null, state.pfad.item.frei);
+        s.hilfen = [];
+        pfadKlick(s, { x: f.x, y: f.y });
+      } else if (state.pfad && state.pfad.seite === s) {
+        s.hilfen = [];
+        zeichneSeite(s);
+      }
+      return;
+    }
     // Eine gezogene Gerade ist mit dem Loslassen fertig, ein blosser Klick wartet auf den zweiten
     if (state.linie && state.linie.seite === s && Math.hypot(p.x - state.linie.start.x, p.y - state.linie.start.y) > 4 / state.zoom) {
       const f = fange(s, p, state.linie.start, e.shiftKey);
@@ -1135,7 +1319,7 @@ function pfadKlick(s, p) {
   }
   const item = state.pfad.item;
   const [sx, sy] = item.pts[0];
-  if (item.pts.length >= 4 && Math.hypot(p.x - sx, p.y - sy) < 10 / state.zoom) {
+  if (item.pts.length >= 4 && Math.hypot(p.x - sx, p.y - sy) < (touchGeraet ? 16 : 10) / state.zoom) {
     beendePfad(true);
     return;
   }
@@ -1380,6 +1564,7 @@ for (const k of $('reiter').querySelectorAll('.reiter-knopf')) {
   k.onclick = () => {
     $('reiter').querySelectorAll('.reiter-knopf').forEach((x) => x.classList.toggle('aktiv', x === k));
     baueVorlagen(k.dataset.reiter);
+    if (k.dataset.reiter === 'grundriss') melde('Grundriss: Raster 5 mm eingeblendet, Punkte rasten darauf ein.');
   };
 }
 
@@ -1391,6 +1576,15 @@ $('datei-input').onchange = (e) => { nimmDateien(e.target.files); e.target.value
 $('btn-auswahl').onclick = waehleAuswahl;
 $('btn-lasso').onclick = waehleLasso;
 $('btn-gruppe').onclick = gruppiere;
+$('btn-zuschneiden').onclick = () => {
+  const a = state.auswahl;
+  if (!a || !a.item || a.item.t !== 'img') return;
+  state.zuschnitt = !state.zuschnitt;
+  zeichneAlles();
+  melde(state.zuschnitt
+    ? 'Zuschneiden: Ecken oder Kanten nach innen ziehen. Nach außen holt Verdecktes zurück. Fertig mit erneutem Tipp, Hand oder Esc.'
+    : 'Zuschnitt übernommen.');
+};
 $('btn-einstellung').onclick = () => { if (state.vorlage) oeffneEinstellungen(state.vorlage, $('btn-einstellung')); };
 $('btn-zuklappen').onclick = () => klappeLeiste(true);
 $('btn-aufklappen').onclick = () => klappeLeiste(false);
@@ -1475,6 +1669,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     e.preventDefault();
     if (offeneEinstellung) { schliesseEinstellungen(); return; }
+    if (state.zuschnitt) { state.zuschnitt = false; zeichneAlles(); return; }
     if (state.pfad) { beendePfad(false); return; }
     if (state.linie) { beendeLinie(false); return; }
     if (state.tool !== 'auswahl') { waehleAuswahl(); return; }

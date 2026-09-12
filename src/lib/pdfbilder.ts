@@ -21,6 +21,37 @@ export interface Box {
 export interface Ausschnitt {
   name: string
   box: Box
+  /**
+   * Weisse Raender innerhalb der Box abschneiden. Fotos sitzen mit Seitenverhaeltnis
+   * in ihrer Flaeche und lassen links/rechts oder oben/unten Weiss stehen; die
+   * Folie soll nur das Foto mit den Zeichnungen zeigen (12.09.2026 abends).
+   */
+  trimmen?: boolean
+}
+
+/**
+ * Engstes Rechteck der nicht weissen Pixel innerhalb eines Bereichs, mit etwas
+ * Luft; null, wenn dort nur Weiss liegt. Gerastert in Zweierschritten, das
+ * reicht fuer die Kante und spart die Haelfte der Zeit.
+ */
+function nichtWeiss(ctx: CanvasRenderingContext2D, sx: number, sy: number, sw: number, sh: number) {
+  const d = ctx.getImageData(sx, sy, sw, sh).data
+  let x1 = sw, y1 = sh, x2 = -1, y2 = -1
+  for (let y = 0; y < sh; y += 2) {
+    for (let x = 0; x < sw; x += 2) {
+      const i = (y * sw + x) * 4
+      if (d[i] < 238 || d[i + 1] < 238 || d[i + 2] < 238) {
+        if (x < x1) x1 = x
+        if (x > x2) x2 = x
+        if (y < y1) y1 = y
+        if (y > y2) y2 = y
+      }
+    }
+  }
+  if (x2 < 0) return null
+  const luft = 6
+  const ax = Math.max(0, x1 - luft), ay = Math.max(0, y1 - luft)
+  return { x: sx + ax, y: sy + ay, w: Math.min(sw - ax, x2 - x1 + 1 + 2 * luft), h: Math.min(sh - ay, y2 - y1 + 1 + 2 * luft) }
 }
 
 export interface SeitenTeil {
@@ -95,11 +126,19 @@ export async function rendereSeiten(
       ]
       const teile: SeitenTeil[] = []
       for (const a of ausschnitte) {
-        const sx = Math.max(0, Math.round(a.box.x * massstab))
-        const sy = Math.max(0, Math.round(a.box.y * massstab))
-        const sw = Math.min(canvas.width - sx, Math.round(a.box.breite * massstab))
-        const sh = Math.min(canvas.height - sy, Math.round(a.box.hoehe * massstab))
+        let sx = Math.max(0, Math.round(a.box.x * massstab))
+        let sy = Math.max(0, Math.round(a.box.y * massstab))
+        let sw = Math.min(canvas.width - sx, Math.round(a.box.breite * massstab))
+        let sh = Math.min(canvas.height - sy, Math.round(a.box.hoehe * massstab))
         if (sw <= 0 || sh <= 0) continue
+        if (a.trimmen) {
+          const eng = nichtWeiss(ctx, sx, sy, sw, sh)
+          if (!eng) continue // nur Weiss: die Seite hat hier kein Foto
+          sx = eng.x
+          sy = eng.y
+          sw = eng.w
+          sh = eng.h
+        }
         const teil = document.createElement('canvas')
         teil.width = sw
         teil.height = sh

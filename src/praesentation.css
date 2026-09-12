@@ -381,6 +381,11 @@ body.praesi-offen {
   --symbol: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9.5'/><path d='m7.5 12.5 3 3L16.5 9'/></svg>");
 }
 
+/* Der Haken des Soll ist gruen wie seine Spalte in der Gegenueberstellung */
+.praesi-reichtext.soll li::before {
+  background-color: var(--ok);
+}
+
 .praesi-reichtext.ziel li::before {
   --symbol: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 21V4'/><path d='M5 4h11l-1.5 3.5L16 11H5'/></svg>");
 }
@@ -442,9 +447,15 @@ body.praesi-offen {
   min-height: 0;
 }
 
-.praesi-spalte.soll {
+/* Ist rot, Soll gruen (Yann, 12.09.2026 abends: "aktuell ist Soll rot") */
+.praesi-spalte.ist {
   background: #fdf0f0;
   border: 1px solid #f3c9cb;
+}
+
+.praesi-spalte.soll {
+  background: #eaf5ec;
+  border: 1px solid #bcd9bf;
 }
 
 .praesi-spaltenmarke {
@@ -457,9 +468,13 @@ body.praesi-offen {
   color: #a99f98;
 }
 
-.praesi-spalte.soll .praesi-spaltenmarke,
+.praesi-spalte.ist .praesi-spaltenmarke,
 .praesi-ziel .praesi-spaltenmarke {
   color: var(--red);
+}
+
+.praesi-spalte.soll .praesi-spaltenmarke {
+  color: var(--ok);
 }
 
 .praesi-spalte h3 {
@@ -467,8 +482,12 @@ body.praesi-offen {
   margin-bottom: 0.8rem;
 }
 
-.praesi-spalte.soll h3 {
+.praesi-spalte.ist h3 {
   color: var(--red);
+}
+
+.praesi-spalte.soll h3 {
+  color: var(--ok);
 }
 
 .praesi-spalte .praesi-reichtext {
@@ -546,6 +565,13 @@ body.praesi-offen {
   border-radius: 8px;
   box-shadow: 0 16px 50px rgba(86, 74, 68, 0.22);
   background: var(--white);
+}
+
+/* Sanierungsbereiche: nur das Foto mit den Zeichnungen, ohne A4-Rand (Yann, 12.09.2026 abends) */
+.praesi-skizze.foto .praesi-skizze-haupt img {
+  border-radius: 14px;
+  box-shadow: 0 18px 56px rgba(86, 74, 68, 0.3);
+  background: none;
 }
 
 .praesi-skizze-legende {

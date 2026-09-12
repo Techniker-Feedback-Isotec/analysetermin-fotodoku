@@ -6,6 +6,7 @@ import { nameMitRolle, rolleVon } from './data/rollen'
 import { reichtextIstLeer, reichtextZuHtml, type Reichtext } from './lib/richtext'
 import { formatDateShort } from './lib/format'
 import { ladeSeitenDaten, type PraesentationZustand } from './lib/speicher'
+import type { Ausschnitt } from './lib/pdfbilder'
 import { gewerkBild, infosFuer } from './data/gewerkeInfo'
 import { nachherVon, type VorschauSatz } from './vorschau/lib/saetze'
 import { mitarbeiterVon, objektadresseEcht, type Kundendaten, type ToastFn } from './kunde'
@@ -48,12 +49,22 @@ const FELDER: { feld: Feld; titel: string }[] = [
 ]
 
 /*
- * Skizzenseiten kommen als ganzes A4-Blatt auf die Folie. Zwischendurch
- * (12.09.2026 mittags) waren es Ausschnitte (Zeichenflaeche und Legende
- * getrennt), Yann wollte am Abend zurueck: "gehe hier wieder auf unser altes
- * DIN-A4-Design, bei den Sanierungsbereichen auch". Die Ausschnitt-Logik in
- * pdfbilder.ts (Parameter schnitt) bleibt fuer spaeter erhalten.
+ * Skizzenseiten auf den Folien (Stand 12.09.2026 abends, dritte Fassung):
+ * Die Seite Bauzeichnungen bleibt das ganze A4-Blatt ("die soll genau so
+ * bleiben"). Die Bildseiten der Sanierungsbereiche zeigen nur das Foto mit
+ * den Zeichnungen darauf, ohne den weissen Rand des Blatts, "so kann man mehr
+ * erkennen". Die Bildflaeche liegt zwischen Kopfzeile (134 Punkt) und
+ * Hinweis mit Fusszeile (98 Punkt) bei 40 Punkt Seitenrand (Masse aus
+ * lib/pdf.ts); weisse Raender innerhalb der Flaeche (Hochkantfotos) schneidet
+ * pdfbilder.ts mit `trimmen` weg. Mittags waren kurz alle Seiten Ausschnitte,
+ * dann alle wieder A4; jetzt die Mischung.
  */
+function ausschnitteFuer(_seite: number, abschnitt: string | null): Ausschnitt[] {
+  if (abschnitt === 'Bauzeichnungen') {
+    return [{ name: 'ganz', box: { x: 0, y: 0, breite: 595.28, hoehe: 841.89 } }]
+  }
+  return [{ name: 'foto', box: { x: 40, y: 134, breite: 515, hoehe: 842 - 134 - 98 }, trimmen: true }]
+}
 
 export default function PraesentationPanel({
   kunde,
@@ -208,7 +219,7 @@ export default function PraesentationPanel({
       // Kapitel: Sanierungsbereiche aus der gezeichneten Skizze
       if (skizze) {
         const { rendereSeiten } = await import('./lib/pdfbilder')
-        const { bilder } = await rendereSeiten(new Uint8Array(await skizze.blob.arrayBuffer()), 2, null, 1800)
+        const { bilder } = await rendereSeiten(new Uint8Array(await skizze.blob.arrayBuffer()), 2, null, 1800, ausschnitteFuer)
         const mitTeilen = bilder.filter((b) => b.teile.length > 0)
         if (mitTeilen.length > 0) {
           const erstes = mitTeilen.find((b) => b.abschnitt !== 'Bauzeichnungen') ?? mitTeilen[0]
@@ -222,14 +233,14 @@ export default function PraesentationPanel({
         }
         for (const b of mitTeilen) {
           for (const t of b.teile) neueAdressen.push(t.url)
-          const haupt = b.teile.find((t) => t.name === 'haupt') ?? b.teile[0]
-          const legende = b.teile.find((t) => t.name === 'legende') ?? null
+          const haupt = b.teile[0]
           liste.push({
             art: 'skizze',
             marke: 'PRINZIPSKIZZE',
             titel: b.abschnitt ?? 'Sanierungsbereiche',
             hauptUrl: haupt.url,
-            legendeUrl: legende?.url ?? null,
+            legendeUrl: null,
+            foto: haupt.name === 'foto',
           })
         }
       }
@@ -240,7 +251,9 @@ export default function PraesentationPanel({
         .map((satz) => ({ satz, nachher: nachherVon(satz) }))
         .filter((p): p is { satz: VorschauSatz; nachher: Blob } => p.nachher !== null)
       if (paareListe.length > 0) {
-        const vorschauBild = URL.createObjectURL(paareListe[0].nachher)
+        // Das Kapitelblatt zeigt das Vorher-Bild; das Nachher kommt erst mit dem
+        // Schieberegler (Yann, 12.09.2026 abends: "darf nicht schon zu sehen sein")
+        const vorschauBild = URL.createObjectURL(paareListe[0].satz.vorherBlob)
         neueAdressen.push(vorschauBild)
         liste.push({
           art: 'kapitel',

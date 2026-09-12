@@ -27,7 +27,7 @@ export type Folie =
   | { art: 'kapitel'; nummer: number; titel: string; unterzeile: string; bildUrl: string | null }
   | { art: 'text'; marke: string; titel: string; html: string; bilder?: string[]; chips?: string[]; symbol?: 'ist' | 'soll' | 'ziel' }
   | { art: 'gegenueber'; istHtml: string; sollHtml: string; zielHtml: string | null }
-  | { art: 'skizze'; marke: string; titel: string; hauptUrl: string; legendeUrl: string | null }
+  | { art: 'skizze'; marke: string; titel: string; hauptUrl: string; legendeUrl: string | null; foto: boolean }
   | {
       art: 'gewerk'
       titel: string
@@ -335,7 +335,7 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
               <p className="praesi-marke">{folie.marke}</p>
               <h2>{folie.titel}</h2>
             </Anim>
-            <div className={`praesi-skizze${folie.legendeUrl ? ' mit-legende' : ''}`}>
+            <div className={`praesi-skizze${folie.legendeUrl ? ' mit-legende' : ''}${folie.foto ? ' foto' : ''}`}>
               <Anim i={1} className="praesi-skizze-haupt">
                 <img src={folie.hauptUrl} alt={folie.titel} />
               </Anim>

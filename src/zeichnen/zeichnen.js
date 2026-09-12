@@ -202,8 +202,12 @@ export function zeichneItem(ctx, it, bilder, ansicht) {
 
     case 'img': {
       const bild = bilder && bilder[it.bild];
-      if (bild && bild.el && bild.el.complete) {
-        ctx.drawImage(bild.el, it.x, it.y, it.w2, it.h2);
+      if (bild && bild.el && bild.el.complete && bild.el.naturalWidth) {
+        // Zuschnitt (sx, sy, sw, sh in Bildpixeln); ohne Angaben das ganze Bild.
+        // Der Export laeuft ueber dieselbe Funktion, deshalb gilt der Zuschnitt auch in der PDF.
+        const sx = it.sx ?? 0, sy = it.sy ?? 0;
+        const sw = it.sw ?? bild.el.naturalWidth, sh = it.sh ?? bild.el.naturalHeight;
+        ctx.drawImage(bild.el, sx, sy, sw, sh, it.x, it.y, it.w2, it.h2);
       } else {
         ctx.fillStyle = '#e6e3e1';
         ctx.fillRect(it.x, it.y, it.w2, it.h2);
