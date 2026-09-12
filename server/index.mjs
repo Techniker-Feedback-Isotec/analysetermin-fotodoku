@@ -24,9 +24,12 @@ import { gzipSync } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { extname, join, normalize, sep } from 'node:path'
+import { Readable } from 'node:stream'
 import { angemeldet } from './anmeldung.mjs'
 import { erzeugeKundendienst, MeisterTaskFehler } from './meistertask.mjs'
 import { geminiWeiterleiten } from './gemini.mjs'
+import { GraphFehler, aufnahmenNahe, dateiInhalt, fensterAus, graphToken } from './graph.mjs'
+import { geocode } from './geocode.mjs'
 
 const PORT = Number(process.env.PORT) || 8080
 const MT_TOKEN = process.env.MT_TOKEN
@@ -177,7 +180,42 @@ createServer(async (req, res) => {
         anmeldung: 'easyauth',
         meistertask: Boolean(MT_TOKEN),
         gemini: Boolean(GEMINI),
+        // Graph-Token von Easy Auth da? Nur mit Token-Speicher und Scope Files.Read (Testumgebung)
+        onedrive: Boolean(graphToken(req)),
       })
+      return
+    }
+
+    // Objektadresse zu Koordinaten, fuer die Zuordnung der OneDrive-Fotos
+    if (url.pathname === '/api/geocode') {
+      json(req, res, 200, { standort: await geocode(url.searchParams.get('adresse') ?? '') })
+      return
+    }
+
+    // OneDrive des angemeldeten Nutzers (server/graph.mjs)
+    if (url.pathname === '/api/onedrive/aufnahmen') {
+      const token = graphToken(req)
+      if (!token) {
+        json(req, res, 503, { fehler: 'OneDrive ist auf diesem Server nicht angebunden.' })
+        return
+      }
+      json(req, res, 200, await aufnahmenNahe(token, fensterAus(url.searchParams)))
+      return
+    }
+
+    const datei = /^\/api\/onedrive\/datei\/([^/]+)$/.exec(url.pathname)
+    if (datei) {
+      const token = graphToken(req)
+      if (!token) {
+        json(req, res, 503, { fehler: 'OneDrive ist auf diesem Server nicht angebunden.' })
+        return
+      }
+      const inhalt = await dateiInhalt(token, decodeURIComponent(datei[1]))
+      const kopf = { 'Content-Type': inhalt.headers.get('content-type') ?? 'application/octet-stream', 'Cache-Control': 'no-store' }
+      const laenge = inhalt.headers.get('content-length')
+      if (laenge) kopf['Content-Length'] = laenge
+      res.writeHead(200, kopf)
+      Readable.fromWeb(inhalt.body).pipe(res)
       return
     }
 
@@ -239,6 +277,13 @@ createServer(async (req, res) => {
   } catch (err) {
     if (err instanceof MeisterTaskFehler) {
       json(req, res, err.status === 429 ? 429 : 502, { fehler: err.message })
+      return
+    }
+    if (err instanceof GraphFehler) {
+      // 409 statt 401: ein 401 hielte die App fuer eine abgelaufene Anmeldung an
+      // der App selbst; hier ist nur das Graph-Token alt, /.auth/refresh holt ein neues.
+      const status = err.status === 401 ? 409 : err.status >= 400 && err.status < 600 ? err.status : 502
+      json(req, res, status, { fehler: err.message, onedriveAbgelaufen: err.status === 401 })
       return
     }
     res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })

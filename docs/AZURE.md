@@ -122,11 +122,55 @@ https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/ - fuer den B
 dem iPad, bevor etwas auf Azure geht. Dort fehlen Anmeldung, Kundensuche, MeisterTask-
 Ablage und Sanierungsvorschau (`VITE_OHNE_SERVER=1`, siehe src/lib/api.ts).
 
+## Testumgebung auf Azure: isotec-dokumentation-test (seit 12.09.2026 abends)
+
+Zweite Web-App in derselben Ressourcengruppe, gleicher Plan `rp-prod-plan`,
+gleiche Anmelde-Identitaet `id-dokumentation-auth` und dieselbe
+App-Registrierung (zweite Redirect-URI
+`https://isotec-dokumentation-test.azurewebsites.net/.auth/login/aad/callback`).
+Anwendungseinstellungen sind eine Kopie der Live-App. Hier laeuft der Zweig
+`entwicklung`, damit sich Neues mit Anmeldung, MeisterTask und OneDrive
+pruefen laesst, bevor es auf `main` und die Live-App geht.
+
+Adresse: https://isotec-dokumentation-test.azurewebsites.net
+
+Ausliefern wie oben, nur mit dem anderen Namen:
+
+```powershell
+cd C:\Users\YannFeyen\Desktop\analysetermin-fotodoku
+git checkout entwicklung
+npm run build
+Compress-Archive -Path 'dist','server','package.json' -DestinationPath "$env:TEMP\dokumentation-test-paket.zip" -Force
+az webapp deploy --name isotec-dokumentation-test --resource-group rg-dokumentation-prod --src-path "$env:TEMP\dokumentation-test-paket.zip" --type zip
+```
+
+**Unterschied zur Live-App: OneDrive.** Easy Auth hat hier den Token-Speicher
+an (`login.tokenStore.enabled`) und fordert beim Anmelden die Graph-Scopes
+`openid profile email offline_access Files.Read` an (`loginParameters`). Der
+Server bekommt damit je Aufruf das Graph-Token des Nutzers in der Kopfzeile
+`X-MS-TOKEN-AAD-ACCESS-TOKEN` und liest dessen OneDrive (`server/graph.mjs`,
+Sonderordner `cameraroll` = "Eigene Aufnahmen"); `/.auth/refresh` holt ein
+frisches Token, wenn es abgelaufen ist (der Server antwortet dann mit 409).
+Die App-Registrierung hat dafuer die delegierten Berechtigungen `Files.Read`
+und `User.Read` mit mandantenweiter Einwilligung (`az ad app permission
+admin-consent`, erteilt am 12.09.2026). Die Live-App fordert den Scope nicht
+an und hat keinen Token-Speicher: dort meldet `/api/ich` `onedrive: false`,
+und die App zeigt den Eingang nicht. Soll OneDrive live gehen, dieselben
+zwei Einstellungen an `isotec-dokumentation` setzen (Befehle: `az webapp auth
+show` der Test-App als Vorlage, `az webapp auth set --body`).
+
+Geokodierung der Objektadresse (`server/geocode.mjs`) laeuft ueber Nominatim
+(OpenStreetMap) ohne Schluessel, hoechstens eine Anfrage je Sekunde, mit
+Absenderkennung; Ergebnisse haengen am Vorgang (`kunde.standort`).
+
 ## Lokal entwickeln
 
 `npm run dev` (Vite auf Port 5173). Der Dev-Server bedient `/api/*` selbst
 (`vite.config.ts`) mit den Geheimnissen aus `.env.local` (nicht eingecheckt):
 `MT_TOKEN`, `MT_TOKEN_FELDER`, `GEMINI_SCHLUESSEL`. Ohne Anmeldung gilt Yann
-als angemeldet (`/api/ich` antwortet fest). Fehlt `GEMINI_SCHLUESSEL`, zeigt
+als angemeldet (`/api/ich` antwortet fest). OneDrive lokal: `GRAPH_TOKEN` (ein
+Token aus dem Graph Explorer, gilt eine Stunde) spricht mit dem echten
+OneDrive; `ONEDRIVE_DEMO=<Ordner>` spielt stattdessen die Bilder und Videos
+dieses Ordners als Aufnahmen am Objekt ein, ohne Microsoft zu fragen. Fehlt `GEMINI_SCHLUESSEL`, zeigt
 die Sanierungsvorschau den Hinweis „nicht eingerichtet"; `#demo` laedt
 Beispielbilder ohne Google.

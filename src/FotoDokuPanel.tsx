@@ -21,6 +21,7 @@ import logoPngUrl from './assets/isotec-logo.png'
 import Textfenster, { Textvorschau } from './Textfenster'
 import Bildansicht from './Bildansicht'
 import ZeichenFenster from './ZeichenFenster'
+import type { OneDriveStand } from './onedrive'
 import { reichtextIstLeer, type Reichtext } from './lib/richtext'
 import type { SeitenZustand } from './lib/speicher'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
@@ -79,6 +80,8 @@ export interface FotoDokuPanelProps {
    * Markups liegen bearbeitbar in der PDF). null = noch keine gezeichnet.
    */
   vorhandene?: { blob: Blob; name: string } | null
+  /** Nur Fotodokumentation: Stand des OneDrive-Eingangs (src/onedrive.ts), null = nicht angebunden */
+  onedrive?: OneDriveStand | null
 }
 
 export default function FotoDokuPanel({
@@ -90,6 +93,7 @@ export default function FotoDokuPanel({
   start,
   onZustand,
   vorhandene = null,
+  onedrive = null,
 }: FotoDokuPanelProps) {
   const [terminart, setTerminart] = useState<Terminart>(start.terminart)
   /** Index des gross gezeigten Fotos, oder null */
@@ -612,6 +616,19 @@ export default function FotoDokuPanel({
             </label>
           )}
         </div>
+
+        {/* OneDrive-Eingang (nur Fotodokumentation, nur mit Zugang): Zustand und Knopf, keine Erklaerung */}
+        {!istSkizze && onedrive && onedrive.status !== 'aus' && (
+          <p className={`onedrive-zeile${onedrive.status === 'fehler' ? ' ist-fehler' : ''}`} aria-live="polite">
+            <span aria-hidden="true">☁</span>
+            <span>OneDrive · {onedrive.text}</span>
+            {(onedrive.status === 'bereit' || onedrive.status === 'fehler') && (
+              <button type="button" className="btn-inline" onClick={onedrive.pruefen}>
+                Jetzt prüfen
+              </button>
+            )}
+          </p>
+        )}
 
         {annotated.length > 0 && (
           <ul className="photo-list">

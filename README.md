@@ -105,9 +105,22 @@ https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/ – zum Anse
 auf dem iPad. Dort fehlen Anmeldung, Kundensuche, MeisterTask-Ablage und Sanierungsvorschau
 (Schalter `VITE_OHNE_SERVER` in `src/lib/api.ts`); alles andere läuft im Browser.
 
+## Eingang aus OneDrive (seit 12.09.2026, Testumgebung)
+
+Die Fotos vom Termin entstehen auf dem iPhone und liegen über die OneDrive-App kurz darauf im
+Konto des Mitarbeiters („Eigene Aufnahmen", Ordner Jahr/Monat). Ist ein Projekt offen, fragt die
+App jede Minute nach Aufnahmen, die im Zeitfenster des Termins innerhalb von 150 Metern um die
+Objektadresse entstanden sind (Aufnahmeort aus den Metadaten, Objektadresse geokodiert), und legt
+sie in die Fotodokumentation, Videos auf die Videoseite (`src/onedrive.ts`, `server/graph.mjs`,
+`server/geocode.mjs`). Schon Übernommenes merkt sich der Vorgang. Der Server liest dafür das
+OneDrive des angemeldeten Nutzers mit dessen Graph-Token (Files.Read, nur lesen); auf der Live-App
+ist das noch nicht eingeschaltet, siehe [`docs/AZURE.md`](docs/AZURE.md).
+
 ## Datenschutz
 
 - Fotos, Videos und PDFs bleiben im Browser: kein Upload, kein Tracking, kein localStorage.
+  Ausnahme seit 12.09.2026: Der Eingang aus OneDrive **liest** die eigenen Aufnahmen des
+  angemeldeten Nutzers über den Server; geschrieben wird dort nichts.
 - Die Anmeldung läuft über das ISOTEC-Konto (Microsoft Entra, Sitzungscookie von Easy Auth,
   acht Stunden). Kundendaten werden aus MeisterTask **gelesen**, nichts wird dorthin geschrieben.
 - **Ausnahme Sanierungsvorschau:** Dort gehen die Kellerfotos zur Bearbeitung an Google Gemini.

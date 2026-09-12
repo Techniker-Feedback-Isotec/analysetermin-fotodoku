@@ -7,6 +7,7 @@ import type { SeitenZustand } from './lib/speicher'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
 import { useFotostapel } from './fotostapel'
+import { useOneDrive } from './onedrive'
 import { ApiFehler, OHNE_SERVER, abmelden, ladeIch, ladeKundendaten, type Ich, type KundenEintrag } from './lib/api'
 import {
   LEERE_KUNDENDATEN,
@@ -94,7 +95,7 @@ export default function App() {
       })
       .catch(() => {
         // Ohne Antwort bleibt alles bedienbar, nur ohne Vorauswahl und Suche.
-        if (!abgebrochen) setIch({ email: null, name: null, anmeldung: 'entwicklung', meistertask: false, gemini: false })
+        if (!abgebrochen) setIch({ email: null, name: null, anmeldung: 'entwicklung', meistertask: false, gemini: false, onedrive: false })
       })
     return () => {
       abgebrochen = true
@@ -115,6 +116,28 @@ export default function App() {
    */
   const vorgang = useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, ich, onToast: pushToast })
   const { setSeite } = vorgang
+
+  /**
+   * Videos aus OneDrive (src/onedrive.ts) gehen an die Videoseite. Die ist
+   * spaet geladen; kommt ein Video, wird sie geoeffnet, damit sie es
+   * verarbeitet und im Geraet ablegt, auch wenn niemand hinschaut.
+   */
+  const [videoEingang, setVideoEingang] = useState<File[]>([])
+  const nimmVideos = useCallback((dateien: File[]) => {
+    setVideoEingang((bisher) => [...bisher, ...dateien])
+    setGeoeffnet((g) => ({ ...g, video: true }))
+  }, [])
+  const videoEingangVerarbeitet = useCallback(() => setVideoEingang([]), [])
+  const onedrive = useOneDrive({
+    ich,
+    kunde,
+    aendereKunde,
+    vorgangId: vorgang.id,
+    stapel,
+    onVideos: nimmVideos,
+    onToast: pushToast,
+  })
+
   const zustandFotodoku = useCallback((z: SeitenZustand) => setSeite('fotodoku', z), [setSeite])
   const zustandSkizze = useCallback((z: SeitenZustand) => setSeite('prinzipskizze', z), [setSeite])
   /**
@@ -327,6 +350,7 @@ export default function App() {
               onDokument={setzeDokument}
               start={vorgang.seiten.fotodoku}
               onZustand={zustandFotodoku}
+              onedrive={onedrive}
             />
           </div>
 
@@ -344,6 +368,8 @@ export default function App() {
                   objektadresse={objektadresseEcht(kunde)}
                   onToast={pushToast}
                   onDokument={setzeDokument}
+                  eingang={videoEingang}
+                  onEingangVerarbeitet={videoEingangVerarbeitet}
                 />
               </Suspense>
             )}

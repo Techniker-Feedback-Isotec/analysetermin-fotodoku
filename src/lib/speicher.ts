@@ -79,7 +79,8 @@ export interface PraesentationZustand {
 export const LEERE_PRAESENTATION: PraesentationZustand = { ist: [], soll: [] }
 
 /** Seiten, die ihre Arbeitsdaten als eigenen Satz je Vorgang ablegen */
-export type SeitenName = 'vorschau' | 'video'
+/** vorschau, video: Arbeitsdaten der Seiten; onedrive: Kennungen der schon uebernommenen Aufnahmen */
+export type SeitenName = 'vorschau' | 'video' | 'onedrive'
 
 interface SeitenSatz {
   /** `${vorgangId}:${seite}` */

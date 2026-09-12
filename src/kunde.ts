@@ -36,6 +36,21 @@ export interface Kundendaten {
   objektfoto: PreparedImage | null
   /** Die MeisterTask-Aufgabe, aus der die Angaben uebernommen wurden, oder null */
   meistertask: { id: number; token: string; titel: string } | null
+  /**
+   * Koordinaten der Objektadresse (Geokodierung, seit 12.09.2026), damit
+   * OneDrive-Aufnahmen ueber ihren Aufnahmeort dem Projekt zugeordnet werden.
+   * `adresse` ist der Text, zu dem sie gehoeren; aendert er sich, wird neu
+   * gesucht. Fehlt bei Vorgaengen vor dem 12.09.2026 (dann undefined).
+   */
+  standort?: Standort | null
+}
+
+export interface Standort {
+  lat: number
+  lon: number
+  /** Trefferzeile der Geokodierung, zum Nachpruefen */
+  anzeige: string
+  adresse: string
 }
 
 export const LEERE_KUNDENDATEN: Kundendaten = {

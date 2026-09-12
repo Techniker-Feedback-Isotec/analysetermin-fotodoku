@@ -18,6 +18,40 @@ export interface Ich {
   meistertask: boolean
   /** Ob der Server einen Gemini-Schluessel hat (Sanierungsvorschau moeglich) */
   gemini: boolean
+  /** Ob Easy Auth ein Graph-Token mitgibt (OneDrive des Nutzers lesbar); fehlt bei alten Servern */
+  onedrive?: boolean
+}
+
+/** Ergebnis der Geokodierung einer Adresse (server/geocode.mjs) */
+export interface StandortTreffer {
+  lat: number
+  lon: number
+  anzeige: string
+}
+
+/** Ein Foto oder Video aus OneDrive nahe der Objektadresse (server/graph.mjs) */
+export interface Aufnahme {
+  id: string
+  name: string
+  groesse: number
+  mime: string
+  art: 'foto' | 'video'
+  /** Aufnahmezeit, ISO */
+  aufgenommen: string
+  lat: number | null
+  lon: number | null
+  /** Meter bis zur Objektadresse */
+  entfernung: number
+}
+
+export interface AufnahmenAntwort {
+  treffer: Aufnahme[]
+  /** Aufnahmen im Zeitfenster insgesamt */
+  geprueft: number
+  /** davon ohne Standort */
+  ohneStandort: number
+  ordner: string[]
+  hinweis?: string
 }
 
 /** Eine Aufgabe aus dem Ersttermine-Board, wie die Suchliste sie zeigt. */
@@ -131,6 +165,55 @@ export const ladeKundenliste = (mitarbeiter: string) =>
 
 export const ladeKundendaten = (eintrag: KundenEintrag) =>
   hole<KundendatenAusMeisterTask>(`/api/kunden/${eintrag.id}?projekt=${eintrag.projekt}`)
+
+export const ladeStandort = (adresse: string) =>
+  hole<{ standort: StandortTreffer | null }>(`/api/geocode?adresse=${encodeURIComponent(adresse)}`)
+
+export const ladeAufnahmen = (p: { seit: string; bis: string; lat: number; lon: number; radius: number }) =>
+  hole<AufnahmenAntwort>(
+    `/api/onedrive/aufnahmen?seit=${encodeURIComponent(p.seit)}&bis=${encodeURIComponent(p.bis)}&lat=${p.lat}&lon=${p.lon}&radius=${p.radius}`,
+  )
+
+/**
+ * Eine Aufnahme aus OneDrive als Datei holen. Der Server streamt den Inhalt;
+ * Name, Typ und Aufnahmezeit kommen aus der Liste, damit die Fotoseite das
+ * Datum wie bei einer selbst gewaehlten Datei liest.
+ */
+export async function ladeOneDriveDatei(a: Aufnahme): Promise<File> {
+  if (OHNE_SERVER) throw new ApiFehler(OHNE_SERVER_TEXT, 0)
+  let r: Response
+  try {
+    r = await fetch(`/api/onedrive/datei/${encodeURIComponent(a.id)}`, { cache: 'no-store' })
+  } catch {
+    throw new ApiFehler('Keine Verbindung zum Server. Internetverbindung prüfen.', 0)
+  }
+  const typ = r.headers.get('Content-Type') ?? ''
+  if (typ.includes('json')) {
+    const daten = (await r.json()) as { fehler?: string }
+    throw new ApiFehler(daten.fehler ?? `Der Server antwortet mit ${r.status}.`, r.status)
+  }
+  if (r.status === 401 || r.status === 403 || typ.includes('text/html')) {
+    erneutAnmelden()
+    throw new ApiFehler('Die Anmeldung ist abgelaufen. Die Seite meldet sich neu an.', r.status)
+  }
+  if (!r.ok) throw new ApiFehler(`Der Server antwortet mit ${r.status}.`, r.status)
+  const blob = await r.blob()
+  const zeit = Date.parse(a.aufgenommen)
+  return new File([blob], a.name, { type: a.mime || blob.type, lastModified: Number.isNaN(zeit) ? Date.now() : zeit })
+}
+
+/**
+ * Easy Auth ein frisches Graph-Token holen lassen (Token-Speicher, Scope
+ * offline_access). Liefert true, wenn es geklappt hat.
+ */
+export async function onedriveAuffrischen(): Promise<boolean> {
+  try {
+    const r = await fetch('/.auth/refresh', { cache: 'no-store' })
+    return r.ok
+  } catch {
+    return false
+  }
+}
 
 /** Link zur Aufgabe in MeisterTask. */
 export const meistertaskLink = (token: string) => `https://www.meistertask.com/app/task/${token}`

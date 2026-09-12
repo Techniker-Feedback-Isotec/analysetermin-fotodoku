@@ -103,6 +103,9 @@ export interface VideoPanelProps {
   onToast: (kind: 'info' | 'error' | 'success', text: string) => void
   /** Fertige Videos fuer die Sammlung auf der Seite Kunde; null = Video wurde entfernt */
   onDokument?: (schluessel: string, quelle: string, datei: File | null) => void
+  /** Videos, die von aussen kommen (OneDrive-Eingang, src/onedrive.ts); nach dem Annehmen leert App.tsx die Liste */
+  eingang?: File[]
+  onEingangVerarbeitet?: () => void
 }
 
 /** WebCodecs fehlt z. B. in alten iOS-Versionen - dann bleibt nur das Original. */
@@ -537,6 +540,14 @@ export default function VideoPanel(props: VideoPanelProps) {
   )
   const totalOriginal = jobs.reduce((sum, job) => sum + quelleGroesse(job), 0)
   const totalResult = jobs.reduce((sum, job) => sum + (job.result?.blob.size ?? quelleGroesse(job)), 0)
+
+  // Videos aus OneDrive annehmen wie eine Auswahl im Dateifenster
+  const { eingang, onEingangVerarbeitet } = props
+  useEffect(() => {
+    if (!eingang || eingang.length === 0) return
+    void addFiles(eingang)
+    onEingangVerarbeitet?.()
+  }, [eingang, addFiles, onEingangVerarbeitet])
 
   return (
     <>

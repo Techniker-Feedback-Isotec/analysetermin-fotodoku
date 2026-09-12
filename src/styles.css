@@ -3711,3 +3711,22 @@ body.zeichnen-offen {
     grid-template-columns: 1fr;
   }
 }
+
+/* OneDrive-Eingang auf der Fotoseite (12.09.2026 abends): Zustand und Knopf in einer Zeile */
+.onedrive-zeile {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: #7a6f68;
+}
+
+.onedrive-zeile.ist-fehler {
+  color: var(--red);
+}
+
+.onedrive-zeile .btn-inline {
+  font-size: 0.82rem;
+}
