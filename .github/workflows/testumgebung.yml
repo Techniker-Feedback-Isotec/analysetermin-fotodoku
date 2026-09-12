@@ -13,9 +13,13 @@ name: Testumgebung auf GitHub Pages
 # Adresse: https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/
 #
 # Ausgeliefert wird direkt aus dem Workflow (Quelle "GitHub Actions"), nicht
-# mehr ueber einen Branch gh-pages. configure-pages schaltet Pages beim
-# ersten Lauf selbst ein; klappt das nicht, einmal in Settings > Pages die
-# Quelle "GitHub Actions" waehlen und den Lauf wiederholen.
+# mehr ueber einen Branch gh-pages. Pages muss dafuer EINMAL von Hand an sein:
+# Settings > Pages > Build and deployment > Source: "GitHub Actions". Der
+# Workflow-Token darf das nicht selbst (der erste Lauf am 12.09.2026 scheiterte
+# genau daran, "enablement: true" von configure-pages reicht nicht). Solange
+# Pages aus ist, bricht der Schritt "Pages einrichten" ab - das ist dann der
+# einzige Grund. Danach: Actions > "Testumgebung auf GitHub Pages" > Run workflow,
+# oder einfach der naechste Push auf entwicklung.
 
 on:
   push:
@@ -47,8 +51,6 @@ jobs:
 
       - name: Pages einrichten
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Bauen (Basis = /<Repo-Name>/, ohne Server)
         run: npm run build
