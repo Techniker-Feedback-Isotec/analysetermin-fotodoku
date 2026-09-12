@@ -14,14 +14,18 @@ import './praesentation.css'
  * man sich freut, die folgenden Seiten anzuschauen").
  *
  * Gestaltung nach dem Corporate Design: weisse Flaeche, rotes Band, braune
- * Schrift; Kapitelblaetter in Rot. Bewegungen in praesentation.css.
+ * Schrift. Die Kapitelblaetter waren in der ersten Fassung rot mit
+ * durchscheinendem Bild; Yann (12.09.2026): "das transparente rote Design
+ * gefaellt mir nicht, bleib bei dem schlichten weiss-roten Stil". Jetzt
+ * weiss mit grosser roter Nummer und Bild rechts. Bewegungen in
+ * praesentation.css.
  */
 
 export type Folie =
   | { art: 'titel'; titel: string; untertitel: string; zeilen: string[]; bildUrl: string | null }
   | { art: 'isotec' }
   | { art: 'kapitel'; nummer: number; titel: string; unterzeile: string; bildUrl: string | null }
-  | { art: 'text'; marke: string; titel: string; html: string; bilder?: string[]; chips?: string[] }
+  | { art: 'text'; marke: string; titel: string; html: string; bilder?: string[]; chips?: string[]; symbol?: 'ist' | 'soll' | 'ziel' }
   | { art: 'gegenueber'; istHtml: string; sollHtml: string; zielHtml: string | null }
   | { art: 'skizze'; marke: string; titel: string; hauptUrl: string; legendeUrl: string | null }
   | {
@@ -143,10 +147,9 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
   }
 
   const folie = folien[index]
-  const dunkel = folie.art === 'kapitel'
 
   return (
-    <div className={`praesi${dunkel ? ' dunkel' : ''}`} role="dialog" aria-label="Präsentation" onClick={onKlick}>
+    <div className="praesi" role="dialog" aria-label="Präsentation" onClick={onKlick}>
       <div className="praesi-band" aria-hidden="true" />
       <img className="praesi-logo" src={logo} alt="ISOTEC" />
 
@@ -199,8 +202,7 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
         )}
 
         {folie.art === 'kapitel' && (
-          <div className="praesi-kapitel">
-            {folie.bildUrl && <img className="praesi-kapitelbild" src={folie.bildUrl} alt="" />}
+          <div className={`praesi-kapitel${folie.bildUrl ? '' : ' ohne-bild'}`}>
             <div className="praesi-kapiteltext">
               <Anim i={0}>
                 <p className="praesi-kapitelnummer">{nr(folie.nummer)}</p>
@@ -215,6 +217,7 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
                 <span className="praesi-weiter">Weiter ›</span>
               </Anim>
             </div>
+            {folie.bildUrl && <img className="praesi-kapitelbild" src={folie.bildUrl} alt="" />}
           </div>
         )}
 
@@ -226,7 +229,10 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
             </Anim>
             <div className={`praesi-textflaeche${folie.bilder && folie.bilder.length > 0 ? ' mit-bildern' : ''}`}>
               <Anim i={1}>
-                <div className="praesi-reichtext gestaffelt" dangerouslySetInnerHTML={{ __html: folie.html }} />
+                <div
+                  className={`praesi-reichtext gestaffelt${folie.symbol ? ` mit-symbol ${folie.symbol}` : ''}`}
+                  dangerouslySetInnerHTML={{ __html: folie.html }}
+                />
                 {folie.chips && folie.chips.length > 0 && (
                   <ul className="praesi-chips">
                     {folie.chips.map((c, i) => (
@@ -260,7 +266,7 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
               <Anim i={1} className="praesi-spalte ist">
                 <span className="praesi-spaltenmarke">Ist</span>
                 <h3>Heute</h3>
-                <div className="praesi-reichtext gestaffelt" dangerouslySetInnerHTML={{ __html: folie.istHtml }} />
+                <div className="praesi-reichtext gestaffelt mit-symbol ist" dangerouslySetInnerHTML={{ __html: folie.istHtml }} />
               </Anim>
               <Anim i={2} className="praesi-pfeil">
                 <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -271,13 +277,13 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
               <Anim i={3} className="praesi-spalte soll">
                 <span className="praesi-spaltenmarke">Soll</span>
                 <h3>Nach der Sanierung</h3>
-                <div className="praesi-reichtext gestaffelt" dangerouslySetInnerHTML={{ __html: folie.sollHtml }} />
+                <div className="praesi-reichtext gestaffelt mit-symbol soll" dangerouslySetInnerHTML={{ __html: folie.sollHtml }} />
               </Anim>
             </div>
             {folie.zielHtml && (
               <Anim i={5} className="praesi-ziel">
                 <span className="praesi-spaltenmarke">Ziel</span>
-                <div className="praesi-reichtext" dangerouslySetInnerHTML={{ __html: folie.zielHtml }} />
+                <div className="praesi-reichtext mit-symbol ziel" dangerouslySetInnerHTML={{ __html: folie.zielHtml }} />
               </Anim>
             )}
           </>

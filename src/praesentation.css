@@ -15,12 +15,6 @@
   cursor: pointer;
   user-select: none;
   font-size: clamp(16px, 1.35vw, 24px);
-  transition: background 0.5s var(--sanft);
-}
-
-.praesi.dunkel {
-  background: var(--red);
-  color: var(--white);
 }
 
 body.praesi-offen {
@@ -32,11 +26,6 @@ body.praesi-offen {
   inset: 0 0 auto 0;
   height: 0.55rem;
   background: var(--red);
-  transition: background 0.5s var(--sanft);
-}
-
-.praesi.dunkel .praesi-band {
-  background: rgba(255, 255, 255, 0.35);
 }
 
 .praesi-logo {
@@ -45,10 +34,6 @@ body.praesi-offen {
   right: 3rem;
   height: 2.4rem;
   z-index: 2;
-}
-
-.praesi.dunkel .praesi-logo {
-  filter: brightness(0) invert(1);
 }
 
 .praesi-folie {
@@ -207,67 +192,47 @@ body.praesi-offen {
   gap: 0.3rem;
 }
 
-/* ---------- Kapitelblatt: rote Flaeche, grosse Zahl, Vorfreude ---------- */
-.art-kapitel {
-  padding: 0;
-  justify-content: center;
-}
-
+/* ---------- Kapitelblatt: weiss, grosse rote Nummer, Bild rechts ---------- */
 .praesi-kapitel {
-  position: absolute;
-  inset: 0;
-  display: flex;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4vw;
   align-items: center;
 }
 
+.praesi-kapitel.ohne-bild {
+  grid-template-columns: 1fr;
+}
+
 .praesi-kapitelbild {
-  position: absolute;
-  inset: 0;
   width: 100%;
-  height: 100%;
+  height: 62vh;
   object-fit: cover;
-  opacity: 0.22;
-  filter: saturate(0.6);
-  mix-blend-mode: luminosity;
-  animation: kapitelbild-ein 1.4s var(--sanft) both;
-}
-
-@keyframes kapitelbild-ein {
-  from {
-    opacity: 0;
-    transform: scale(1.06);
-  }
-  to {
-    opacity: 0.22;
-    transform: none;
-  }
-}
-
-.praesi-kapiteltext {
-  position: relative;
-  padding: 0 8vw;
-  max-width: 70vw;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(86, 74, 68, 0.22);
+  animation: bild-ein 0.9s var(--sanft) both;
 }
 
 .praesi-kapitelnummer {
-  margin: 0 0 0.4rem;
-  font-size: 5.5em;
+  margin: 0 0 0.2rem;
+  font-size: 5em;
   font-weight: 800;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--red);
   letter-spacing: -0.03em;
 }
 
 .praesi-kapitel h1 {
-  font-size: 4em;
-  color: var(--white);
-  margin-bottom: 0.9rem;
+  font-size: 3.4em;
+  margin-bottom: 0.8rem;
 }
 
 .praesi-kapitelzeile {
-  margin: 0 0 2.2rem;
-  font-size: 1.35em;
-  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 2rem;
+  font-size: 1.25em;
+  color: #7a6f68;
   max-width: 34ch;
   line-height: 1.4;
 }
@@ -275,22 +240,22 @@ body.praesi-offen {
 .praesi-weiter {
   display: inline-block;
   padding: 0.55rem 1.3rem;
-  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border: 1.5px solid var(--red);
   border-radius: 999px;
   font-weight: 600;
   font-size: 0.9em;
-  color: var(--white);
+  color: var(--red);
   animation: pulsieren 2.4s ease-in-out 1.4s infinite;
 }
 
 @keyframes pulsieren {
   0%, 100% {
     transform: none;
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 0 0 rgba(213, 19, 23, 0.25);
   }
   50% {
     transform: translateX(4px);
-    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+    box-shadow: 0 0 0 10px rgba(213, 19, 23, 0);
   }
 }
 
@@ -351,10 +316,12 @@ body.praesi-offen {
 /* ---------- Textfolien ---------- */
 .praesi-textflaeche {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
   gap: 3vw;
   align-items: start;
+  overflow: hidden;
 }
 
 .praesi-textflaeche.mit-bildern {
@@ -379,6 +346,47 @@ body.praesi-offen {
 
 .praesi-reichtext li {
   margin-bottom: 0.35em;
+}
+
+/* Punkte mit Symbol statt Aufzaehlungszeichen (Yann, 12.09.2026):
+   Ist = Tropfen (der Schaden), Soll = Haken (die Loesung), Ziel = Fahne */
+.praesi-reichtext.mit-symbol ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.praesi-reichtext.mit-symbol li {
+  position: relative;
+  padding-left: 1.7em;
+  margin-bottom: 0.5em;
+}
+
+.praesi-reichtext.mit-symbol li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.12em;
+  width: 1.15em;
+  height: 1.15em;
+  background-color: var(--red);
+  -webkit-mask: var(--symbol) center / contain no-repeat;
+  mask: var(--symbol) center / contain no-repeat;
+}
+
+.praesi-reichtext.ist li::before {
+  --symbol: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3c3.5 4.4 6 7.6 6 10.6a6 6 0 0 1-12 0C6 10.6 8.5 7.4 12 3z'/><path d='M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5'/></svg>");
+}
+
+.praesi-reichtext.soll li::before {
+  --symbol: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9.5'/><path d='m7.5 12.5 3 3L16.5 9'/></svg>");
+}
+
+.praesi-reichtext.ziel li::before {
+  --symbol: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 21V4'/><path d='M5 4h11l-1.5 3.5L16 11H5'/></svg>");
+}
+
+.praesi-ziel .praesi-reichtext.ziel li::before {
+  background-color: var(--white);
 }
 
 .praesi-chips {
@@ -431,6 +439,7 @@ body.praesi-offen {
   border-radius: 16px;
   background: var(--light);
   overflow: hidden;
+  min-height: 0;
 }
 
 .praesi-spalte.soll {
@@ -567,6 +576,12 @@ body.praesi-offen {
   gap: 3vw;
   align-items: center;
   margin-top: 1rem;
+  overflow: hidden;
+}
+
+.praesi-gewerk-text {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .praesi-gewerk.ohne-bild {
@@ -583,7 +598,7 @@ body.praesi-offen {
 
 .praesi-gewerk-bild img {
   max-width: 100%;
-  max-height: 62vh;
+  max-height: 58vh;
   border-radius: 12px;
   box-shadow: 0 16px 50px rgba(86, 74, 68, 0.2);
   background: var(--white);
@@ -777,10 +792,6 @@ body.praesi-offen {
   background: linear-gradient(to top, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
 }
 
-.praesi.dunkel .praesi-fuss {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0));
-}
-
 .praesi-knopf {
   font: inherit;
   width: 2.4rem;
@@ -839,18 +850,10 @@ body.praesi-offen {
   transform: scale(1.5);
 }
 
-.praesi.dunkel .praesi-punkte span.aktiv {
-  background: var(--white);
-}
-
 .praesi-zaehler {
   font-size: 0.75em;
   color: #a99f98;
   min-width: 3.5em;
-}
-
-.praesi.dunkel .praesi-zaehler {
-  color: rgba(255, 255, 255, 0.8);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -873,6 +876,7 @@ body.praesi-offen {
 
 @media (max-width: 900px) {
   .praesi-titelblatt,
+  .praesi-kapitel,
   .praesi-textflaeche.mit-bildern {
     grid-template-columns: 1fr;
   }

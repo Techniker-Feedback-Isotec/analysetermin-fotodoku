@@ -6,7 +6,6 @@ import { nameMitRolle, rolleVon } from './data/rollen'
 import { reichtextIstLeer, reichtextZuHtml, type Reichtext } from './lib/richtext'
 import { formatDateShort } from './lib/format'
 import { ladeSeitenDaten, type PraesentationZustand } from './lib/speicher'
-import type { Ausschnitt } from './lib/pdfbilder'
 import { gewerkBild, infosFuer } from './data/gewerkeInfo'
 import { nachherVon, type VorschauSatz } from './vorschau/lib/saetze'
 import { mitarbeiterVon, objektadresseEcht, type Kundendaten, type ToastFn } from './kunde'
@@ -48,22 +47,13 @@ const FELDER: { feld: Feld; titel: string }[] = [
   { feld: 'ziel', titel: 'Sanierungsziel' },
 ]
 
-/**
- * Ausschnitte der Skizzenseiten in PDF-Punkten von oben (Masse aus
- * lib/pdf.ts): Bauzeichnungen = Zeichenflaeche unter der Kopfzeile bis ueber
- * die Legende, dazu die Legende als eigener Streifen; Bildseiten = die
- * Bildflaeche zwischen Kopf (134) und Hinweis/Fusszeile (58 + Rand 40).
- * Ohne Rahmen um das Blatt wirken die Elemente auf der Folie doppelt so gross.
+/*
+ * Skizzenseiten kommen als ganzes A4-Blatt auf die Folie. Zwischendurch
+ * (12.09.2026 mittags) waren es Ausschnitte (Zeichenflaeche und Legende
+ * getrennt), Yann wollte am Abend zurueck: "gehe hier wieder auf unser altes
+ * DIN-A4-Design, bei den Sanierungsbereichen auch". Die Ausschnitt-Logik in
+ * pdfbilder.ts (Parameter schnitt) bleibt fuer spaeter erhalten.
  */
-function ausschnitteFuer(_seite: number, abschnitt: string | null): Ausschnitt[] {
-  if (abschnitt === 'Bauzeichnungen') {
-    return [
-      { name: 'haupt', box: { x: 44, y: 122, breite: 507, hoehe: 842 - 122 - 84 } },
-      { name: 'legende', box: { x: 44, y: 842 - 84, breite: 507, hoehe: 62 } },
-    ]
-  }
-  return [{ name: 'haupt', box: { x: 40, y: 134, breite: 515, hoehe: 842 - 134 - 98 } }]
-}
 
 export default function PraesentationPanel({
   kunde,
@@ -158,6 +148,7 @@ export default function PraesentationPanel({
           titel: 'So ist es heute',
           html: reichtextZuHtml(ist),
           bilder: istFotos.map((f) => f.thumbUrl),
+          symbol: 'ist',
         })
       }
       if (hatSoll) {
@@ -167,6 +158,7 @@ export default function PraesentationPanel({
           titel: 'So soll es werden',
           html: reichtextZuHtml(zustand.soll),
           chips: kunde.gewerke,
+          symbol: 'soll',
         })
       }
       if (hatIst && hatSoll) {
@@ -177,7 +169,7 @@ export default function PraesentationPanel({
           zielHtml: hatZiel ? reichtextZuHtml(zustand.ziel) : null,
         })
       } else if (hatZiel) {
-        liste.push({ art: 'text', marke: 'ZIEL', titel: 'Sanierungsziel', html: reichtextZuHtml(zustand.ziel) })
+        liste.push({ art: 'text', marke: 'ZIEL', titel: 'Sanierungsziel', html: reichtextZuHtml(zustand.ziel), symbol: 'ziel' })
       }
 
       // Kapitel: die gewaehlten Gewerke mit Grafiken und Erklaerungen der Zentrale
@@ -216,7 +208,7 @@ export default function PraesentationPanel({
       // Kapitel: Sanierungsbereiche aus der gezeichneten Skizze
       if (skizze) {
         const { rendereSeiten } = await import('./lib/pdfbilder')
-        const { bilder } = await rendereSeiten(new Uint8Array(await skizze.blob.arrayBuffer()), 2, null, 2400, ausschnitteFuer)
+        const { bilder } = await rendereSeiten(new Uint8Array(await skizze.blob.arrayBuffer()), 2, null, 1800)
         const mitTeilen = bilder.filter((b) => b.teile.length > 0)
         if (mitTeilen.length > 0) {
           const erstes = mitTeilen.find((b) => b.abschnitt !== 'Bauzeichnungen') ?? mitTeilen[0]

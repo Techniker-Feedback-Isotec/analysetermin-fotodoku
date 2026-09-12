@@ -12,7 +12,10 @@
 
 const STANDARD_ROLLE = 'Bausachverständiger'
 
-const AUSNAHMEN: Record<string, string> = {}
+const AUSNAHMEN: Record<string, string> = {
+  // Yann, 12.09.2026
+  'Yann Feyen': 'Stellv. Geschäftsführer & Prokurist',
+}
 
 /** "Hüseyin Manaz" wird zu "H. Manaz"; ein einzelnes Wort bleibt, wie es ist. */
 export function kurzName(name: string): string {
