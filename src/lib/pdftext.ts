@@ -34,7 +34,7 @@ export function setzeWorker(quelle: string): void {
   workerGesetzt = true
 }
 
-async function stelleWorkerSicher(): Promise<void> {
+export async function stelleWorkerSicher(): Promise<void> {
   if (workerGesetzt) return
   if (typeof document !== 'undefined') {
     const { workerUrl } = await import('./pdfworker')

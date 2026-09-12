@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import KundePanel from './KundePanel'
 import ProjektePanel from './ProjektePanel'
+import PraesentationPanel from './PraesentationPanel'
 import { useVorgang } from './vorgang'
 import type { SeitenZustand } from './lib/speicher'
 import FotoDokuPanel from './FotoDokuPanel'
@@ -339,6 +340,8 @@ export default function App() {
             {geoeffnet.video && (
               <Suspense fallback={<p className="lade-hinweis">Videodokumentation wird geladen …</p>}>
                 <VideoPanel
+                  key={vorgang.id}
+                  vorgangId={vorgang.id}
                   mitarbeiter={mitarbeiter.name}
                   mitarbeiterFoto={mitarbeiter.foto}
                   kunde={kunde.kunde}
@@ -364,10 +367,26 @@ export default function App() {
             />
           </div>
 
+          <div hidden={modus !== 'praesentation'}>
+            <PraesentationPanel
+              key={vorgang.id}
+              kunde={kunde}
+              stapel={stapel}
+              seiten={vorgang.seiten}
+              skizze={gezeichneteSkizze}
+              vorgangId={vorgang.id}
+              zustand={vorgang.praesentation}
+              onZustand={vorgang.setPraesentation}
+              onToast={pushToast}
+            />
+          </div>
+
           <div hidden={modus !== 'vorschau'}>
             {geoeffnet.vorschau && (
               <Suspense fallback={<p className="lade-hinweis">Sanierungsvorschau wird geladen …</p>}>
                 <VorschauPanel
+                  key={vorgang.id}
+                  vorgangId={vorgang.id}
                   kunde={kunde}
                   onDokument={setzeDokument}
                   onToast={pushToast}

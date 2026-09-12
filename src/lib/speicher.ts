@@ -14,11 +14,13 @@ import type { Dokument, Kundendaten, Terminart } from '../kunde'
  *   - vorgaenge:  Kopf, Kundendaten, Zustand der Fotoseiten, Mappenauswahl
  *   - fotos:      je Foto ein Satz, mit Verweis auf den Vorgang
  *   - dokumente:  je fertiges oder hochgeladenes Dokument ein Satz
+ *   - seiten:     Arbeitsdaten der Sanierungsvorschau und der Videoseite je
+ *                 Vorgang (seit 12.09.2026, Version 2), ein Satz je Seite
  *
  * Nicht gespeichert werden fluechtige Felder: Blob-Adressen (thumbUrl, url)
- * entstehen beim Laden neu. Die Sanierungsvorschau und die Videoseite halten
- * ihre Arbeitsdaten weiterhin nur im Speicher; ihre fertigen Dateien landen
- * als Dokumente hier.
+ * entstehen beim Laden neu. Sanierungsvorschau und Videoseite legen ihre
+ * Arbeitsdaten seit dem 12.09.2026 in der Tabelle seiten ab (Yann: "alle
+ * Daten muessen immer zum Projekt passen und gespeichert werden").
  *
  * Grenzen: je Geraet und Browser. Was am iPad angelegt wird, sieht der PC
  * nicht. Safari raeumt Website-Daten nach 7 Tagen Nichtnutzung weg, ausser
@@ -27,7 +29,7 @@ import type { Dokument, Kundendaten, Terminart } from '../kunde'
  */
 
 const DB_NAME = 'dokumentation'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const AKTIV_SCHLUESSEL = 'dokumentation.aktiverVorgang'
 
 /** Ab diesem Alter gilt ein Vorgang als alt und wird zum Loeschen vorgeschlagen */
@@ -64,6 +66,27 @@ export interface MappenZustand {
 
 export const LEERER_MAPPENZUSTAND: MappenZustand = { nichtInMappe: [], mappenFolge: [] }
 
+/** Eigene Texte der Praesentation (Seite Praesentation, seit 12.09.2026) */
+export interface PraesentationZustand {
+  /** Soll-Situation: wie es nach der Sanierung aussehen soll */
+  soll: Reichtext
+  /** Sanierungsziel */
+  ziel: Reichtext
+}
+
+export const LEERE_PRAESENTATION: PraesentationZustand = { soll: [], ziel: [] }
+
+/** Seiten, die ihre Arbeitsdaten als eigenen Satz je Vorgang ablegen */
+export type SeitenName = 'vorschau' | 'video'
+
+interface SeitenSatz {
+  /** `${vorgangId}:${seite}` */
+  id: string
+  vorgangId: string
+  seite: SeitenName
+  daten: unknown
+}
+
 /** Kundendaten ohne Blob-Adresse am Objektfoto */
 export type KundendatenSatz = Omit<Kundendaten, 'objektfoto'> & {
   objektfoto: Omit<PreparedImage, 'thumbUrl'> | null
@@ -78,6 +101,8 @@ export interface VorgangSatz {
   kunde: KundendatenSatz
   seiten: { fotodoku: SeitenZustand; prinzipskizze: SeitenZustand }
   mappe: MappenZustand
+  /** Fehlt bei Saetzen vor dem 12.09.2026 */
+  praesentation?: PraesentationZustand
   /** Fuer die Liste, ohne die Fotos laden zu muessen */
   anzahlFotos: number
   anzahlDokumente: number
@@ -107,6 +132,9 @@ function oeffne(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('dokumente')) {
         db.createObjectStore('dokumente', { keyPath: 'id' }).createIndex('vorgang', 'vorgangId')
+      }
+      if (!db.objectStoreNames.contains('seiten')) {
+        db.createObjectStore('seiten', { keyPath: 'id' }).createIndex('vorgang', 'vorgangId')
       }
     }
     anfrage.onsuccess = () => {
@@ -166,9 +194,9 @@ export async function speichereVorgang(satz: VorgangSatz): Promise<void> {
 /** Vorgang samt Fotos und Dokumenten entfernen */
 export async function loescheVorgang(id: string): Promise<void> {
   const db = await oeffne()
-  const tx = db.transaction(['vorgaenge', 'fotos', 'dokumente'], 'readwrite')
+  const tx = db.transaction(['vorgaenge', 'fotos', 'dokumente', 'seiten'], 'readwrite')
   tx.objectStore('vorgaenge').delete(id)
-  for (const name of ['fotos', 'dokumente'] as const) {
+  for (const name of ['fotos', 'dokumente', 'seiten'] as const) {
     const index = tx.objectStore(name).index('vorgang')
     const schluessel = await warte(index.getAllKeys(id))
     for (const s of schluessel) tx.objectStore(name).delete(s)
@@ -224,6 +252,24 @@ export async function loescheDokumente(ids: string[]): Promise<void> {
   await fertig(tx)
 }
 
+// ---------- Seiten: Arbeitsdaten von Sanierungsvorschau und Video ----------
+
+export async function ladeSeitenDaten<T>(vorgangId: string, seite: SeitenName): Promise<T | null> {
+  const db = await oeffne()
+  const satz = (await warte(db.transaction('seiten').objectStore('seiten').get(`${vorgangId}:${seite}`))) as
+    | SeitenSatz
+    | undefined
+  return satz ? (satz.daten as T) : null
+}
+
+export async function speichereSeitenDaten(vorgangId: string, seite: SeitenName, daten: unknown): Promise<void> {
+  const db = await oeffne()
+  const tx = db.transaction('seiten', 'readwrite')
+  const satz: SeitenSatz = { id: `${vorgangId}:${seite}`, vorgangId, seite, daten }
+  tx.objectStore('seiten').put(satz)
+  await fertig(tx)
+}
+
 // ---------- Aktiver Vorgang, Platz, Dauerhaftigkeit ----------
 
 export function aktiverVorgangId(): string | null {
@@ -271,9 +317,15 @@ export async function persistenzAnfordern(): Promise<boolean> {
 }
 
 /** Hat der Vorgang irgendeinen Inhalt? Leere Vorgaenge werden nicht gespeichert. */
-export function vorgangIstLeer(satz: Pick<VorgangSatz, 'kunde' | 'seiten' | 'anzahlFotos' | 'anzahlDokumente'>): boolean {
+export function vorgangIstLeer(
+  satz: Pick<VorgangSatz, 'kunde' | 'seiten' | 'anzahlFotos' | 'anzahlDokumente' | 'praesentation'>,
+): boolean {
   const k = satz.kunde
-  const texte = [satz.seiten.fotodoku, satz.seiten.prinzipskizze].flatMap((s) => [s.beurteilung, s.zusammenfassung])
+  const texte = [
+    ...[satz.seiten.fotodoku, satz.seiten.prinzipskizze].flatMap((s) => [s.beurteilung, s.zusammenfassung]),
+    satz.praesentation?.soll ?? [],
+    satz.praesentation?.ziel ?? [],
+  ]
   return (
     satz.anzahlFotos === 0 &&
     satz.anzahlDokumente === 0 &&

@@ -4,6 +4,7 @@ import type { TerminPhoto } from './lib/bilder'
 import type { Ich } from './lib/api'
 import { makeThumbnailUrl } from './lib/image'
 import {
+  LEERE_PRAESENTATION,
   LEERER_MAPPENZUSTAND,
   LEERER_SEITENZUSTAND,
   aktiverVorgangId,
@@ -23,6 +24,7 @@ import {
   speicherverbrauch,
   vorgangIstLeer,
   type MappenZustand,
+  type PraesentationZustand,
   type SeitenZustand,
   type VorgangSatz,
 } from './lib/speicher'
@@ -61,6 +63,8 @@ export interface VorgangHook {
   setSeite: (art: FotoDokuArt, zustand: SeitenZustand) => void
   mappe: MappenZustand
   setMappe: (zustand: MappenZustand) => void
+  praesentation: PraesentationZustand
+  setPraesentation: (zustand: PraesentationZustand) => void
   neu: () => Promise<void>
   oeffnen: (id: string) => Promise<void>
   loeschen: (id: string) => Promise<void>
@@ -86,6 +90,7 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
   const [verbrauch, setVerbrauch] = useState<number | null>(null)
   const [seiten, setSeiten] = useState<Seiten>(LEERE_SEITEN)
   const [mappe, setMappe] = useState<MappenZustand>(LEERER_MAPPENZUSTAND)
+  const [praesentation, setPraesentation] = useState<PraesentationZustand>(LEERE_PRAESENTATION)
 
   /** Erst wenn der Vorgang steht (geladen oder neu), wird geschrieben */
   const bereit = useRef(false)
@@ -96,8 +101,8 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
   const dokumenteVorher = useRef(new Map<string, Dokument>())
   const zeitgeber = useRef<number | null>(null)
   /** Aktuelle Werte fuer das Schreiben ausserhalb des Renderns */
-  const aktuell = useRef({ id, kunde, seiten, mappe, fotos: stapel.fotos, dokumente })
-  aktuell.current = { id, kunde, seiten, mappe, fotos: stapel.fotos, dokumente }
+  const aktuell = useRef({ id, kunde, seiten, mappe, praesentation, fotos: stapel.fotos, dokumente })
+  aktuell.current = { id, kunde, seiten, mappe, praesentation, fotos: stapel.fotos, dokumente }
   const ichRef = useRef(ich)
   ichRef.current = ich
   const stapelRef = useRef(stapel)
@@ -117,7 +122,7 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
 
   /** Den Vorgangssatz aus den aktuellen Werten bauen */
   const baueSatz = useCallback((): VorgangSatz => {
-    const { id, kunde, seiten, mappe, fotos, dokumente } = aktuell.current
+    const { id, kunde, seiten, mappe, praesentation, fotos, dokumente } = aktuell.current
     const { objektfoto, ...restKunde } = kunde
     let objektfotoSatz: VorgangSatz['kunde']['objektfoto'] = null
     if (objektfoto) {
@@ -132,6 +137,7 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
       kunde: { ...restKunde, objektfoto: objektfotoSatz },
       seiten,
       mappe,
+      praesentation,
       anzahlFotos: fotos.length,
       anzahlDokumente: dokumente.length,
     }
@@ -167,6 +173,7 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
     setDokumente([])
     setSeiten(LEERE_SEITEN)
     setMappe(LEERER_MAPPENZUSTAND)
+    setPraesentation(LEERE_PRAESENTATION)
     fotosVorher.current = new Map()
     dokumenteVorher.current = new Map()
   }, [setDokumente])
@@ -211,6 +218,7 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
       setKunde({ ...satz.kunde, objektfoto })
       setSeiten(satz.seiten)
       setMappe(satz.mappe)
+      setPraesentation(satz.praesentation ?? LEERE_PRAESENTATION)
 
       // Dokumente: Blob-Adressen neu, sonst unveraendert
       const dokSaetze = await ladeDokumente(satz.id)
@@ -289,7 +297,7 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
         zeitgeber.current = null
       }
     }
-  }, [kunde, seiten, mappe, stapel.fotos.length, dokumente.length, id, schreibeSatz])
+  }, [kunde, seiten, mappe, praesentation, stapel.fotos.length, dokumente.length, id, schreibeSatz])
 
   // ---------- Fotos: neu, gedreht oder entfernt ----------
   useEffect(() => {
@@ -403,5 +411,20 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
     [setzeNeuAuf, aktualisiereVerbrauch, meldeFehler, onToast],
   )
 
-  return { id, liste, status, gespeichertUm, verbrauch, seiten, setSeite, mappe, setMappe, neu, oeffnen, loeschen }
+  return {
+    id,
+    liste,
+    status,
+    gespeichertUm,
+    verbrauch,
+    seiten,
+    setSeite,
+    mappe,
+    setMappe,
+    praesentation,
+    setPraesentation,
+    neu,
+    oeffnen,
+    loeschen,
+  }
 }

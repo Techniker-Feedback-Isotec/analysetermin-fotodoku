@@ -7,7 +7,7 @@ import logo from './assets/isotec-logo.png'
  * Auf dem Handy wandert die Marke in eine schmale Kopfzeile und die Bereiche
  * in eine Leiste am unteren Rand (Daumenreichweite), siehe styles.css.
  */
-export type Modus = 'projekte' | 'kunde' | 'foto' | 'video' | 'prinzipskizze' | 'vorschau'
+export type Modus = 'projekte' | 'kunde' | 'foto' | 'video' | 'prinzipskizze' | 'vorschau' | 'praesentation'
 
 /**
  * Reihenfolge seit 12.09.2026 (Yann): "Projekte" steht ueber allem, darunter
@@ -21,6 +21,7 @@ export const BEREICHE: { id: Modus; label: string; kurz: string }[] = [
   { id: 'video', label: 'Videodokumentation', kurz: 'Videos' },
   { id: 'prinzipskizze', label: 'Prinzipskizze', kurz: 'Skizze' },
   { id: 'vorschau', label: 'Sanierungsvorschau', kurz: 'Vorschau' },
+  { id: 'praesentation', label: 'Präsentation', kurz: 'Präsi' },
 ]
 
 const strich = {
@@ -66,6 +67,14 @@ const ICONS: Record<Modus, JSX.Element> = {
     <svg width="18" height="18" viewBox="0 0 20 20" {...strich}>
       <rect x="2.5" y="5.5" width="10.5" height="9" rx="1.6" />
       <path d="m13 8.7 4.5-2.4v7.4L13 11.3" />
+    </svg>
+  ),
+  // Leinwand mit Abspielpfeil: die Praesentation beim Kunden
+  praesentation: (
+    <svg width="18" height="18" viewBox="0 0 20 20" {...strich}>
+      <rect x="2.5" y="4" width="15" height="10" rx="1.5" />
+      <path d="M10 14v3.5M7 17.5h6" />
+      <path d="m8.5 7 3.5 2-3.5 2z" />
     </svg>
   ),
   // Kellerwand mit Glanz: aus dem Bestand wird die Sanierung sichtbar

@@ -16,6 +16,7 @@ import { visitenkarteVon } from '../data/visitenkarten'
 import { mitarbeiterVon, objektadresseText, type Kundendaten, type ToastFn } from '../kunde'
 import type { DeckblattBild } from '../lib/deckblatt'
 import { GeminiFehler, erfasseBestand, saniereFoto } from './lib/gemini'
+import { useSeitenSpeicher } from '../seitenspeicher'
 
 /**
  * Je Foto laesst sich eine Option anhaken (Yann, 05.09.2026): Der Boden wird
@@ -25,18 +26,12 @@ import { GeminiFehler, erfasseBestand, saniereFoto } from './lib/gemini'
  * angehakt; was der Nutzer abhakt, verschwindet aus dem Ergebnis.
  * Jede Kombination wird nur einmal erzeugt und bleibt erhalten.
  */
-type Optionen = { boden: boolean }
+import { kombination, type Optionen } from './lib/saetze'
 
 const STANDARD: Optionen = { boden: false }
 
 /** Hoechstens so viele Fotos je Upload, damit nicht verschwenderisch gearbeitet wird (Yann, 05.09.2026). */
 const MAX_JE_UPLOAD = 3
-
-/** Schluessel, unter dem das Ergebnis einer Kombination abgelegt wird. */
-function kombination(o: Optionen, entfernt: number[]): string {
-  const basis = o.boden ? 'boden' : 'standard'
-  return entfernt.length ? `${basis}|-${[...entfernt].sort((a, b) => a - b).join(',')}` : basis
-}
 
 /** Lesbare Bezeichnung der Kombination fuer Marke und Dateinamen. */
 function bezeichnung(o: Optionen, entfernt: number[]): string {
@@ -53,7 +48,7 @@ type Ergebnis = {
   fehler?: string
 }
 
-type Foto = {
+export type Foto = {
   id: string
   name: string
   vorherUrl: string
@@ -71,6 +66,43 @@ type Foto = {
   entfernt: number[]
   /** Auswahl im Klappmenue, wird erst mit "Anwenden" zu entfernt. */
   entwurfEntfernt: number[]
+}
+
+/**
+ * Gespeicherter Stand eines Fotos (Tabelle seiten, Vorgang): ohne
+ * Blob-Adressen, ohne laufende oder gescheiterte Ergebnisse. Die Blobs selbst
+ * kommen mit, sonst waere jedes Nachher-Bild bei Google neu zu bezahlen.
+ */
+export type FotoSatz = Omit<Foto, 'vorherUrl' | 'ergebnisse'> & {
+  ergebnisse: Record<string, { blob: Blob }>
+}
+
+export function fotosZuSaetzen(fotos: Foto[]): FotoSatz[] {
+  return fotos
+    .filter((f) => f.status === 'bereit')
+    .map(({ vorherUrl: _u, ergebnisse, ...rest }) => ({
+      ...rest,
+      ergebnisse: Object.fromEntries(
+        Object.entries(ergebnisse)
+          .filter(([, e]) => e.status === 'fertig' && e.blob)
+          .map(([k, e]) => [k, { blob: e.blob as Blob }]),
+      ),
+    }))
+}
+
+export function saetzeZuFotos(saetze: FotoSatz[]): Foto[] {
+  return saetze.map((s) => ({
+    ...s,
+    vorherUrl: URL.createObjectURL(s.vorherBlob),
+    ergebnisse: Object.fromEntries(
+      Object.entries(s.ergebnisse).map(([k, e]) => [k, { status: 'fertig' as const, blob: e.blob, url: URL.createObjectURL(e.blob) }]),
+    ),
+  }))
+}
+
+/** Das gezeigte Nachher-Bild eines gespeicherten Fotos, fuer die Praesentation */
+export function nachherVon(satz: FotoSatz): Blob | null {
+  return satz.ergebnisse[kombination(satz.optionen, satz.entfernt)]?.blob ?? null
 }
 
 function bestandZeilen(foto: Foto): string[] {
@@ -118,6 +150,8 @@ let demoGeladen = false
 export interface VorschauPanelProps {
   /** Angaben und Objektfoto von der Seite Kunde - fuer das Deckblatt der PDF */
   kunde: Kundendaten
+  /** Offener Vorgang; die Fotos werden je Vorgang im Geraet gespeichert */
+  vorgangId: string
   /** Fertige PDF fuer die Sammlung auf der Seite Kunde */
   onDokument?: (schluessel: string, quelle: string, datei: File | null) => void
   /** Kurze Meldungen unten rechts, wie auf den anderen Seiten */
@@ -129,8 +163,13 @@ export interface VorschauPanelProps {
   geminiVerfuegbar: boolean | null
 }
 
-export default function VorschauPanel({ kunde, onDokument, onToast, geminiVerfuegbar }: VorschauPanelProps) {
-  const [fotos, setFotos] = useState<Foto[]>([])
+export default function VorschauPanel({ kunde, vorgangId, onDokument, onToast, geminiVerfuegbar }: VorschauPanelProps) {
+  // Die Fotos samt Nachher-Bildern liegen je Vorgang im Geraet (12.09.2026)
+  const { wert: fotos, setWert: setFotos } = useSeitenSpeicher<Foto[], FotoSatz[]>(vorgangId, 'vorschau', {
+    leer: [],
+    serialisiere: fotosZuSaetzen,
+    deserialisiere: saetzeZuFotos,
+  })
   const [auswahlId, setAuswahlId] = useState<string | null>(null)
   /** Fuer das Umsortieren per Ziehen: gezogenes Foto und das Ziel darunter */
   const [ziehtId, setZiehtId] = useState<string | null>(null)

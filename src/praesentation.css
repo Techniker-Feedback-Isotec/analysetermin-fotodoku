@@ -1,0 +1,457 @@
+/* ---------- Praesentation im Vollbild (12.09.2026) ----------
+   Corporate Design: weisse Flaeche, rotes Band oben, braune Schrift.
+   Bewegungen: Folien gleiten von unten herein, Inhalte gestaffelt. */
+
+.praesi {
+  --sanft: cubic-bezier(0.4, 0, 0.2, 1);
+  --feder: cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: var(--white);
+  color: var(--brown);
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  font-size: clamp(16px, 1.35vw, 24px);
+}
+
+body.praesi-offen {
+  overflow: hidden;
+}
+
+.praesi-band {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0.55rem;
+  background: var(--red);
+}
+
+.praesi-logo {
+  position: absolute;
+  top: 2.2rem;
+  right: 3rem;
+  height: 2.4rem;
+}
+
+.praesi-folie {
+  position: absolute;
+  inset: 0;
+  padding: 5rem 6vw 5.5rem;
+  display: flex;
+  flex-direction: column;
+  animation: folie-ein 0.55s var(--sanft) both;
+}
+
+@keyframes folie-ein {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Gestaffeltes Einblenden: --i ist der Platz in der Reihe */
+.praesi .anim {
+  animation: anim-ein 0.6s var(--sanft) both;
+  animation-delay: calc(0.12s + var(--i, 0) * 0.09s);
+}
+
+@keyframes anim-ein {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.praesi-marke {
+  margin: 0 0 0.4rem;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--red);
+}
+
+.praesi h1 {
+  margin: 0 0 1.2rem;
+  font-size: 3.2em;
+  line-height: 1.05;
+  font-weight: 800;
+}
+
+.praesi h2 {
+  margin: 0 0 0.8rem;
+  font-size: 2.3em;
+  line-height: 1.1;
+  font-weight: 800;
+  position: relative;
+  padding-bottom: 0.55rem;
+}
+
+.praesi h2::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 3.2rem;
+  height: 0.22rem;
+  background: var(--red);
+  border-radius: 2px;
+  transform-origin: left;
+  animation: strich-ein 0.7s var(--feder) 0.35s both;
+}
+
+@keyframes strich-ein {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.praesi h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1em;
+  font-weight: 700;
+}
+
+/* ---------- Titelblatt ---------- */
+.praesi-titelblatt {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4vw;
+  align-items: center;
+}
+
+.praesi-titelbild {
+  width: 100%;
+  height: 70vh;
+  object-fit: cover;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(86, 74, 68, 0.25);
+  animation: bild-ein 0.9s var(--sanft) both;
+}
+
+@keyframes bild-ein {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.praesi-titeltext {
+  order: -1;
+}
+
+.praesi-zeilen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 1.15em;
+  color: #7a6f68;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* ---------- Warum ISOTEC ---------- */
+.praesi-einleitung {
+  max-width: 62ch;
+  margin: 0 0 2rem;
+  font-size: 1.1em;
+  line-height: 1.5;
+}
+
+.praesi-kacheln {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.2rem;
+  flex: 1;
+  align-content: start;
+}
+
+.praesi-kachel {
+  display: flex;
+  gap: 1rem;
+  padding: 1.2rem 1.3rem;
+  background: var(--light);
+  border-left: 5px solid var(--red);
+  border-radius: 10px;
+}
+
+.praesi-kachel p {
+  margin: 0;
+  font-size: 0.82em;
+  line-height: 1.45;
+  color: #5c5350;
+}
+
+.praesi-zeichen {
+  flex-shrink: 0;
+  width: 2.6em;
+  color: var(--red);
+  font-weight: 800;
+  font-size: 1.6em;
+  line-height: 1;
+}
+
+.praesi-zeichen.zahl {
+  font-size: 2em;
+}
+
+/* ---------- Textfolien ---------- */
+.praesi-textflaeche {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3vw;
+  align-items: start;
+}
+
+.praesi-textflaeche.mit-bildern {
+  grid-template-columns: 3fr 2fr;
+}
+
+.praesi-reichtext {
+  font-size: 1.15em;
+  line-height: 1.55;
+  max-width: 70ch;
+}
+
+.praesi-reichtext p {
+  margin: 0 0 0.8em;
+}
+
+.praesi-reichtext ul {
+  margin: 0 0 0.8em;
+  padding-left: 1.2em;
+}
+
+.praesi-chips {
+  list-style: none;
+  margin: 1.2rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.praesi-chips li {
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: #fdf0f0;
+  color: var(--red);
+  font-weight: 600;
+  font-size: 0.85em;
+}
+
+.praesi-bilder {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.praesi-bilder img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(86, 74, 68, 0.18);
+}
+
+/* ---------- Ist und Soll ---------- */
+.praesi-spalten {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5vw;
+  align-items: start;
+}
+
+.praesi-spalte {
+  padding: 1.6rem 1.8rem;
+  border-radius: 14px;
+  background: var(--light);
+  min-height: 50vh;
+}
+
+.praesi-spalte.soll {
+  background: #fdf0f0;
+  border: 1px solid #f3c9cb;
+}
+
+.praesi-spalte h3 {
+  color: var(--red);
+  font-size: 1.2em;
+}
+
+/* ---------- Bildfolie (Skizze) ---------- */
+.praesi-bildflaeche {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.praesi-bildflaeche img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 16px 50px rgba(86, 74, 68, 0.22);
+}
+
+/* ---------- Vorher/Nachher ---------- */
+.praesi-vergleich {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.praesi-vergleich .vergleich {
+  width: min(100%, calc(70vh * 4 / 3));
+  height: 70vh;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 16px 50px rgba(86, 74, 68, 0.22);
+}
+
+/* ---------- Schluss ---------- */
+.praesi-schluss {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.praesi-schluss h2 {
+  font-size: 3.4em;
+}
+
+.praesi-kontakt {
+  margin: 0 0 2rem;
+  font-size: 1.3em;
+}
+
+.praesi-kontakt span {
+  color: #7a6f68;
+}
+
+.praesi-firma {
+  margin: 0;
+  color: #7a6f68;
+  font-size: 0.85em;
+}
+
+/* ---------- Fussleiste ---------- */
+.praesi-fuss {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3.6rem;
+  padding: 0 1.6rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: default;
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+}
+
+.praesi-knopf {
+  font: inherit;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--grey);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--brown);
+  cursor: pointer;
+  font-size: 1.4em;
+  line-height: 1;
+  transition: transform 0.15s var(--feder), color 0.2s, border-color 0.2s;
+}
+
+.praesi-knopf:hover:not(:disabled) {
+  color: var(--red);
+  border-color: var(--red);
+  transform: scale(1.08);
+}
+
+.praesi-knopf:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.praesi-schliessen {
+  margin-left: auto;
+  font-size: 1em;
+}
+
+.praesi-punkte {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.praesi-punkte span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--grey);
+  transition: transform 0.25s var(--feder), background 0.25s;
+}
+
+.praesi-punkte span.vorbei {
+  background: #c9c2bd;
+}
+
+.praesi-punkte span.aktiv {
+  background: var(--red);
+  transform: scale(1.5);
+}
+
+.praesi-zaehler {
+  font-size: 0.75em;
+  color: #a99f98;
+  min-width: 3.5em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .praesi-folie,
+  .praesi .anim,
+  .praesi h2::after,
+  .praesi-titelbild {
+    animation: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .praesi-titelblatt,
+  .praesi-spalten,
+  .praesi-textflaeche.mit-bildern {
+    grid-template-columns: 1fr;
+  }
+  .praesi-kacheln {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .praesi-titelbild {
+    height: 32vh;
+  }
+}

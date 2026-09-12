@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSeitenSpeicher } from './seitenspeicher'
 import { PREVIEW_SIZE, renderCover, type CoverData } from './lib/cover'
 import {
   fileDate,
@@ -42,6 +43,12 @@ type JobStatus = 'pruefung' | 'wartet' | 'laeuft' | 'fertig'
 interface Job {
   id: string
   file: File
+  /**
+   * Groesse der Quelldatei, falls sie nach dem Wiederherstellen aus dem
+   * Geraet nicht mehr da ist (gespeichert wird nur das fertige Video, die
+   * Quelle waere zu gross). `file` ist dann leer und traegt nur den Namen.
+   */
+  quelleGroesse?: number
   info: VideoInfo | null
   status: JobStatus
   progress: number
@@ -59,7 +66,36 @@ interface Job {
   previewUrl: string | null
 }
 
+/** Gespeicherter Stand eines fertigen Videos: ohne Quelldatei und Blob-Adresse */
+type JobSatz = Omit<Job, 'file' | 'previewUrl'> & {
+  datei: { name: string; type: string; lastModified: number; size: number }
+}
+
+function jobsZuSaetzen(jobs: Job[]): JobSatz[] {
+  return jobs
+    .filter((j) => j.status === 'fertig' && j.result)
+    .map(({ file, previewUrl: _p, ...rest }) => ({
+      ...rest,
+      quelleGroesse: rest.quelleGroesse ?? file.size,
+      datei: { name: file.name, type: file.type, lastModified: file.lastModified, size: file.size },
+    }))
+}
+
+function saetzeZuJobs(saetze: JobSatz[]): Job[] {
+  return saetze.map(({ datei, ...rest }) => ({
+    ...rest,
+    file: new File([], datei.name, { type: datei.type, lastModified: datei.lastModified }),
+    quelleGroesse: rest.quelleGroesse ?? datei.size,
+    previewUrl: null,
+  }))
+}
+
+/** Groesse der Quelle, auch wenn die Datei nach dem Wiederherstellen leer ist */
+const quelleGroesse = (job: Job) => job.quelleGroesse ?? job.file.size
+
 export interface VideoPanelProps {
+  /** Offener Vorgang; fertige Videos werden je Vorgang im Geraet gespeichert */
+  vorgangId: string
   mitarbeiter: string
   mitarbeiterFoto: string | null
   kunde: string
@@ -137,7 +173,12 @@ function describeResult(originalBytes: number, result: CompressResult): string {
 }
 
 export default function VideoPanel(props: VideoPanelProps) {
-  const [jobs, setJobs] = useState<Job[]>([])
+  // Fertige Videos liegen je Vorgang im Geraet (12.09.2026); Quelldateien nicht
+  const { wert: jobs, setWert: setJobs } = useSeitenSpeicher<Job[], JobSatz[]>(props.vorgangId, 'video', {
+    leer: [],
+    serialisiere: jobsZuSaetzen,
+    deserialisiere: saetzeZuJobs,
+  })
   const [dragOver, setDragOver] = useState(false)
   const [queueTick, setQueueTick] = useState(0)
 
@@ -271,7 +312,7 @@ export default function VideoPanel(props: VideoPanelProps) {
           result,
           coverKey: usedCoverKey,
           progress: 1,
-          statusText: describeResult(next.file.size, result),
+          statusText: describeResult(quelleGroesse(next), result),
         })
       } catch (error) {
         if (error instanceof CompressCanceledError) return
@@ -494,8 +535,8 @@ export default function VideoPanel(props: VideoPanelProps) {
   const veraltet = jobs.filter(
     (job) => job.status === 'fertig' && job.coverKey && job.coverKey !== coverKeyFor(job.datumMs),
   )
-  const totalOriginal = jobs.reduce((sum, job) => sum + job.file.size, 0)
-  const totalResult = jobs.reduce((sum, job) => sum + (job.result?.blob.size ?? job.file.size), 0)
+  const totalOriginal = jobs.reduce((sum, job) => sum + quelleGroesse(job), 0)
+  const totalResult = jobs.reduce((sum, job) => sum + (job.result?.blob.size ?? quelleGroesse(job)), 0)
 
   return (
     <>
@@ -599,7 +640,7 @@ export default function VideoPanel(props: VideoPanelProps) {
                     <p className="file-name">{job.file.name}</p>
                     <p className="file-meta">
                       {[
-                        formatBytes(job.file.size),
+                        formatBytes(quelleGroesse(job)),
                         job.info ? formatDuration(job.info.durationSeconds) : null,
                         job.info ? `${job.info.width} × ${job.info.height}` : null,
                         job.info && !job.info.hasAudio ? 'ohne Ton' : null,
