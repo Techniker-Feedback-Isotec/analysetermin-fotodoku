@@ -25,8 +25,8 @@ export type Folie =
   | { art: 'titel'; titel: string; untertitel: string; zeilen: string[]; bildUrl: string | null }
   | { art: 'isotec' }
   | { art: 'kapitel'; nummer: number; titel: string; unterzeile: string; bildUrl: string | null }
-  | { art: 'text'; marke: string; titel: string; html: string; bilder?: string[]; chips?: string[]; symbol?: 'ist' | 'soll' | 'ziel' }
-  | { art: 'gegenueber'; istHtml: string; sollHtml: string; zielHtml: string | null }
+  | { art: 'text'; marke: string; titel: string; html: string; bilder?: string[]; chips?: string[]; symbol?: 'ist' | 'soll' }
+  | { art: 'gegenueber'; istHtml: string; sollHtml: string }
   | { art: 'skizze'; marke: string; titel: string; hauptUrl: string; legendeUrl: string | null; foto: boolean }
   | {
       art: 'gewerk'
@@ -320,12 +320,6 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
                 <div className="praesi-reichtext gestaffelt mit-symbol soll" dangerouslySetInnerHTML={{ __html: folie.sollHtml }} />
               </Anim>
             </div>
-            {folie.zielHtml && (
-              <Anim i={5} className="praesi-ziel">
-                <span className="praesi-spaltenmarke">Ziel</span>
-                <div className="praesi-reichtext mit-symbol ziel" dangerouslySetInnerHTML={{ __html: folie.zielHtml }} />
-              </Anim>
-            )}
           </>
         )}
 

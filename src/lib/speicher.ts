@@ -72,11 +72,11 @@ export interface PraesentationZustand {
   ist?: Reichtext
   /** Soll-Situation: wie es nach der Sanierung aussehen soll */
   soll: Reichtext
-  /** Sanierungsziel */
-  ziel: Reichtext
+  /** Sanierungsziel: bis 12.09.2026 abends ein drittes Feld, von Yann gestrichen; alte Saetze tragen es noch */
+  ziel?: Reichtext
 }
 
-export const LEERE_PRAESENTATION: PraesentationZustand = { ist: [], soll: [], ziel: [] }
+export const LEERE_PRAESENTATION: PraesentationZustand = { ist: [], soll: [] }
 
 /** Seiten, die ihre Arbeitsdaten als eigenen Satz je Vorgang ablegen */
 export type SeitenName = 'vorschau' | 'video'

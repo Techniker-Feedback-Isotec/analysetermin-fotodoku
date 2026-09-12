@@ -386,13 +386,6 @@ body.praesi-offen {
   background-color: var(--ok);
 }
 
-.praesi-reichtext.ziel li::before {
-  --symbol: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 21V4'/><path d='M5 4h11l-1.5 3.5L16 11H5'/></svg>");
-}
-
-.praesi-ziel .praesi-reichtext.ziel li::before {
-  background-color: var(--white);
-}
 
 .praesi-chips {
   list-style: none;
@@ -468,8 +461,7 @@ body.praesi-offen {
   color: #a99f98;
 }
 
-.praesi-spalte.ist .praesi-spaltenmarke,
-.praesi-ziel .praesi-spaltenmarke {
+.praesi-spalte.ist .praesi-spaltenmarke {
   color: var(--red);
 }
 
@@ -519,24 +511,6 @@ body.praesi-offen {
   to {
     stroke-dashoffset: 0;
   }
-}
-
-.praesi-ziel {
-  position: relative;
-  margin-top: 1.4rem;
-  padding: 1.1rem 1.6rem 0.6rem;
-  border-radius: 14px;
-  background: var(--red);
-  color: var(--white);
-}
-
-.praesi-ziel .praesi-spaltenmarke {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.praesi-ziel .praesi-reichtext {
-  font-size: 1.05em;
-  max-width: none;
 }
 
 /* ---------- Skizze: Zeichenflaeche gross, Legende darunter ---------- */

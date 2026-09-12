@@ -16,12 +16,13 @@ import type { Seiten } from './vorgang'
  * Seite "Praesentation" (12.09.2026, Yann): Aus Prinzipskizze,
  * Sanierungsvorschau und den Texten eine Praesentation fuer die
  * Auftragsbesprechung. Aufbau: Titel, ISOTEC wie in der Angebotsmappe,
- * Kapitelblatt, Ist-Situation, Soll-Situation, Gegenueberstellung mit Ziel,
+ * Kapitelblatt, Ist-Situation, Soll-Situation, Gegenueberstellung,
  * Kapitelblatt, die Sanierungsbereiche aus der gezeichneten Skizze,
  * Kapitelblatt, Vorher/Nachher mit Schieberegler, Schluss.
  *
  * Eigene Texte hier: Ist-Situation (eine Beschreibung, aus der die
- * Gegenueberstellung entsteht), Soll-Situation, Sanierungsziel. Alles andere
+ * Gegenueberstellung entsteht) und Soll-Situation. Das Sanierungsziel gab es
+ * bis zum 12.09.2026 abends als drittes Feld, Yann hat es gestrichen. Alles andere
  * kommt beim Start frisch von den anderen Seiten des Projekts; wer dort etwas
  * aendert, sieht es beim naechsten Start (Yann: "muss sich aktualisieren").
  */
@@ -40,12 +41,11 @@ export interface PraesentationPanelProps {
   sichtbar: boolean
 }
 
-type Feld = 'ist' | 'soll' | 'ziel'
+type Feld = 'ist' | 'soll'
 
 const FELDER: { feld: Feld; titel: string }[] = [
   { feld: 'ist', titel: 'Ist-Situation' },
   { feld: 'soll', titel: 'Soll-Situation' },
-  { feld: 'ziel', titel: 'Sanierungsziel' },
 ]
 
 /*
@@ -110,7 +110,6 @@ export default function PraesentationPanel({
   const istAusFotodoku = reichtextIstLeer(istEigen) && !reichtextIstLeer(istFallback)
   const hatIst = !reichtextIstLeer(ist)
   const hatSoll = !reichtextIstLeer(zustand.soll)
-  const hatZiel = !reichtextIstLeer(zustand.ziel)
   const istFotos = stapel.fotos.filter((f) => !seiten.fotodoku.ausgeschlossen.includes(f.id)).slice(0, 4)
 
   const setzeText = (feld: Feld, wert: Reichtext) => onZustand({ ...zustand, [feld]: wert })
@@ -143,7 +142,7 @@ export default function PraesentationPanel({
       liste.push({ art: 'isotec' })
 
       // Kapitel: Ist und Soll
-      if (hatIst || hatSoll || hatZiel) {
+      if (hatIst || hatSoll) {
         liste.push({
           art: 'kapitel',
           nummer: ++kapitel,
@@ -177,10 +176,7 @@ export default function PraesentationPanel({
           art: 'gegenueber',
           istHtml: reichtextZuHtml(ist),
           sollHtml: reichtextZuHtml(zustand.soll),
-          zielHtml: hatZiel ? reichtextZuHtml(zustand.ziel) : null,
         })
-      } else if (hatZiel) {
-        liste.push({ art: 'text', marke: 'ZIEL', titel: 'Sanierungsziel', html: reichtextZuHtml(zustand.ziel), symbol: 'ziel' })
       }
 
       // Kapitel: die gewaehlten Gewerke mit Grafiken und Erklaerungen der Zentrale
@@ -287,7 +283,7 @@ export default function PraesentationPanel({
     { titel: 'Warum ISOTEC', da: true, quelle: 'Angebotsmappe' },
     { titel: 'Ist-Situation', da: hatIst, quelle: istAusFotodoku ? 'Zusammenfassung der Fotodokumentation' : 'hier' },
     { titel: 'Soll-Situation', da: hatSoll, quelle: 'hier' },
-    { titel: 'Ist und Soll, Ziel', da: hatIst && hatSoll, quelle: hatZiel ? 'mit Sanierungsziel' : 'ohne Sanierungsziel' },
+    { titel: 'Ist und Soll', da: hatIst && hatSoll, quelle: hatIst && hatSoll ? 'Gegenüberstellung' : 'beide Texte nötig' },
     {
       titel: 'Systemlösungen',
       da: infosFuer(kunde.gewerke).length > 0,
