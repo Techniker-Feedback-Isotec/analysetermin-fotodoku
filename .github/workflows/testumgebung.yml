@@ -1,8 +1,8 @@
-name: Testumgebung auf GitHub Pages
+name: Testumgebung bauen
 
 # Testumgebung fuer das iPad (Yann, 12.09.2026): Der Zweig `entwicklung` wird
-# ohne Server auf GitHub Pages gebaut, damit sich neue Staende auf dem Geraet
-# ansehen lassen, bevor sie auf Azure ausgeliefert werden. Live bleibt Azure
+# ohne Server gebaut, damit sich neue Staende auf dem Geraet ansehen lassen,
+# bevor sie auf Azure gehen. Live bleibt Azure
 # (https://isotec-dokumentation.azurewebsites.net, Zweig `main`, docs/AZURE.md).
 #
 # Ohne Server heisst: keine Anmeldung, keine Kundensuche, keine Ablage in
@@ -12,14 +12,12 @@ name: Testumgebung auf GitHub Pages
 #
 # Adresse: https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/
 #
-# Ausgeliefert wird direkt aus dem Workflow (Quelle "GitHub Actions"), nicht
-# mehr ueber einen Branch gh-pages. Pages muss dafuer EINMAL von Hand an sein:
-# Settings > Pages > Build and deployment > Source: "GitHub Actions". Der
-# Workflow-Token darf das nicht selbst (der erste Lauf am 12.09.2026 scheiterte
-# genau daran, "enablement: true" von configure-pages reicht nicht). Solange
-# Pages aus ist, bricht der Schritt "Pages einrichten" ab - das ist dann der
-# einzige Grund. Danach: Actions > "Testumgebung auf GitHub Pages" > Run workflow,
-# oder einfach der naechste Push auf entwicklung.
+# Zwei Workflows, weil die Pages-Umgebung `github-pages` nur dem Zweig `main`
+# das Ausliefern erlaubt (Regel, die GitHub beim Einschalten anlegt; Yann will
+# dafuer nichts klicken). Dieser Workflow baut auf `entwicklung` und legt
+# `dist` als Artefakt ab. Sobald er fertig ist, startet auf `main` der Workflow
+# "Testumgebung ausliefern" (testumgebung-ausliefern.yml), holt das Artefakt
+# und schiebt es nach Pages. Ein Push auf `main` selbst liefert weiterhin nichts.
 
 on:
   push:
@@ -28,12 +26,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   bauen:
@@ -49,9 +41,6 @@ jobs:
       - name: Abhaengigkeiten
         run: npm ci
 
-      - name: Pages einrichten
-        uses: actions/configure-pages@v5
-
       - name: Bauen (Basis = /<Repo-Name>/, ohne Server)
         run: npm run build
         env:
@@ -61,16 +50,8 @@ jobs:
       - name: Keine Jekyll-Verarbeitung
         run: touch dist/.nojekyll
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: testumgebung
           path: dist
-
-  ausliefern:
-    needs: bauen
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
+          retention-days: 3

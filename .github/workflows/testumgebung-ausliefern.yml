@@ -1,0 +1,49 @@
+name: Testumgebung ausliefern
+
+# Zweite Haelfte der Testumgebung (siehe testumgebung.yml auf dem Zweig
+# `entwicklung`): Dieser Workflow liegt auf `main`, weil GitHub den Zweig
+# `entwicklung` nicht in die Pages-Umgebung `github-pages` ausliefern laesst
+# (Regel beim Einschalten von Pages, 12.09.2026). Er wird ausgeloest, sobald
+# "Testumgebung bauen" auf `entwicklung` fertig ist, holt dessen Artefakt
+# `testumgebung` und schiebt es nach GitHub Pages.
+#
+# Adresse: https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/
+# Live bleibt Azure (docs/AZURE.md). Diese Datei aendert nichts am Tool selbst.
+
+on:
+  workflow_run:
+    workflows: ['Testumgebung bauen']
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  ausliefern:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'entwicklung'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Artefakt des Bau-Laufs holen
+        uses: actions/download-artifact@v4
+        with:
+          name: testumgebung
+          path: dist
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
