@@ -67,8 +67,12 @@ export default function ProjektePanel({
   }, [mitarbeiter, daten.mitarbeiterAuswahl, ich])
   const [suche, setSuche] = useState('')
 
+  // Projekte ohne Mitarbeiter (aeltere Staende) erscheinen bei jedem, sonst
+  // waeren sie nirgends zu finden und nicht zu loeschen
   const eigene = vorgaenge.filter(
-    (v) => v.kunde.mitarbeiterAuswahl === mitarbeiter && v.kunde.kunde.trim() !== '',
+    (v) =>
+      (v.kunde.mitarbeiterAuswahl === mitarbeiter || v.kunde.mitarbeiterAuswahl === '') &&
+      v.kunde.kunde.trim() !== '',
   )
   const zuletzt = eigene.slice(0, ZULETZT)
   /** Fuer die Suche: alle Projekte des Mitarbeiters ausser dem offenen */
