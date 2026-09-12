@@ -14,6 +14,7 @@ import {
   ladeVorgang,
   loescheDokumente,
   loescheFotos,
+  loescheVerwaisteSeiten,
   loescheVorgang,
   merkeAktivenVorgang,
   persistenzAnfordern,
@@ -260,6 +261,8 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
         const alle = await ladeVorgaenge()
         if (abgebrochen) return
         setListe(alle)
+        // Der offene Vorgang darf seine Seitensaetze behalten, auch wenn er noch nicht gespeichert ist
+        void loescheVerwaisteSeiten(new Set([...alle.map((v) => v.id), aktuell.current.id])).catch(() => undefined)
         aktualisiereVerbrauch()
         const gemerkt = aktiverVorgangId()
         const letzter = alle.find((v) => v.id === gemerkt) ?? alle[0]

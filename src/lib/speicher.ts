@@ -270,6 +270,22 @@ export async function speichereSeitenDaten(vorgangId: string, seite: SeitenName,
   await fertig(tx)
 }
 
+/**
+ * Seitensaetze ohne Vorgang entfernen. Entstehen, wenn eine Seite Daten
+ * schreibt, der Vorgang selbst aber leer blieb und deshalb nie gespeichert
+ * wurde (etwa die Demobilder der Vorschau in einem frischen Vorgang).
+ */
+export async function loescheVerwaisteSeiten(vorgangIds: Set<string>): Promise<number> {
+  const db = await oeffne()
+  const tx = db.transaction('seiten', 'readwrite')
+  const store = tx.objectStore('seiten')
+  const alle = (await warte(store.getAll())) as SeitenSatz[]
+  const verwaist = alle.filter((s) => !vorgangIds.has(s.vorgangId))
+  for (const s of verwaist) store.delete(s.id)
+  await fertig(tx)
+  return verwaist.length
+}
+
 // ---------- Aktiver Vorgang, Platz, Dauerhaftigkeit ----------
 
 export function aktiverVorgangId(): string | null {
