@@ -57,12 +57,26 @@ export interface KundendatenAusMeisterTask {
 const SITZUNG_VERSUCHT = 'dokumentation-anmeldung-versucht'
 
 /** Schickt zur Microsoft-Anmeldung und kehrt danach hierher zurueck. */
+/**
+ * Testumgebung auf GitHub Pages (Zweig `entwicklung`, seit 12.09.2026): dort
+ * gibt es keinen Server. Ohne diesen Schalter bekaeme /api/ich die HTML-404-
+ * Seite von GitHub, die App hielte das fuer eine abgelaufene Anmeldung und
+ * schickte den Browser zu /.auth/login, das es auf github.io nicht gibt.
+ * Gesetzt wird der Schalter nur im Workflow (.github/workflows/testumgebung.yml).
+ */
+export const OHNE_SERVER = import.meta.env.VITE_OHNE_SERVER === '1'
+
+const OHNE_SERVER_TEXT =
+  'Testumgebung ohne Server: Kundensuche, MeisterTask-Ablage und Sanierungsvorschau gibt es nur auf Azure.'
+
 export function anmelden(): void {
+  if (OHNE_SERVER) return
   const ziel = encodeURIComponent(window.location.pathname + window.location.search)
   window.location.href = `/.auth/login/aad?post_login_redirect_uri=${ziel}`
 }
 
 export function abmelden(): void {
+  if (OHNE_SERVER) return
   window.location.href = '/.auth/logout?post_logout_redirect_uri=/'
 }
 
@@ -94,6 +108,7 @@ export class ApiFehler extends Error {
 }
 
 async function hole<T>(pfad: string): Promise<T> {
+  if (OHNE_SERVER) throw new ApiFehler(OHNE_SERVER_TEXT, 0)
   let r: Response
   try {
     r = await fetch(pfad, { headers: { Accept: 'application/json' }, cache: 'no-store' })
@@ -133,6 +148,7 @@ export interface AnhangErgebnis {
  * ein Original liegt. Die Datei geht roh im Rumpf, der Name als Parameter.
  */
 export async function legeInMeisterTaskAb(aufgabeId: number, art: string, datei: File): Promise<AnhangErgebnis> {
+  if (OHNE_SERVER) throw new ApiFehler(OHNE_SERVER_TEXT, 0)
   let r: Response
   try {
     r = await fetch(
@@ -161,6 +177,7 @@ export async function legeInMeisterTaskAb(aufgabeId: number, art: string, datei:
  * Fehlerbilder). Eine abgelaufene Anmeldung wird auch hier erkannt.
  */
 export async function geminiAnfrage(art: 'bild' | 'bestand', rumpf: unknown, signal?: AbortSignal): Promise<Response> {
+  if (OHNE_SERVER) throw new ApiFehler(OHNE_SERVER_TEXT, 0)
   const r = await fetch(`/api/gemini/${art}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

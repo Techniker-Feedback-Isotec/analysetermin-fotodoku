@@ -98,8 +98,12 @@ selbst kann: `/api/ich` (wer ist angemeldet, aus den Easy-Auth-Kopfzeilen), `/ap
 Anwendungseinstellungen auf dem Server und verlassen ihn nie; der Browser kennt keinen Schlüssel
 mehr. Bauen und Ausliefern immer in PowerShell, Befehle in [`docs/AZURE.md`](docs/AZURE.md).
 
-Das Repo hat **keinen Workflow** mehr: GitHub Pages ist abgeschaltet (Branch `gh-pages` und
-Pages-Einstellung entfernt, 09.09.2026), ein Push sichert nur den Quelltext.
+Ein Push auf `main` sichert nur den Quelltext, ausgeliefert wird auf Azure von Hand. Der Zweig
+`entwicklung` dagegen baut sich bei jedem Push als **Testumgebung ohne Server** auf GitHub Pages
+(`.github/workflows/testumgebung.yml`, seit 12.09.2026):
+https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/ – zum Ansehen neuer Stände
+auf dem iPad. Dort fehlen Anmeldung, Kundensuche, MeisterTask-Ablage und Sanierungsvorschau
+(Schalter `VITE_OHNE_SERVER` in `src/lib/api.ts`); alles andere läuft im Browser.
 
 ## Datenschutz
 

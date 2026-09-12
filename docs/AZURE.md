@@ -114,10 +114,13 @@ Der Server nutzt nur Node-Bordmittel, es werden keine Pakete nachgeladen.
 Pruefen ohne Anmeldung: `https://isotec-dokumentation.azurewebsites.net/gesund`.
 Ein 401 auf andere Pfade per `curl` ist normal, Easy Auth leitet nur Browser um.
 
-Das Repo liegt weiter auf GitHub (`Techniker-Feedback-Isotec/analysetermin-fotodoku`),
-ist aber nur noch Ablage des Quelltextes: **GitHub Pages ist seit dem 09.09.2026
-abgeschaltet** (Branch `gh-pages` geloescht, Pages im Repo deaktiviert, Workflow
-entfernt), die alte Adresse antwortet mit 404. Ein Push liefert nichts aus.
+Das Repo liegt weiter auf GitHub (`Techniker-Feedback-Isotec/analysetermin-fotodoku`).
+Ein Push auf `main` liefert nichts aus, Azure wird von Hand bespielt (oben). Seit dem
+12.09.2026 baut der Zweig `entwicklung` bei jedem Push eine **Testumgebung ohne Server**
+auf GitHub Pages (Quelle "GitHub Actions", `.github/workflows/testumgebung.yml`):
+https://techniker-feedback-isotec.github.io/analysetermin-fotodoku/ - fuer den Blick auf
+dem iPad, bevor etwas auf Azure geht. Dort fehlen Anmeldung, Kundensuche, MeisterTask-
+Ablage und Sanierungsvorschau (`VITE_OHNE_SERVER=1`, siehe src/lib/api.ts).
 
 ## Lokal entwickeln
 

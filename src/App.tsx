@@ -7,7 +7,7 @@ import type { SeitenZustand } from './lib/speicher'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
 import { useFotostapel } from './fotostapel'
-import { ApiFehler, abmelden, ladeIch, ladeKundendaten, type Ich, type KundenEintrag } from './lib/api'
+import { ApiFehler, OHNE_SERVER, abmelden, ladeIch, ladeKundendaten, type Ich, type KundenEintrag } from './lib/api'
 import {
   LEERE_KUNDENDATEN,
   QUELLE_HOCHGELADEN,
@@ -403,8 +403,10 @@ export default function App() {
               </p>
             ) : (
               <p>
-                Fotos und Videos werden lokal im Browser verarbeitet · Anmeldung über das ISOTEC-Konto,
-                kein Tracking
+                Fotos und Videos werden lokal im Browser verarbeitet ·{' '}
+                {OHNE_SERVER
+                  ? 'Testumgebung ohne Server (keine Anmeldung, Kundensuche und Vorschau)'
+                  : 'Anmeldung über das ISOTEC-Konto, kein Tracking'}
                 <br />
                 PDF: ISOTEC_&lt;Terminart&gt;_Fotodokumentation_&lt;Kunde&gt;_&lt;TT.MM.JJJJ&gt;.pdf ·
                 Video: ISOTEC_Videodokumentation_&lt;Titel&gt;_&lt;TT.MM.JJJJ&gt;.mp4
