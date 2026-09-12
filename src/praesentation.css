@@ -1,6 +1,7 @@
 /* ---------- Praesentation im Vollbild (12.09.2026) ----------
-   Corporate Design: weisse Flaeche, rotes Band oben, braune Schrift.
-   Bewegungen: Folien gleiten von unten herein, Inhalte gestaffelt. */
+   Corporate Design: weisse Flaeche, rotes Band oben, braune Schrift;
+   Kapitelblaetter in Rot als Ueberleitung. Bewegungen: Folien gleiten von
+   unten herein, Inhalte gestaffelt, Aufzaehlungen Punkt fuer Punkt. */
 
 .praesi {
   --sanft: cubic-bezier(0.4, 0, 0.2, 1);
@@ -14,6 +15,12 @@
   cursor: pointer;
   user-select: none;
   font-size: clamp(16px, 1.35vw, 24px);
+  transition: background 0.5s var(--sanft);
+}
+
+.praesi.dunkel {
+  background: var(--red);
+  color: var(--white);
 }
 
 body.praesi-offen {
@@ -25,6 +32,11 @@ body.praesi-offen {
   inset: 0 0 auto 0;
   height: 0.55rem;
   background: var(--red);
+  transition: background 0.5s var(--sanft);
+}
+
+.praesi.dunkel .praesi-band {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .praesi-logo {
@@ -32,6 +44,11 @@ body.praesi-offen {
   top: 2.2rem;
   right: 3rem;
   height: 2.4rem;
+  z-index: 2;
+}
+
+.praesi.dunkel .praesi-logo {
+  filter: brightness(0) invert(1);
 }
 
 .praesi-folie {
@@ -70,6 +87,29 @@ body.praesi-offen {
     transform: none;
   }
 }
+
+/* Absaetze und Punkte eines Textes kommen nacheinander */
+.praesi-reichtext.gestaffelt > *,
+.praesi-reichtext.gestaffelt > ul > li {
+  animation: anim-ein 0.5s var(--sanft) both;
+}
+.praesi-reichtext.gestaffelt > ul {
+  animation: none;
+}
+.praesi-reichtext.gestaffelt > :nth-child(1),
+.praesi-reichtext.gestaffelt > ul > li:nth-child(1) { animation-delay: 0.5s; }
+.praesi-reichtext.gestaffelt > :nth-child(2),
+.praesi-reichtext.gestaffelt > ul > li:nth-child(2) { animation-delay: 0.65s; }
+.praesi-reichtext.gestaffelt > :nth-child(3),
+.praesi-reichtext.gestaffelt > ul > li:nth-child(3) { animation-delay: 0.8s; }
+.praesi-reichtext.gestaffelt > :nth-child(4),
+.praesi-reichtext.gestaffelt > ul > li:nth-child(4) { animation-delay: 0.95s; }
+.praesi-reichtext.gestaffelt > :nth-child(5),
+.praesi-reichtext.gestaffelt > ul > li:nth-child(5) { animation-delay: 1.1s; }
+.praesi-reichtext.gestaffelt > :nth-child(6),
+.praesi-reichtext.gestaffelt > ul > li:nth-child(6) { animation-delay: 1.25s; }
+.praesi-reichtext.gestaffelt > :nth-child(n + 7),
+.praesi-reichtext.gestaffelt > ul > li:nth-child(n + 7) { animation-delay: 1.4s; }
 
 .praesi-marke {
   margin: 0 0 0.4rem;
@@ -167,6 +207,93 @@ body.praesi-offen {
   gap: 0.3rem;
 }
 
+/* ---------- Kapitelblatt: rote Flaeche, grosse Zahl, Vorfreude ---------- */
+.art-kapitel {
+  padding: 0;
+  justify-content: center;
+}
+
+.praesi-kapitel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+}
+
+.praesi-kapitelbild {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.22;
+  filter: saturate(0.6);
+  mix-blend-mode: luminosity;
+  animation: kapitelbild-ein 1.4s var(--sanft) both;
+}
+
+@keyframes kapitelbild-ein {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 0.22;
+    transform: none;
+  }
+}
+
+.praesi-kapiteltext {
+  position: relative;
+  padding: 0 8vw;
+  max-width: 70vw;
+}
+
+.praesi-kapitelnummer {
+  margin: 0 0 0.4rem;
+  font-size: 5.5em;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: -0.03em;
+}
+
+.praesi-kapitel h1 {
+  font-size: 4em;
+  color: var(--white);
+  margin-bottom: 0.9rem;
+}
+
+.praesi-kapitelzeile {
+  margin: 0 0 2.2rem;
+  font-size: 1.35em;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 34ch;
+  line-height: 1.4;
+}
+
+.praesi-weiter {
+  display: inline-block;
+  padding: 0.55rem 1.3rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--white);
+  animation: pulsieren 2.4s ease-in-out 1.4s infinite;
+}
+
+@keyframes pulsieren {
+  0%, 100% {
+    transform: none;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.35);
+  }
+  50% {
+    transform: translateX(4px);
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+}
+
 /* ---------- Warum ISOTEC ---------- */
 .praesi-einleitung {
   max-width: 62ch;
@@ -202,10 +329,19 @@ body.praesi-offen {
 .praesi-zeichen {
   flex-shrink: 0;
   width: 2.6em;
+  height: 2.6em;
   color: var(--red);
   font-weight: 800;
   font-size: 1.6em;
   line-height: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.praesi-zeichen svg {
+  width: 1.5em;
+  height: 1.5em;
 }
 
 .praesi-zeichen.zahl {
@@ -231,13 +367,18 @@ body.praesi-offen {
   max-width: 70ch;
 }
 
-.praesi-reichtext p {
+.praesi-reichtext p,
+.praesi-reichtext div {
   margin: 0 0 0.8em;
 }
 
 .praesi-reichtext ul {
   margin: 0 0 0.8em;
   padding-left: 1.2em;
+}
+
+.praesi-reichtext li {
+  margin-bottom: 0.35em;
 }
 
 .praesi-chips {
@@ -256,6 +397,8 @@ body.praesi-offen {
   color: var(--red);
   font-weight: 600;
   font-size: 0.85em;
+  animation: anim-ein 0.5s var(--feder) both;
+  animation-delay: calc(0.5s + var(--i, 0) * 0.08s);
 }
 
 .praesi-bilder {
@@ -272,20 +415,22 @@ body.praesi-offen {
   box-shadow: 0 10px 30px rgba(86, 74, 68, 0.18);
 }
 
-/* ---------- Ist und Soll ---------- */
-.praesi-spalten {
+/* ---------- Gegenueberstellung: Ist, Pfeil, Soll, darunter das Ziel ---------- */
+.praesi-gegenueber {
   flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2.5vw;
-  align-items: start;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 2vw;
+  align-items: stretch;
 }
 
 .praesi-spalte {
-  padding: 1.6rem 1.8rem;
-  border-radius: 14px;
+  position: relative;
+  padding: 1.8rem 1.8rem 1.4rem;
+  border-radius: 16px;
   background: var(--light);
-  min-height: 50vh;
+  overflow: hidden;
 }
 
 .praesi-spalte.soll {
@@ -293,25 +438,283 @@ body.praesi-offen {
   border: 1px solid #f3c9cb;
 }
 
-.praesi-spalte h3 {
-  color: var(--red);
-  font-size: 1.2em;
+.praesi-spaltenmarke {
+  position: absolute;
+  top: 0.9rem;
+  right: 1.1rem;
+  font-size: 0.7em;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #a99f98;
 }
 
-/* ---------- Bildfolie (Skizze) ---------- */
-.praesi-bildflaeche {
+.praesi-spalte.soll .praesi-spaltenmarke,
+.praesi-ziel .praesi-spaltenmarke {
+  color: var(--red);
+}
+
+.praesi-spalte h3 {
+  font-size: 1.35em;
+  margin-bottom: 0.8rem;
+}
+
+.praesi-spalte.soll h3 {
+  color: var(--red);
+}
+
+.praesi-spalte .praesi-reichtext {
+  font-size: 1.02em;
+}
+
+.praesi-pfeil {
+  align-self: center;
+  width: 3.4em;
+  color: var(--red);
+}
+
+.praesi-pfeil svg {
+  width: 100%;
+}
+
+.praesi-pfeil-linie {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: pfeil-linie 0.6s var(--sanft) 0.7s forwards;
+}
+
+.praesi-pfeil-spitze {
+  opacity: 0;
+  animation: anim-ein 0.4s var(--feder) 1.15s forwards;
+}
+
+@keyframes pfeil-linie {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.praesi-ziel {
+  position: relative;
+  margin-top: 1.4rem;
+  padding: 1.1rem 1.6rem 0.6rem;
+  border-radius: 14px;
+  background: var(--red);
+  color: var(--white);
+}
+
+.praesi-ziel .praesi-spaltenmarke {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.praesi-ziel .praesi-reichtext {
+  font-size: 1.05em;
+  max-width: none;
+}
+
+/* ---------- Skizze: Zeichenflaeche gross, Legende darunter ---------- */
+.praesi-skizze {
   flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 1fr;
+  gap: 0.8rem;
+}
+
+.praesi-skizze.mit-legende {
+  grid-template-rows: 1fr auto;
+}
+
+.praesi-skizze-haupt {
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.praesi-bildflaeche img {
+.praesi-skizze-haupt img {
   max-width: 100%;
   max-height: 100%;
   border-radius: 8px;
   box-shadow: 0 16px 50px rgba(86, 74, 68, 0.22);
+  background: var(--white);
+}
+
+.praesi-skizze-legende {
+  display: flex;
+  justify-content: center;
+}
+
+.praesi-skizze-legende img {
+  max-width: 100%;
+  max-height: 9vh;
+  border-radius: 6px;
+  background: var(--white);
+  border: 1px solid var(--grey);
+}
+
+/* ---------- Gewerk: Systemgrafik links, Vorteile rechts ---------- */
+.praesi-untertitel {
+  margin: -0.2rem 0 0;
+  font-size: 1.05em;
+  color: #7a6f68;
+}
+
+.praesi-gewerk {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 3vw;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.praesi-gewerk.ohne-bild {
+  grid-template-columns: 1fr;
+}
+
+.praesi-gewerk-bild {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.praesi-gewerk-bild img {
+  max-width: 100%;
+  max-height: 62vh;
+  border-radius: 12px;
+  box-shadow: 0 16px 50px rgba(86, 74, 68, 0.2);
+  background: var(--white);
+}
+
+.praesi-gewerk-text h3 {
+  font-size: 1.3em;
+  color: var(--red);
+  margin-bottom: 0.9rem;
+}
+
+.praesi-vorteile {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.praesi-vorteile li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 1.02em;
+  line-height: 1.4;
+  animation: anim-ein 0.5s var(--feder) both;
+  animation-delay: calc(0.25s + var(--i, 0) * 0.09s);
+}
+
+.praesi-vorteile svg {
+  flex-shrink: 0;
+  width: 1.35em;
+  height: 1.35em;
+  color: var(--red);
+  margin-top: 0.05em;
+}
+
+.praesi-schaden {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1.6rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  background: var(--light);
+  font-size: 0.85em;
+  color: #7a6f68;
+}
+
+.praesi-schaden img {
+  width: 5.5em;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* ---------- Ausfuehrung: vier Schritte, links die Skizze ---------- */
+.praesi-schritte {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5vw;
+  align-items: center;
+}
+
+.praesi-schritte.mit-skizze {
+  grid-template-columns: 1fr 2fr;
+}
+
+.praesi-schritte-skizze {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.praesi-schritte-skizze img {
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 12px;
+  background: var(--white);
+  box-shadow: 0 12px 36px rgba(86, 74, 68, 0.18);
+}
+
+.praesi-schritte-raster {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.praesi-schritt {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 36px rgba(86, 74, 68, 0.18);
+  aspect-ratio: 3 / 2;
+}
+
+.praesi-schritt img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.praesi-schritt-nr {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  width: 2em;
+  height: 2em;
+  border-radius: 50%;
+  background: var(--red);
+  color: var(--white);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.praesi-schritt-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.5rem 0.9rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+  color: var(--white);
+  font-weight: 600;
 }
 
 /* ---------- Vorher/Nachher ---------- */
@@ -374,6 +777,10 @@ body.praesi-offen {
   background: linear-gradient(to top, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
 }
 
+.praesi.dunkel .praesi-fuss {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0));
+}
+
 .praesi-knopf {
   font: inherit;
   width: 2.4rem;
@@ -418,6 +825,11 @@ body.praesi-offen {
   transition: transform 0.25s var(--feder), background 0.25s;
 }
 
+.praesi-punkte span.kapitel {
+  width: 0.7rem;
+  border-radius: 3px;
+}
+
 .praesi-punkte span.vorbei {
   background: #c9c2bd;
 }
@@ -427,31 +839,58 @@ body.praesi-offen {
   transform: scale(1.5);
 }
 
+.praesi.dunkel .praesi-punkte span.aktiv {
+  background: var(--white);
+}
+
 .praesi-zaehler {
   font-size: 0.75em;
   color: #a99f98;
   min-width: 3.5em;
 }
 
+.praesi.dunkel .praesi-zaehler {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .praesi-folie,
   .praesi .anim,
   .praesi h2::after,
-  .praesi-titelbild {
+  .praesi-titelbild,
+  .praesi-kapitelbild,
+  .praesi-reichtext.gestaffelt > *,
+  .praesi-reichtext.gestaffelt > ul > li,
+  .praesi-chips li,
+  .praesi-pfeil-linie,
+  .praesi-pfeil-spitze,
+  .praesi-weiter {
     animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
   }
 }
 
 @media (max-width: 900px) {
   .praesi-titelblatt,
-  .praesi-spalten,
   .praesi-textflaeche.mit-bildern {
     grid-template-columns: 1fr;
+  }
+  .praesi-gegenueber {
+    grid-template-columns: 1fr;
+  }
+  .praesi-pfeil {
+    transform: rotate(90deg);
+    justify-self: center;
   }
   .praesi-kacheln {
     grid-template-columns: repeat(2, 1fr);
   }
   .praesi-titelbild {
     height: 32vh;
+  }
+  .praesi-gewerk,
+  .praesi-schritte.mit-skizze {
+    grid-template-columns: 1fr;
   }
 }

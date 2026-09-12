@@ -6,20 +6,24 @@ import { nameMitRolle, rolleVon } from './data/rollen'
 import { reichtextIstLeer, reichtextZuHtml, type Reichtext } from './lib/richtext'
 import { formatDateShort } from './lib/format'
 import { ladeSeitenDaten, type PraesentationZustand } from './lib/speicher'
+import type { Ausschnitt } from './lib/pdfbilder'
+import { gewerkBild, infosFuer } from './data/gewerkeInfo'
 import { nachherVon, type VorschauSatz } from './vorschau/lib/saetze'
 import { mitarbeiterVon, objektadresseEcht, type Kundendaten, type ToastFn } from './kunde'
 import type { Seiten } from './vorgang'
 
 /**
  * Seite "Praesentation" (12.09.2026, Yann): Aus Prinzipskizze,
- * Sanierungsvorschau und den Zusammenfassungen eine Praesentation fuer die
- * Auftragsbesprechung. Aufbau: ISOTEC wie in der Angebotsmappe, Ist-Situation
- * (Zusammenfassung der Fotodokumentation), Soll-Situation, Ist und Soll
- * nebeneinander, Sanierungsziel, die Sanierungsbereiche aus der gezeichneten
- * Skizze, Vorher/Nachher mit Schieberegler.
+ * Sanierungsvorschau und den Texten eine Praesentation fuer die
+ * Auftragsbesprechung. Aufbau: Titel, ISOTEC wie in der Angebotsmappe,
+ * Kapitelblatt, Ist-Situation, Soll-Situation, Gegenueberstellung mit Ziel,
+ * Kapitelblatt, die Sanierungsbereiche aus der gezeichneten Skizze,
+ * Kapitelblatt, Vorher/Nachher mit Schieberegler, Schluss.
  *
- * Eigene Texte hier sind nur Soll-Situation und Sanierungsziel; alles andere
- * kommt von den anderen Seiten des Projekts und ist beim Start aktuell.
+ * Eigene Texte hier: Ist-Situation (eine Beschreibung, aus der die
+ * Gegenueberstellung entsteht), Soll-Situation, Sanierungsziel. Alles andere
+ * kommt beim Start frisch von den anderen Seiten des Projekts; wer dort etwas
+ * aendert, sieht es beim naechsten Start (Yann: "muss sich aktualisieren").
  */
 
 export interface PraesentationPanelProps {
@@ -32,14 +36,34 @@ export interface PraesentationPanelProps {
   zustand: PraesentationZustand
   onZustand: (zustand: PraesentationZustand) => void
   onToast: ToastFn
+  /** Ob die Seite gerade offen ist; dann wird der Stand der Vorschau nachgelesen */
+  sichtbar: boolean
 }
 
-type Feld = 'soll' | 'ziel'
+type Feld = 'ist' | 'soll' | 'ziel'
 
 const FELDER: { feld: Feld; titel: string }[] = [
+  { feld: 'ist', titel: 'Ist-Situation' },
   { feld: 'soll', titel: 'Soll-Situation' },
   { feld: 'ziel', titel: 'Sanierungsziel' },
 ]
+
+/**
+ * Ausschnitte der Skizzenseiten in PDF-Punkten von oben (Masse aus
+ * lib/pdf.ts): Bauzeichnungen = Zeichenflaeche unter der Kopfzeile bis ueber
+ * die Legende, dazu die Legende als eigener Streifen; Bildseiten = die
+ * Bildflaeche zwischen Kopf (134) und Hinweis/Fusszeile (58 + Rand 40).
+ * Ohne Rahmen um das Blatt wirken die Elemente auf der Folie doppelt so gross.
+ */
+function ausschnitteFuer(_seite: number, abschnitt: string | null): Ausschnitt[] {
+  if (abschnitt === 'Bauzeichnungen') {
+    return [
+      { name: 'haupt', box: { x: 44, y: 122, breite: 507, hoehe: 842 - 122 - 84 } },
+      { name: 'legende', box: { x: 44, y: 842 - 84, breite: 507, hoehe: 62 } },
+    ]
+  }
+  return [{ name: 'haupt', box: { x: 40, y: 134, breite: 515, hoehe: 842 - 134 - 98 } }]
+}
 
 export default function PraesentationPanel({
   kunde,
@@ -50,6 +74,7 @@ export default function PraesentationPanel({
   zustand,
   onZustand,
   onToast,
+  sichtbar,
 }: PraesentationPanelProps) {
   const [offenesFeld, setOffenesFeld] = useState<Feld | null>(null)
   const [folien, setFolien] = useState<Folie[] | null>(null)
@@ -59,7 +84,9 @@ export default function PraesentationPanel({
   /** Wie viele Vorher/Nachher-Paare gespeichert sind, fuer die Uebersicht */
   const [paare, setPaare] = useState<number | null>(null)
 
+  // Bei jedem Oeffnen der Seite den Stand der Vorschau nachlesen
   useEffect(() => {
+    if (!sichtbar) return
     let abgebrochen = false
     void ladeSeitenDaten<VorschauSatz[]>(vorgangId, 'vorschau')
       .then((s) => {
@@ -71,10 +98,15 @@ export default function PraesentationPanel({
     return () => {
       abgebrochen = true
     }
-  }, [vorgangId, folien])
+  }, [vorgangId, folien, sichtbar])
 
   const mitarbeiter = mitarbeiterVon(kunde)
-  const ist = seiten.fotodoku.zusammenfassung.length > 0 ? seiten.fotodoku.zusammenfassung : seiten.fotodoku.beurteilung
+  /** Ist-Situation: eigener Text, sonst die Zusammenfassung der Fotodokumentation */
+  const istEigen = zustand.ist ?? []
+  const istFallback =
+    seiten.fotodoku.zusammenfassung.length > 0 ? seiten.fotodoku.zusammenfassung : seiten.fotodoku.beurteilung
+  const ist: Reichtext = reichtextIstLeer(istEigen) ? istFallback : istEigen
+  const istAusFotodoku = reichtextIstLeer(istEigen) && !reichtextIstLeer(istFallback)
   const hatIst = !reichtextIstLeer(ist)
   const hatSoll = !reichtextIstLeer(zustand.soll)
   const hatZiel = !reichtextIstLeer(zustand.ziel)
@@ -93,9 +125,11 @@ export default function PraesentationPanel({
     if (baut) return
     setBaut(true)
     const neueAdressen: string[] = []
+    let kapitel = 0
     try {
       const liste: Folie[] = []
       const objekt = objektadresseEcht(kunde)
+      const objektfoto = kunde.objektfoto?.thumbUrl ?? null
       liste.push({
         art: 'titel',
         untertitel: 'SANIERUNGSKONZEPT',
@@ -103,14 +137,25 @@ export default function PraesentationPanel({
         zeilen: [objekt, kunde.baujahr.trim() ? `Baujahr ${kunde.baujahr.trim()}` : '', formatDateShort(Date.now())].filter(
           Boolean,
         ),
-        bildUrl: kunde.objektfoto?.thumbUrl ?? null,
+        bildUrl: objektfoto,
       })
       liste.push({ art: 'isotec' })
+
+      // Kapitel: Ist und Soll
+      if (hatIst || hatSoll || hatZiel) {
+        liste.push({
+          art: 'kapitel',
+          nummer: ++kapitel,
+          titel: 'Ihr Objekt heute und morgen',
+          unterzeile: 'Wo Ihr Objekt heute steht, was wir vorhaben und wohin es geht.',
+          bildUrl: objektfoto,
+        })
+      }
       if (hatIst) {
         liste.push({
           art: 'text',
-          marke: 'BESTAND',
-          titel: 'Ist-Situation',
+          marke: 'IST-SITUATION',
+          titel: 'So ist es heute',
           html: reichtextZuHtml(ist),
           bilder: istFotos.map((f) => f.thumbUrl),
         })
@@ -118,39 +163,106 @@ export default function PraesentationPanel({
       if (hatSoll) {
         liste.push({
           art: 'text',
-          marke: 'SANIERUNG',
-          titel: 'Soll-Situation',
+          marke: 'SOLL-SITUATION',
+          titel: 'So soll es werden',
           html: reichtextZuHtml(zustand.soll),
           chips: kunde.gewerke,
         })
       }
       if (hatIst && hatSoll) {
-        liste.push({ art: 'gegenueber', istHtml: reichtextZuHtml(ist), sollHtml: reichtextZuHtml(zustand.soll) })
-      }
-      if (hatZiel) {
+        liste.push({
+          art: 'gegenueber',
+          istHtml: reichtextZuHtml(ist),
+          sollHtml: reichtextZuHtml(zustand.soll),
+          zielHtml: hatZiel ? reichtextZuHtml(zustand.ziel) : null,
+        })
+      } else if (hatZiel) {
         liste.push({ art: 'text', marke: 'ZIEL', titel: 'Sanierungsziel', html: reichtextZuHtml(zustand.ziel) })
       }
 
-      // Die gezeichnete Skizze: alle Seiten ausser dem Deckblatt
-      if (skizze) {
-        const { rendereSeiten } = await import('./lib/pdfbilder')
-        const { bilder, abschnitte } = await rendereSeiten(new Uint8Array(await skizze.blob.arrayBuffer()), 2, null)
-        for (const b of bilder) {
-          neueAdressen.push(b.url)
-          const abschnitt = [...abschnitte].reverse().find((a) => a.seite <= b.seite)
-          liste.push({ art: 'bild', marke: 'PRINZIPSKIZZE', titel: abschnitt?.titel ?? 'Sanierungsbereiche', url: b.url })
+      // Kapitel: die gewaehlten Gewerke mit Grafiken und Erklaerungen der Zentrale
+      const gewerkeInfos = infosFuer(kunde.gewerke)
+      if (gewerkeInfos.length > 0) {
+        liste.push({
+          art: 'kapitel',
+          nummer: ++kapitel,
+          titel: gewerkeInfos.length === 1 ? 'Unsere Systemlösung' : 'Unsere Systemlösungen',
+          unterzeile: gewerkeInfos.map((g) => g.titel.replace(/^ISOTEC-/, '')).join(' · '),
+          bildUrl: gewerkBild(gewerkeInfos[0].id, 'kapitel'),
+        })
+        for (const g of gewerkeInfos) {
+          liste.push({
+            art: 'gewerk',
+            titel: g.titel,
+            untertitel: g.untertitel,
+            bildUrl: gewerkBild(g.id, 'system') ?? gewerkBild(g.id, 'skizze'),
+            vorteile: g.vorteile,
+            schadenUrl: gewerkBild(g.id, 'schaden'),
+            schadenText: g.schaden,
+          })
+          const bilder = [1, 2, 3, 4].map((n) => gewerkBild(g.id, `schritt${n}`)).filter((b): b is string => b !== null)
+          if (bilder.length === 4) {
+            liste.push({
+              art: 'schritte',
+              titel: `So gehen wir vor: ${g.titel.replace(/^ISOTEC-/, '')}`,
+              bilder,
+              beschriftungen: g.schritte ?? null,
+              skizzeUrl: gewerkBild(g.id, 'system') ? gewerkBild(g.id, 'skizze') : gewerkBild(g.id, 'prinzip'),
+            })
+          }
         }
       }
 
-      // Vorher/Nachher aus dem gespeicherten Stand der Sanierungsvorschau
+      // Kapitel: Sanierungsbereiche aus der gezeichneten Skizze
+      if (skizze) {
+        const { rendereSeiten } = await import('./lib/pdfbilder')
+        const { bilder } = await rendereSeiten(new Uint8Array(await skizze.blob.arrayBuffer()), 2, null, 2400, ausschnitteFuer)
+        const mitTeilen = bilder.filter((b) => b.teile.length > 0)
+        if (mitTeilen.length > 0) {
+          const erstes = mitTeilen.find((b) => b.abschnitt !== 'Bauzeichnungen') ?? mitTeilen[0]
+          liste.push({
+            art: 'kapitel',
+            nummer: ++kapitel,
+            titel: 'Sanierungsbereiche',
+            unterzeile: 'Wo wir arbeiten: die Bereiche Ihres Objekts, eingezeichnet in Plan und Foto.',
+            bildUrl: erstes.teile[0]?.url ?? null,
+          })
+        }
+        for (const b of mitTeilen) {
+          for (const t of b.teile) neueAdressen.push(t.url)
+          const haupt = b.teile.find((t) => t.name === 'haupt') ?? b.teile[0]
+          const legende = b.teile.find((t) => t.name === 'legende') ?? null
+          liste.push({
+            art: 'skizze',
+            marke: 'PRINZIPSKIZZE',
+            titel: b.abschnitt ?? 'Sanierungsbereiche',
+            hauptUrl: haupt.url,
+            legendeUrl: legende?.url ?? null,
+          })
+        }
+      }
+
+      // Kapitel: Vorher/Nachher aus dem gespeicherten Stand der Sanierungsvorschau
       const saetze = (await ladeSeitenDaten<VorschauSatz[]>(vorgangId, 'vorschau')) ?? []
-      for (const satz of saetze) {
-        const nachher = nachherVon(satz)
-        if (!nachher) continue
-        const vorherUrl = URL.createObjectURL(satz.vorherBlob)
-        const nachherUrl = URL.createObjectURL(nachher)
-        neueAdressen.push(vorherUrl, nachherUrl)
-        liste.push({ art: 'vergleich', name: satz.name, vorherUrl, nachherUrl })
+      const paareListe = saetze
+        .map((satz) => ({ satz, nachher: nachherVon(satz) }))
+        .filter((p): p is { satz: VorschauSatz; nachher: Blob } => p.nachher !== null)
+      if (paareListe.length > 0) {
+        const vorschauBild = URL.createObjectURL(paareListe[0].nachher)
+        neueAdressen.push(vorschauBild)
+        liste.push({
+          art: 'kapitel',
+          nummer: ++kapitel,
+          titel: 'Sanierungsvorschau',
+          unterzeile: 'So kann Ihr Keller nach der Sanierung aussehen. Ziehen Sie den Regler und sehen Sie selbst.',
+          bildUrl: vorschauBild,
+        })
+        for (const { satz, nachher } of paareListe) {
+          const vorherUrl = URL.createObjectURL(satz.vorherBlob)
+          const nachherUrl = URL.createObjectURL(nachher)
+          neueAdressen.push(vorherUrl, nachherUrl)
+          liste.push({ art: 'vergleich', name: satz.name, vorherUrl, nachherUrl })
+        }
       }
 
       liste.push({ art: 'schluss', name: mitarbeiter.name, rolle: mitarbeiter.name ? rolleVon(mitarbeiter.name) : '' })
@@ -168,10 +280,17 @@ export default function PraesentationPanel({
   const uebersicht: { titel: string; da: boolean; quelle: string }[] = [
     { titel: 'Titel', da: true, quelle: kunde.kunde.trim() || 'Kunde fehlt' },
     { titel: 'Warum ISOTEC', da: true, quelle: 'Angebotsmappe' },
-    { titel: 'Ist-Situation', da: hatIst, quelle: 'Zusammenfassung der Fotodokumentation' },
+    { titel: 'Ist-Situation', da: hatIst, quelle: istAusFotodoku ? 'Zusammenfassung der Fotodokumentation' : 'hier' },
     { titel: 'Soll-Situation', da: hatSoll, quelle: 'hier' },
-    { titel: 'Ist und Soll', da: hatIst && hatSoll, quelle: 'beide Texte' },
-    { titel: 'Sanierungsziel', da: hatZiel, quelle: 'hier' },
+    { titel: 'Ist und Soll, Ziel', da: hatIst && hatSoll, quelle: hatZiel ? 'mit Sanierungsziel' : 'ohne Sanierungsziel' },
+    {
+      titel: 'Systemlösungen',
+      da: infosFuer(kunde.gewerke).length > 0,
+      quelle:
+        infosFuer(kunde.gewerke).length > 0
+          ? infosFuer(kunde.gewerke).map((g) => g.titel.replace(/^ISOTEC-/, '')).join(', ')
+          : 'Gewerke auf der Übersicht wählen',
+    },
     { titel: 'Sanierungsbereiche', da: skizze !== null, quelle: skizze ? skizze.name : 'gezeichnete Prinzipskizze' },
     {
       titel: 'Vorher / Nachher',
@@ -188,18 +307,23 @@ export default function PraesentationPanel({
           <h2 id="praes-texte">Präsentation</h2>
         </div>
         <div className="praes-felder">
-          {FELDER.map(({ feld, titel }) => (
-            <div key={feld} className="eingabe eingabe-breit">
-              <span className="eingabe-label">{titel}</span>
-              <button type="button" className="textvorschau" onClick={() => setOffenesFeld(feld)}>
-                {reichtextIstLeer(zustand[feld]) ? (
-                  <span className="textvorschau-leer">{titel}</span>
-                ) : (
-                  <Textvorschau reich={zustand[feld]} />
-                )}
-              </button>
-            </div>
-          ))}
+          {FELDER.map(({ feld, titel }) => {
+            const wert = zustand[feld] ?? []
+            return (
+              <div key={feld} className="eingabe">
+                <span className="eingabe-label">{titel}</span>
+                <button type="button" className="textvorschau" onClick={() => setOffenesFeld(feld)}>
+                  {reichtextIstLeer(wert) ? (
+                    <span className="textvorschau-leer">
+                      {feld === 'ist' && istAusFotodoku ? 'aus der Fotodokumentation' : titel}
+                    </span>
+                  ) : (
+                    <Textvorschau reich={wert} />
+                  )}
+                </button>
+              </div>
+            )
+          })}
         </div>
 
         <ul className="praes-folien">
@@ -222,7 +346,7 @@ export default function PraesentationPanel({
           <Textfenster
             titel={FELDER.find((f) => f.feld === offenesFeld)?.titel ?? ''}
             hinweis="erscheint als eigene Folie in der Präsentation"
-            wert={zustand[offenesFeld]}
+            wert={zustand[offenesFeld] ?? []}
             onSpeichern={(neu) => {
               setzeText(offenesFeld, neu)
               setOffenesFeld(null)

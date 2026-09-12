@@ -119,6 +119,14 @@ const VORLAGEN: Vorlage[] = [
     eintraege: [{ text: BEIDES, form: 'balken' }],
   },
   {
+    // Seit 12.09.2026 (Yann): Schimmelbeseitigung und Anti-Schimmelbeschichtung,
+    // eine Gruppe, weil beides auf derselben Wandflaeche passiert
+    titel: 'Schimmelsanierung (Beseitigung & Anti-Schimmelbeschichtung)',
+    farbe: '#a0522d',
+    gewerke: ['Schimmelschadensanierung', 'Anti-Schimmelbeschichtung'],
+    eintraege: [{ text: 'Wandfläche', form: 'flaeche' }],
+  },
+  {
     titel: 'Kellerbodensanierung',
     farbe: '#00d5d5',
     gewerke: ['Kellerbodensanierung'],

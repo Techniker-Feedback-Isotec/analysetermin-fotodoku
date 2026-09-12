@@ -68,13 +68,15 @@ export const LEERER_MAPPENZUSTAND: MappenZustand = { nichtInMappe: [], mappenFol
 
 /** Eigene Texte der Praesentation (Seite Praesentation, seit 12.09.2026) */
 export interface PraesentationZustand {
+  /** Ist-Situation als eigene Beschreibung; leer = Zusammenfassung der Fotodokumentation. Fehlt bei Saetzen vom Vormittag des 12.09.2026 */
+  ist?: Reichtext
   /** Soll-Situation: wie es nach der Sanierung aussehen soll */
   soll: Reichtext
   /** Sanierungsziel */
   ziel: Reichtext
 }
 
-export const LEERE_PRAESENTATION: PraesentationZustand = { soll: [], ziel: [] }
+export const LEERE_PRAESENTATION: PraesentationZustand = { ist: [], soll: [], ziel: [] }
 
 /** Seiten, die ihre Arbeitsdaten als eigenen Satz je Vorgang ablegen */
 export type SeitenName = 'vorschau' | 'video'
@@ -339,6 +341,7 @@ export function vorgangIstLeer(
   const k = satz.kunde
   const texte = [
     ...[satz.seiten.fotodoku, satz.seiten.prinzipskizze].flatMap((s) => [s.beurteilung, s.zusammenfassung]),
+    satz.praesentation?.ist ?? [],
     satz.praesentation?.soll ?? [],
     satz.praesentation?.ziel ?? [],
   ]

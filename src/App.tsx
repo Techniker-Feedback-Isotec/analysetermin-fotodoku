@@ -378,6 +378,7 @@ export default function App() {
               zustand={vorgang.praesentation}
               onZustand={vorgang.setPraesentation}
               onToast={pushToast}
+              sichtbar={modus === 'praesentation'}
             />
           </div>
 

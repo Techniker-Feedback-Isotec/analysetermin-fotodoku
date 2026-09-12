@@ -38,6 +38,8 @@ export const GEWERKE = [
   { id: 'rissinjektion', name: 'Rissinjektion & Flexband', kurz: 'Rissinjektion', farbe: '#ff2d95', presets: [balken, flaeche] },
   { id: 'horizontalsperre', name: 'Horizontalsperre (Injektionscreme & Horizontalsperre)', kurz: 'Horizontalsperre', farbe: '#ff0000', presets: [balken] },
   { id: 'kellerbodensanierung', name: 'Kellerbodensanierung', kurz: 'Kellerboden', farbe: '#00d5d5', presets: [flaeche] },
+  // Seit 12.09.2026 in der Legende der Dokumentation (Yann): Schimmelbeseitigung und Anti-Schimmelbeschichtung
+  { id: 'schimmel', name: 'Schimmelsanierung (Beseitigung & Anti-Schimmelbeschichtung)', kurz: 'Schimmel', farbe: '#a0522d', presets: [flaeche] },
   { id: 'sonstiges', name: 'Sonstiges', farbe: '#ff3b3b', presets: [kreuz, hinweis] },
 ];
 

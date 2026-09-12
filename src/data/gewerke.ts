@@ -21,4 +21,7 @@ export const GEWERKE: string[] = [
   'Sanierputz',
   'Sockelabdichtung',
   'Treppe',
+  // Schimmel kam am 12.09.2026 dazu (Yann): Beseitigung und die Beschichtung danach
+  'Schimmelschadensanierung',
+  'Anti-Schimmelbeschichtung',
 ].sort((a, b) => a.localeCompare(b, 'de'))
