@@ -12,7 +12,11 @@ name: Testumgebung ausliefern
 
 on:
   workflow_run:
-    workflows: ['Testumgebung bauen']
+    # Beide Namen: GitHub fuehrt den Bau-Workflow in der Registrierung noch
+    # unter seinem ersten Namen, weil seine Datei nicht auf dem Standardzweig
+    # liegt. Der Lauf selbst heisst 'Testumgebung bauen'. So passt es in beiden
+    # Faellen (12.09.2026).
+    workflows: ['Testumgebung bauen', 'Testumgebung auf GitHub Pages']
     types: [completed]
 
 permissions:
