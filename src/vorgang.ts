@@ -61,7 +61,7 @@ export interface VorgangHook {
   setSeite: (art: FotoDokuArt, zustand: SeitenZustand) => void
   mappe: MappenZustand
   setMappe: (zustand: MappenZustand) => void
-  neu: () => void
+  neu: () => Promise<void>
   oeffnen: (id: string) => Promise<void>
   loeschen: (id: string) => Promise<void>
 }
@@ -354,8 +354,9 @@ export function useVorgang({ kunde, setKunde, stapel, dokumente, setDokumente, i
     setSeiten((bisher) => (bisher[art] === zustand ? bisher : { ...bisher, [art]: zustand }))
   }, [])
 
-  const neu = useCallback(() => {
-    void schreibeSatz().then(() => setzeNeuAuf())
+  const neu = useCallback(async () => {
+    await schreibeSatz()
+    setzeNeuAuf()
   }, [schreibeSatz, setzeNeuAuf])
 
   const oeffnen = useCallback(

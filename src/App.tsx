@@ -1,14 +1,16 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import KundePanel from './KundePanel'
+import ProjektePanel from './ProjektePanel'
 import { useVorgang } from './vorgang'
 import type { SeitenZustand } from './lib/speicher'
 import FotoDokuPanel from './FotoDokuPanel'
 import { Navigation, type Modus } from './Navigation'
 import { useFotostapel } from './fotostapel'
-import { abmelden, ladeIch, type Ich } from './lib/api'
+import { ApiFehler, abmelden, ladeIch, ladeKundendaten, type Ich, type KundenEintrag } from './lib/api'
 import {
   LEERE_KUNDENDATEN,
   QUELLE_HOCHGELADEN,
+  anschriftenAus,
   mitarbeiterFuerAnmeldung,
   mitarbeiterVon,
   objektadresseEcht,
@@ -35,7 +37,8 @@ const COMPANY = 'Abdichtungstechnik Dipl.-Ing. Morscheck GmbH'
 const VideoPanel = lazy(() => import('./VideoPanel'))
 const VorschauPanel = lazy(() => import('./vorschau/VorschauPanel'))
 
-const START_MODUS: Modus = /vorschau|demo/.test(window.location.hash) ? 'vorschau' : 'kunde'
+// Gestartet wird auf der Seite Projekte, dort wird das Projekt gewaehlt (Yann, 12.09.2026)
+const START_MODUS: Modus = /vorschau|demo/.test(window.location.hash) ? 'vorschau' : 'projekte'
 
 let toastCounter = 0
 
@@ -118,12 +121,61 @@ export default function App() {
    * eigenen (Besitzer = E-Mail der Anmeldung; ohne Besitzer = Entwicklung).
    * Teilen sich zwei Leute ein iPad, findet jeder nur seine.
    */
+  /**
+   * Projekt aus einer MeisterTask-Aufgabe anlegen (Seite Projekte): neuer
+   * Vorgang, Name sofort aus der Liste, Anschriften und Baujahr aus den
+   * Feldern der Aufgabe nach, dann zur Uebersicht.
+   */
+  const neuAusMeisterTask = useCallback(
+    async (eintrag: KundenEintrag, mitarbeiterName: string) => {
+      const nameAusTitel = eintrag.anzeige.split(',')[0]?.trim() ?? eintrag.anzeige
+      await vorgang.neu()
+      aendereKunde({
+        mitarbeiterAuswahl: mitarbeiterName,
+        kunde: nameAusTitel,
+        meistertask: { id: eintrag.id, token: eintrag.token, titel: eintrag.titel },
+      })
+      setModus('kunde')
+      try {
+        const felder = await ladeKundendaten(eintrag)
+        const anschriften = anschriftenAus(felder.kundenadresse, felder.objektadresse)
+        aendereKunde({ kunde: felder.kunde || nameAusTitel, ...anschriften, baujahr: felder.baujahr })
+        const fehlt = [!anschriften.kundenadresse && 'Anschrift', !felder.baujahr && 'Baujahr'].filter(
+          (t): t is string => Boolean(t),
+        )
+        if (fehlt.length > 0) pushToast('info', `In der MeisterTask-Aufgabe fehlt: ${fehlt.join(', ')}.`)
+      } catch (err) {
+        pushToast(
+          'error',
+          err instanceof ApiFehler ? `Felder der Aufgabe nicht lesbar: ${err.message}` : 'Felder der Aufgabe nicht lesbar.',
+        )
+      }
+    },
+    [vorgang, aendereKunde, pushToast],
+  )
+
+  /** Projekt ohne MeisterTask, nur mit Namen (Seite Projekte) */
+  const neuFrei = useCallback(
+    async (name: string, mitarbeiterName: string) => {
+      await vorgang.neu()
+      aendereKunde({ mitarbeiterAuswahl: mitarbeiterName, kunde: name })
+      setModus('kunde')
+    },
+    [vorgang, aendereKunde],
+  )
+
+  /** Gespeichertes Projekt oeffnen und zur Uebersicht wechseln */
+  const oeffneProjekt = useCallback(
+    (id: string) => {
+      void vorgang.oeffnen(id).then(() => setModus('kunde'))
+    },
+    [vorgang],
+  )
+
   /** Die schon gezeichnete Prinzipskizze, damit die Seite sie wieder oeffnen kann */
   const skizzeDok = dokumente.find((d) => d.schluessel === 'pdf:prinzipskizze')
   const gezeichneteSkizze = skizzeDok ? { blob: skizzeDok.blob, name: skizzeDok.name } : null
-  const gespeicherte = vorgang.liste.filter(
-    (v) => v.id !== vorgang.id && (!v.besitzer || !ich?.email || v.besitzer === ich.email),
-  )
+  const eigeneVorgaenge = vorgang.liste.filter((v) => !v.besitzer || !ich?.email || v.besitzer === ich.email)
 
   /** Ein neues Dokument mit gleichem Schluessel ersetzt das alte; null entfernt es. */
   const setzeDokument = useCallback((schluessel: string, quelle: string, datei: File | null) => {
@@ -234,6 +286,18 @@ export default function App() {
 
       <div className="content">
         <main className="container">
+          <div hidden={modus !== 'projekte'}>
+            <ProjektePanel
+              daten={kunde}
+              ich={ich}
+              vorgaenge={eigeneVorgaenge}
+              aktivId={vorgang.id}
+              onOeffnen={oeffneProjekt}
+              onNeuAusMeisterTask={(eintrag, m) => void neuAusMeisterTask(eintrag, m)}
+              onNeuFrei={(name, m) => void neuFrei(name, m)}
+            />
+          </div>
+
           <div hidden={modus !== 'kunde'}>
             <KundePanel
               key={vorgang.id}
@@ -251,9 +315,6 @@ export default function App() {
               speicher={{
                 status: vorgang.status,
                 gespeichertUm: vorgang.gespeichertUm,
-                gespeicherte,
-                onNeu: vorgang.neu,
-                onOeffnen: (id) => void vorgang.oeffnen(id),
                 onLoeschen: () => void vorgang.loeschen(vorgang.id),
               }}
             />

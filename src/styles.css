@@ -135,6 +135,14 @@ body {
   display: none;
 }
 
+/* Grauer Strich unter "Projekte": darueber das Projekt, darunter seine Daten (Yann, 12.09.2026) */
+.nav-trenner {
+  display: block;
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--grey);
+}
+
 .sidebar-foot {
   padding: 12px 14px;
   border-top: 1px solid var(--grey);
@@ -250,6 +258,13 @@ body {
 
   .nav-kurz {
     display: inline;
+  }
+
+  .nav-trenner {
+    width: 1px;
+    height: 28px;
+    align-self: center;
+    margin: 0 2px;
   }
 
   /* Platz fuer die feste Leiste unten, sonst verdeckt sie das Seitenende */
@@ -2762,7 +2777,7 @@ table {
 }
 
 /* Kundensuche: das Feld Kunde mit Klappliste aus MeisterTask (Seite Kunde) */
-.kundensuche {
+.kundensuche-feld {
   position: relative;
 }
 
@@ -2771,7 +2786,7 @@ table {
   z-index: 30;
   left: 0;
   right: 0;
-  top: calc(100% - 26px);
+  top: 100%;
   margin: 4px 0 0;
   padding: 4px 0;
   list-style: none;
@@ -3135,4 +3150,92 @@ body.zeichnen-offen {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* ---------- Seite Projekte (12.09.2026) ---------- */
+
+.projekte-felder {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 12px 20px;
+  align-items: start;
+}
+
+.projekte-titel {
+  margin: 22px 0 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7a6f68;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.projekte-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.projekt {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+  text-align: left;
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--grey);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--brown);
+  cursor: pointer;
+}
+
+.projekt:hover {
+  border-color: var(--red);
+}
+
+.projekt.aktiv {
+  border-color: var(--red);
+  background: #fdf0f0;
+}
+
+.projekt-name {
+  font-weight: 600;
+}
+
+.projekt-ort {
+  font-weight: 400;
+  color: #7a6f68;
+}
+
+.projekt-meta {
+  font-size: 0.8rem;
+  color: #a99f98;
+}
+
+/* Feste Werte auf der Uebersicht (Kunde, Anschriften): stehen wie ein Feld, sind aber Text */
+.wert-fest {
+  margin: 0;
+  padding: 8px 0;
+  font-weight: 500;
+  color: var(--brown);
+  border-bottom: 1px solid var(--grey);
+  min-height: 38px;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.kundensuche-eintrag.neu .kundensuche-name {
+  color: var(--red);
+}
+
+@media (max-width: 640px) {
+  .projekte-felder {
+    grid-template-columns: 1fr;
+  }
 }

@@ -2,18 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { SALESPEOPLE } from './data/salespeople'
 import { GEWERKE } from './data/gewerke'
 import MultiSelect from './MultiSelect'
-import KundenSuche from './KundenSuche'
 import VorgangZeile from './VorgangZeile'
-import { ApiFehler, ladeKundendaten, legeInMeisterTaskAb, meistertaskLink, type Ich, type KundenEintrag } from './lib/api'
+import { ApiFehler, legeInMeisterTaskAb, meistertaskLink, type Ich } from './lib/api'
 import { ACCEPT, isSupported, prepareImage } from './lib/bilder'
 import { logoBild, objektBild, visitenkarteBild } from './lib/deckblattbilder'
 import { formatBytes, formatDateTime, initialsOf, sanitizeFilePart } from './lib/format'
 import { speichereDatei, teileDateien, typTeilbar } from './lib/share'
-import type { MappenZustand, VorgangSatz } from './lib/speicher'
+import type { MappenZustand } from './lib/speicher'
 import type { SpeicherStatus } from './vorgang'
 import {
   CUSTOM_VALUE,
-  anschriftenAus,
   mappenFaehig as istMappenFaehig,
   mappenRang,
   mitarbeiterVon,
@@ -123,21 +121,20 @@ export interface KundePanelProps {
   /** Gespeicherte Mappenauswahl beim Aufsetzen; App.tsx setzt die Seite per `key` je Vorgang neu auf */
   mappeStart: MappenZustand
   onMappe: (zustand: MappenZustand) => void
-  /** Speicher im Geraet: Stand, Neuer Vorgang, Loeschen, gespeicherte Vorgaenge fuer die Suche */
+  /** Speicher im Geraet: Stand und Loeschen; Projekt waehlen geht auf der Seite Projekte */
   speicher: {
     status: SpeicherStatus
     gespeichertUm: number | null
-    /** Gespeicherte Vorgaenge ohne den offenen, nur eigene, neueste zuerst */
-    gespeicherte: VorgangSatz[]
-    onNeu: () => void
-    onOeffnen: (id: string) => void
     onLoeschen: () => void
   }
 }
 
 /**
- * Seite "Kunde": alle Angaben zum Termin in einem Raster, rechts das
- * Objektfoto, darunter die auf den anderen Seiten erstellten Dokumente.
+ * Seite "Uebersicht" (bis 12.09.2026 "Kunden"): alle Angaben zum Termin in
+ * einem Raster, rechts das Objektfoto, darunter die auf den anderen Seiten
+ * erstellten Dokumente. Kunde, Kundenadresse und Objektadresse kommen seit
+ * dem 12.09.2026 von der Seite Projekte und sind hier nur zu lesen (Yann);
+ * das Baujahr bleibt aenderbar, weil es in MeisterTask oft fehlt.
  */
 export default function KundePanel({
   daten,
@@ -157,7 +154,6 @@ export default function KundePanel({
   const [dragOverObject, setDragOverObject] = useState(false)
   const [objektLaeuft, setObjektLaeuft] = useState(false)
   const [mappeLaeuft, setMappeLaeuft] = useState(false)
-  const [uebernahmeLaeuft, setUebernahmeLaeuft] = useState(false)
   /**
    * Unterlagen, die NICHT in die Mappe sollen (Yann, 09.09.2026: es muss nur
    * auswaehlbar sein, welches Dokument mitkommt). Abgewaehlt wird selten,
@@ -189,48 +185,6 @@ export default function KundePanel({
   const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const mitarbeiter = mitarbeiterVon(daten)
-
-  /**
-   * Ein Vorgang aus der Suchliste wurde gewaehlt: Name, Anschriften und
-   * Baujahr aus den Feldern der Aufgabe uebernehmen. Der Name steht sofort
-   * (aus der Liste), die Felder kommen mit einem Abruf nach.
-   */
-  async function uebernimmVorgang(eintrag: KundenEintrag) {
-    const nameAusTitel = eintrag.anzeige.split(',')[0]?.trim() ?? eintrag.anzeige
-    onChange({
-      kunde: nameAusTitel,
-      meistertask: { id: eintrag.id, token: eintrag.token, titel: eintrag.titel },
-    })
-    setUebernahmeLaeuft(true)
-    try {
-      const felder = await ladeKundendaten(eintrag)
-      const anschriften = anschriftenAus(felder.kundenadresse, felder.objektadresse)
-      onChange({
-        kunde: felder.kunde || nameAusTitel,
-        ...anschriften,
-        baujahr: felder.baujahr,
-      })
-      const fehlt = [
-        !anschriften.kundenadresse && 'Anschrift',
-        !felder.baujahr && 'Baujahr',
-      ].filter((t): t is string => Boolean(t))
-      onToast(
-        fehlt.length === 0 ? 'success' : 'info',
-        fehlt.length === 0
-          ? `Angaben aus MeisterTask übernommen: ${eintrag.anzeige}`
-          : `Aus MeisterTask übernommen: ${eintrag.anzeige}. In der Aufgabe fehlt: ${fehlt.join(', ')}.`,
-      )
-    } catch (err) {
-      onToast(
-        'error',
-        err instanceof ApiFehler
-          ? `Felder der Aufgabe nicht lesbar: ${err.message}`
-          : 'Felder der Aufgabe nicht lesbar.',
-      )
-    } finally {
-      setUebernahmeLaeuft(false)
-    }
-  }
 
   async function handleObjectFile(files: FileList | null) {
     const file = files?.[0]
@@ -475,7 +429,6 @@ export default function KundePanel({
             gespeichertUm={speicher.gespeichertUm}
             hatInhalt={speicher.gespeichertUm !== null}
             kundenname={daten.kunde}
-            onNeu={speicher.onNeu}
             onLoeschen={speicher.onLoeschen}
           />
         </div>
@@ -527,8 +480,9 @@ export default function KundePanel({
               </div>
             </div>
 
+            {/* Kunde und Anschriften kommen von der Seite Projekte und sind hier fest */}
             <div className="eingabe">
-              <label htmlFor="customer-input">
+              <span className="eingabe-label">
                 Kunde
                 {daten.meistertask && (
                   <>
@@ -540,42 +494,20 @@ export default function KundePanel({
                       rel="noreferrer"
                       title={daten.meistertask.titel}
                     >
-                      {uebernahmeLaeuft ? 'wird gelesen …' : 'in MeisterTask öffnen'}
+                      in MeisterTask öffnen
                     </a>
                   </>
                 )}
-              </label>
-              <KundenSuche
-                id="customer-input"
-                wert={daten.kunde}
-                onText={(kunde) => onChange({ kunde })}
-                mitarbeiter={mitarbeiter.eigen ? '' : mitarbeiter.name}
-                verfuegbar={ich ? ich.meistertask : null}
-                onAuswahl={(eintrag) => void uebernimmVorgang(eintrag)}
-                gespeicherte={speicher.gespeicherte}
-                onGespeichert={speicher.onOeffnen}
-                placeholder="Name"
-              />
+              </span>
+              <p className="wert-fest" data-testid="kunde">{daten.kunde.trim() || '–'}</p>
             </div>
             <div className="eingabe">
-              <label htmlFor="customeraddress-input">Kundenadresse</label>
-              <input
-                id="customeraddress-input"
-                type="text"
-                value={daten.kundenadresse}
-                onChange={(e) => onChange({ kundenadresse: e.target.value })}
-                placeholder="z. B. Musterstraße 1, Krefeld"
-              />
+              <span className="eingabe-label">Kundenadresse</span>
+              <p className="wert-fest">{daten.kundenadresse.trim() || '–'}</p>
             </div>
             <div className="eingabe">
-              <label htmlFor="address-input">Objektadresse</label>
-              <input
-                id="address-input"
-                type="text"
-                value={daten.objektadresse}
-                onChange={(e) => onChange({ objektadresse: e.target.value })}
-                placeholder="nur wenn abweichend"
-              />
+              <span className="eingabe-label">Objektadresse</span>
+              <p className="wert-fest">{daten.objektadresse.trim() || 'siehe Kundenadresse'}</p>
             </div>
             <div className="eingabe">
               <label htmlFor="baujahr-input">Baujahr</label>

@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import logo from './assets/isotec-logo.png'
 
 /**
@@ -6,10 +7,16 @@ import logo from './assets/isotec-logo.png'
  * Auf dem Handy wandert die Marke in eine schmale Kopfzeile und die Bereiche
  * in eine Leiste am unteren Rand (Daumenreichweite), siehe styles.css.
  */
-export type Modus = 'kunde' | 'foto' | 'video' | 'prinzipskizze' | 'vorschau'
+export type Modus = 'projekte' | 'kunde' | 'foto' | 'video' | 'prinzipskizze' | 'vorschau'
 
+/**
+ * Reihenfolge seit 12.09.2026 (Yann): "Projekte" steht ueber allem, darunter
+ * nach einem grauen Strich die Seiten mit den Daten des gewaehlten Projekts.
+ * Die fruehere Seite "Kunden" heisst jetzt "Uebersicht".
+ */
 export const BEREICHE: { id: Modus; label: string; kurz: string }[] = [
-  { id: 'kunde', label: 'Kunden', kurz: 'Kunden' },
+  { id: 'projekte', label: 'Projekte', kurz: 'Projekte' },
+  { id: 'kunde', label: 'Übersicht', kurz: 'Übersicht' },
   { id: 'foto', label: 'Fotodokumentation', kurz: 'Fotos' },
   { id: 'video', label: 'Videodokumentation', kurz: 'Videos' },
   { id: 'prinzipskizze', label: 'Prinzipskizze', kurz: 'Skizze' },
@@ -25,6 +32,13 @@ const strich = {
 }
 
 const ICONS: Record<Modus, JSX.Element> = {
+  // Ordnerstapel: die Projekte
+  projekte: (
+    <svg width="18" height="18" viewBox="0 0 20 20" {...strich}>
+      <path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h3.2l1.6 1.6H16A1.5 1.5 0 0 1 17.5 8.1V14A1.5 1.5 0 0 1 16 15.5H4A1.5 1.5 0 0 1 2.5 14z" />
+      <path d="M2.5 9.5h15" />
+    </svg>
+  ),
   // Person: die Angaben zum Kunden und Termin
   kunde: (
     <svg width="18" height="18" viewBox="0 0 20 20" {...strich}>
@@ -85,18 +99,21 @@ export function Navigation({
 
       <nav className="nav" aria-label="Bereiche" role="tablist">
         {BEREICHE.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            role="tab"
-            aria-selected={modus === b.id}
-            className={`nav-item${modus === b.id ? ' active' : ''}`}
-            onClick={() => onWechsel(b.id)}
-          >
-            <span className="nav-icon">{ICONS[b.id]}</span>
-            <span className="nav-lang">{b.label}</span>
-            <span className="nav-kurz">{b.kurz}</span>
-          </button>
+          <Fragment key={b.id}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={modus === b.id}
+              className={`nav-item${modus === b.id ? ' active' : ''}`}
+              onClick={() => onWechsel(b.id)}
+            >
+              <span className="nav-icon">{ICONS[b.id]}</span>
+              <span className="nav-lang">{b.label}</span>
+              <span className="nav-kurz">{b.kurz}</span>
+            </button>
+            {/* Grauer Strich: darueber das Projekt, darunter seine Daten */}
+            {b.id === 'projekte' && <span className="nav-trenner" aria-hidden="true" />}
+          </Fragment>
         ))}
       </nav>
 

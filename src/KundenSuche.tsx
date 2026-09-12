@@ -31,6 +31,8 @@ export interface KundenSucheProps {
   /** Im Geraet gespeicherte Vorgaenge (ohne den offenen), neueste zuerst */
   gespeicherte: VorgangSatz[]
   onGespeichert: (id: string) => void
+  /** Wenn gesetzt: letzte Zeile der Liste legt den getippten Namen als neues Projekt an */
+  neuAnlegen?: (name: string) => void
   placeholder?: string
 }
 
@@ -56,7 +58,10 @@ function vorgangIstOhneNamen(v: VorgangSatz): boolean {
 }
 
 /** Ein Eintrag der aufgeklappten Liste: gespeicherter Vorgang oder MeisterTask-Treffer */
-type Zeile = { art: 'gespeichert'; vorgang: VorgangSatz } | { art: 'meistertask'; eintrag: KundenEintrag }
+type Zeile =
+  | { art: 'gespeichert'; vorgang: VorgangSatz }
+  | { art: 'meistertask'; eintrag: KundenEintrag }
+  | { art: 'neu'; name: string }
 
 const HOECHSTENS = 40
 
@@ -77,6 +82,7 @@ export default function KundenSuche({
   onAuswahl,
   gespeicherte,
   onGespeichert,
+  neuAnlegen,
   placeholder,
 }: KundenSucheProps) {
   const [liste, setListe] = useState<Kundenliste | null>(null)
@@ -126,14 +132,16 @@ export default function KundenSuche({
   const zeilen: Zeile[] = [
     ...gespeicherteTreffer.map((vorgang): Zeile => ({ art: 'gespeichert', vorgang })),
     ...treffer.map((eintrag): Zeile => ({ art: 'meistertask', eintrag })),
+    ...(neuAnlegen && wert.trim() !== '' ? [{ art: 'neu', name: wert.trim() } as Zeile] : []),
   ]
   const meistertaskBereit = liste !== null && liste.board !== null
-  const zeigeListe = offen && (meistertaskBereit || gespeicherteTreffer.length > 0)
+  const zeigeListe = offen && (meistertaskBereit || zeilen.length > 0)
 
   function waehle(zeile: Zeile) {
     setOffen(false)
     if (zeile.art === 'gespeichert') onGespeichert(zeile.vorgang.id)
-    else onAuswahl(zeile.eintrag)
+    else if (zeile.art === 'meistertask') onAuswahl(zeile.eintrag)
+    else neuAnlegen?.(zeile.name)
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -169,6 +177,7 @@ export default function KundenSuche({
 
   return (
     <div className="kundensuche" ref={huelle}>
+      <div className="kundensuche-feld">
       <input
         id={id}
         type="text"
@@ -199,10 +208,12 @@ export default function KundenSuche({
             </li>
           ) : (
             zeilen.map((zeile, i) => {
-              const schluessel = zeile.art === 'gespeichert' ? `g-${zeile.vorgang.id}` : `m-${zeile.eintrag.id}`
+              const schluessel =
+                zeile.art === 'gespeichert' ? `g-${zeile.vorgang.id}` : zeile.art === 'meistertask' ? `m-${zeile.eintrag.id}` : 'neu'
               const klassen = ['kundensuche-eintrag']
               if (i === aktiv) klassen.push('aktiv')
               if (zeile.art === 'gespeichert') klassen.push('gespeichert')
+              if (zeile.art === 'neu') klassen.push('neu')
               return (
                 <li
                   key={schluessel}
@@ -228,10 +239,15 @@ export default function KundenSuche({
                         {zeile.vorgang.anzahlFotos === 1 ? '' : 's'}
                       </span>
                     </>
-                  ) : (
+                  ) : zeile.art === 'meistertask' ? (
                     <>
                       <span className="kundensuche-name">{zeile.eintrag.anzeige}</span>
                       <span className="kundensuche-spalte">{zeile.eintrag.spalte}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="kundensuche-name">„{zeile.name}"</span>
+                      <span className="kundensuche-spalte">als neues Projekt anlegen</span>
                     </>
                   )}
                 </li>
@@ -240,6 +256,7 @@ export default function KundenSuche({
           )}
         </ul>
       )}
+      </div>
       {hinweis && <p className="eingabe-hinweis" title={hinweis}>{hinweis}</p>}
     </div>
   )
