@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import logo from './assets/isotec-logo.png'
 import Vergleich from './vorschau/Vergleich'
 import { KAPITEL_EINLEITUNG, KAPITEL_SCHLUSS, USPS, type UspSymbol } from './mappe/inhalt'
@@ -139,8 +139,38 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
     }
   }, [])
 
+  /**
+   * Wischen auf dem iPad: nach links blaettert vor, nach rechts zurueck. Ohne
+   * Tastatur gaebe es sonst nur die kleinen Knoepfe in der Fussleiste, um
+   * zurueckzukommen. Der Schieberegler des Vorher/Nachher-Vergleichs bleibt
+   * ausgenommen, dort bedeutet Ziehen etwas anderes.
+   */
+  const wisch = useRef<{ x: number; y: number; id: number } | null>(null)
+  const gewischt = useRef(false)
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse') return
+    if ((e.target as HTMLElement).closest('.vergleich, button, a, .praesi-fuss')) return
+    wisch.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
+  }
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = wisch.current
+    if (!start || start.id !== e.pointerId) return
+    wisch.current = null
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    gewischt.current = true
+    if (dx < 0) weiter()
+    else zurueck()
+  }
+
   /** Klick auf die Flaeche blaettert; Bedienelemente und der Schieberegler nicht */
   const onKlick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Nach einem Wisch kommt noch ein Klick hinterher, der nicht auch blaettern darf
+    if (gewischt.current) {
+      gewischt.current = false
+      return
+    }
     const ziel = e.target as HTMLElement
     if (ziel.closest('.vergleich, button, a, .praesi-fuss')) return
     weiter()
@@ -149,7 +179,17 @@ export default function Praesentation({ folien, onSchliessen }: PraesentationPro
   const folie = folien[index]
 
   return (
-    <div className="praesi" role="dialog" aria-label="Präsentation" onClick={onKlick}>
+    <div
+      className="praesi"
+      role="dialog"
+      aria-label="Präsentation"
+      onClick={onKlick}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => {
+        wisch.current = null
+      }}
+    >
       <div className="praesi-band" aria-hidden="true" />
       <img className="praesi-logo" src={logo} alt="ISOTEC" />
 

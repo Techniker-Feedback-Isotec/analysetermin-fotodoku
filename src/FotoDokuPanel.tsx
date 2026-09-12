@@ -247,8 +247,8 @@ export default function FotoDokuPanel({
   const setzeText = isReklamation ? setBeurteilung : setZusammenfassung
 
   const missingHints: string[] = []
-  if (!mitarbeiter.name) missingHints.push('Mitarbeiter auf der Seite Kunden wählen')
-  if (!objectPhoto) missingHints.push('Objektfoto auf der Seite Kunden hochladen')
+  if (!mitarbeiter.name) missingHints.push('Mitarbeiter auf der Seite Übersicht wählen')
+  if (!objectPhoto) missingHints.push('Objektfoto auf der Seite Übersicht hochladen')
   if (included.length === 0) missingHints.push(istSkizze ? 'mind. 1 Bild hinzufügen' : 'mind. 1 Foto hinzufügen')
 
   const handleCreatePdf = useCallback(async () => {
@@ -510,8 +510,8 @@ export default function FotoDokuPanel({
           <h2 id={`${art}-titel`}>{istSkizze ? 'Prinzipskizze' : 'Fotodokumentation'}</h2>
           <p>
             {istSkizze
-              ? 'Deckblatt, freie Seite „Bauzeichnungen" für den Grundriss, dann die Bilder. Die Legende dort zeigt die auf der Seite Kunden gewählten Gewerke.'
-              : 'Mitarbeiter, Objektfoto und Kundendaten kommen von der Seite Kunden.'}
+              ? 'Deckblatt, freie Seite „Bauzeichnungen" für den Grundriss, dann die Bilder. Die Legende dort zeigt die auf der Seite Übersicht gewählten Gewerke.'
+              : 'Mitarbeiter, Objektfoto und Kundendaten kommen von der Seite Übersicht.'}
           </p>
         </div>
         <div className="felder">
@@ -580,7 +580,8 @@ export default function FotoDokuPanel({
             void stapel.hinzufuegen(e.dataTransfer.files)
           }}
         >
-          <p className="dropzone-hint">Dateien hierher ziehen (JPG, PNG, HEIC) oder</p>
+          {/* Auf Touch-Geraeten gibt es nichts zu ziehen, dort steht nur der Knopf */}
+          <p className="dropzone-hint nur-maus">Dateien hierher ziehen (JPG, PNG, HEIC) oder</p>
           <input
             ref={dropInputRef}
             className="visually-hidden"

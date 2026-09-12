@@ -659,7 +659,8 @@ export default function VorschauPanel({ kunde, vorgangId, onDokument, onToast, g
             onClick={() => dateiFeld.current?.click()}
           >
             <p>
-              <strong>Fotos auswählen</strong> oder hierher ziehen (höchstens {MAX_JE_UPLOAD} auf einmal)
+              <strong>Fotos auswählen</strong>
+              <span className="nur-maus"> oder hierher ziehen</span> (höchstens {MAX_JE_UPLOAD} auf einmal)
             </p>
           </div>
           {uploadHinweis && <p className="upload-hinweis">{uploadHinweis}</p>}

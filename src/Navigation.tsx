@@ -91,10 +91,17 @@ export function Navigation({
   modus,
   onWechsel,
   fuss,
+  konto,
 }: {
   modus: Modus
   onWechsel: (m: Modus) => void
   fuss?: React.ReactNode
+  /**
+   * Angemeldete Person mit Abmelden. Im breiten Band als Textzeile unter dem
+   * Datenschutzhinweis; im schmalen Band des iPads im Hochformat (siehe
+   * styles.css) nur als runder Knopf, weil dort kein Text mehr hinpasst.
+   */
+  konto?: { name: string; abmelden: () => void }
 }) {
   return (
     <aside className="sidebar">
@@ -126,7 +133,35 @@ export function Navigation({
         ))}
       </nav>
 
-      {fuss && <div className="sidebar-foot">{fuss}</div>}
+      {(fuss || konto) && (
+        <div className="sidebar-foot">
+          {fuss}
+          {konto && (
+            <>
+              <p className="privacy-note sidebar-konto">
+                {konto.name}
+                {' · '}
+                <button type="button" className="link-knopf" onClick={konto.abmelden}>
+                  Abmelden
+                </button>
+              </p>
+              <button
+                type="button"
+                className="rail-konto"
+                onClick={konto.abmelden}
+                title={`${konto.name} · Abmelden`}
+                aria-label={`Abmelden (${konto.name})`}
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" {...strich}>
+                  <path d="M8 3.5H4.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5H8" />
+                  <path d="M12.5 6.5 16 10l-3.5 3.5" />
+                  <path d="M16 10H7.5" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </aside>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { makeThumbnailUrl } from './lib/image'
 import type { TerminPhoto } from './lib/bilder'
 import { formatDateTime } from './lib/format'
@@ -66,6 +66,36 @@ export default function Bildansicht({ fotos, index, onIndex, onClose }: Bildansi
     return () => window.removeEventListener('keydown', taste)
   }, [index, fotos.length, onClose, onIndex])
 
+  /**
+   * Wischen auf dem iPad blaettert zum naechsten oder vorigen Foto, wie in
+   * der Fotos-App. Der Klick, der nach dem Wisch noch kommt, darf die Ansicht
+   * dann nicht schliessen.
+   */
+  const wisch = useRef<{ x: number; y: number; id: number } | null>(null)
+  const gewischt = useRef(false)
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' || (e.target as HTMLElement).closest('button')) return
+    wisch.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
+  }
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = wisch.current
+    if (!start || start.id !== e.pointerId) return
+    wisch.current = null
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    gewischt.current = true
+    if (dx < 0 && index < fotos.length - 1) onIndex(index + 1)
+    if (dx > 0 && index > 0) onIndex(index - 1)
+  }
+  const onKlick = () => {
+    if (gewischt.current) {
+      gewischt.current = false
+      return
+    }
+    onClose()
+  }
+
   if (!foto) return null
 
   return (
@@ -73,7 +103,12 @@ export default function Bildansicht({ fotos, index, onIndex, onClose }: Bildansi
       className="bildansicht"
       role="dialog"
       aria-label={`Foto ${index + 1} von ${fotos.length}: ${foto.fileName}`}
-      onClick={onClose}
+      onClick={onKlick}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => {
+        wisch.current = null
+      }}
     >
       <div className="bildansicht-kopf" onClick={(e) => e.stopPropagation()}>
         <div className="bildansicht-titel">

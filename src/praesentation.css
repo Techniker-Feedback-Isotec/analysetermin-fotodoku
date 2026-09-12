@@ -898,3 +898,32 @@ body.praesi-offen {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- iPad: Wischen und groessere Knoepfe (12.09.2026 abends) ---------- */
+
+/* Kein seitliches Verschieben der Seite durch Safari beim Wischen; das Wischen
+   selbst wertet Praesentation.tsx ueber Pointer-Ereignisse aus. */
+.praesi {
+  touch-action: pan-y;
+}
+
+@media (pointer: coarse) {
+  .praesi-fuss {
+    height: 4.4rem;
+    gap: 1.2rem;
+  }
+
+  .praesi-knopf {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .praesi-punkte span {
+    width: 0.6rem;
+    height: 0.6rem;
+  }
+
+  .praesi-punkte span.kapitel {
+    width: 0.9rem;
+  }
+}

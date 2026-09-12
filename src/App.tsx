@@ -272,16 +272,12 @@ export default function App() {
                 Gerät. Kundendaten kommen aus MeisterTask.
               </p>
             )}
-            {ich?.anmeldung === 'easyauth' && (
-              <p className="privacy-note sidebar-konto">
-                {ich.name ?? ich.email ?? 'Angemeldet'}
-                {' · '}
-                <button type="button" className="link-knopf" onClick={abmelden}>
-                  Abmelden
-                </button>
-              </p>
-            )}
           </>
+        }
+        konto={
+          ich?.anmeldung === 'easyauth'
+            ? { name: ich.name ?? ich.email ?? 'Angemeldet', abmelden }
+            : undefined
         }
       />
 

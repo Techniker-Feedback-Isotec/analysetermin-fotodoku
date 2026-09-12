@@ -545,7 +545,7 @@ export default function VideoPanel(props: VideoPanelProps) {
           <h2 id="sec-deckblatt">Videodokumentation</h2>
           <p>
             Jedes Video beginnt mit diesem Deckblatt (5 Sekunden), damit die Kachel in MeisterTask und
-            Craftboxx sofort den Termin zeigt. Datum aus dem Video, Angaben von der Seite Kunde.
+            Craftboxx sofort den Termin zeigt. Datum aus dem Video, Angaben von der Seite Übersicht.
           </p>
         </div>
         <figure className="cover-preview">
@@ -609,8 +609,9 @@ export default function VideoPanel(props: VideoPanelProps) {
             void addFiles(event.dataTransfer.files)
           }}
         >
-          <p className="dropzone-title">Videos hierher ziehen</p>
-          <p className="dropzone-hint">oder</p>
+          {/* Auf Touch-Geraeten gibt es nichts zu ziehen, dort steht nur der Knopf */}
+          <p className="dropzone-title nur-maus">Videos hierher ziehen</p>
+          <p className="dropzone-hint nur-maus">oder</p>
           <button type="button" className="btn-secondary" onClick={() => fileInput.current?.click()}>
             Videos auswählen
           </button>

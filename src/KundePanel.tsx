@@ -588,7 +588,10 @@ export default function KundePanel({
               ) : daten.objektfoto ? (
                 <img src={daten.objektfoto.thumbUrl} alt="Objektfoto" />
               ) : (
-                <span className="objektfoto-leer">Foto hierher ziehen oder klicken</span>
+                <span className="objektfoto-leer">
+                  <span className="nur-maus">Foto hierher ziehen oder klicken</span>
+                  <span className="nur-touch">Foto auswählen</span>
+                </span>
               )}
             </div>
             {daten.objektfoto && (

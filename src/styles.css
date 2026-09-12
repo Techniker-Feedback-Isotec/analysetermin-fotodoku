@@ -47,6 +47,14 @@ body {
   height: 100vh;
 }
 
+/* Safari auf dem iPad rechnet 100vh mit eingeblendeter Adressleiste; dvh ist
+   die wirklich sichtbare Hoehe, sonst haengt der Fuss des Bandes dahinter. */
+@supports (height: 1dvh) {
+  .sidebar {
+    height: 100dvh;
+  }
+}
+
 .sidebar-brand {
   padding: 18px 18px 14px;
   border-bottom: 1px solid var(--grey);
@@ -2574,14 +2582,139 @@ table {
   }
 }
 
-/* ---------- iPad: Menueband schmaler, Inhalt mit weniger Rand ---------- */
+/* ---------- iPad (12.09.2026 abends) ---------- */
 
 /*
- * Das Menueband bleibt auf dem Tablet stehen, braucht dort aber weniger Platz:
- * 200 statt 250 Punkt lassen im Hochformat (768) ueber 500 Pixel fuer den
- * Inhalt - genug fuer die Felder neben dem Objektfoto.
+ * Drei Stufen, gemessen an den echten Geraeten:
+ *   701 bis 900    iPad im Hochformat (mini 744, Air und 10.9" 820, Pro 11" 834)
+ *   901 bis 1200   iPad im Querformat (1024 bis 1194) und das 12.9" hochkant (1024)
+ *   ab 1201        Notebook und Monitor
+ *
+ * Im Hochformat wird das Menueband zur schmalen Symbolleiste (92 Pixel, Symbol
+ * und Kurzname untereinander, wie die Seitenleiste von iPadOS-Apps). Mit dem
+ * 200 Pixel breiten Band blieben auf 768 nur 568 Pixel, und die Uebersicht
+ * stapelte alle Felder in eine Spalte. Im Querformat bleibt das Band mit
+ * ausgeschriebenen Namen, nur schmaler als am Notebook. Ort und Reihenfolge
+ * der Bereiche sind in beiden Lagen gleich, beim Drehen springt nichts um.
  */
-@media (min-width: 701px) and (max-width: 1080px) {
+
+/* Beiden Lagen gemeinsam */
+@media (min-width: 701px) and (max-width: 1200px) {
+  .content main.container {
+    padding: 20px 20px 8px;
+  }
+
+  .card {
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+
+  /* Kein eigener Rollbereich in der Liste: zwei ineinander liegende
+     Rollflaechen fangen den Finger, die Seite selbst rollt dann nicht mehr. */
+  .photo-list {
+    max-height: none;
+  }
+
+  /* Objektfoto etwas kleiner, Felder duerfen schmaler werden: so stehen sie
+     im Querformat zu dritt und im Hochformat zu zweit nebeneinander. */
+  .kunde-raster {
+    grid-template-columns: minmax(0, 1fr) 180px;
+    gap: 14px 22px;
+  }
+
+  .objektfoto-feld img,
+  .objektfoto-leer {
+    height: 126px;
+  }
+
+  .felder {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  /* Das Textfenster muss neben der Bildschirmtastatur Platz haben (die nimmt
+     auf dem iPad quer die halbe Hoehe); die Schreibflaeche schrumpft dafuer. */
+  .textfenster-flaeche {
+    min-height: 140px;
+  }
+}
+
+/* Hochformat: schmale Symbolleiste */
+@media (min-width: 701px) and (max-width: 900px) {
+  .sidebar {
+    width: 92px;
+  }
+
+  .sidebar-brand {
+    display: flex;
+    justify-content: center;
+    padding: 16px 10px 12px;
+  }
+
+  .sidebar-brand img {
+    height: auto;
+    width: 64px;
+  }
+
+  .sidebar-titel {
+    display: none;
+  }
+
+  .nav {
+    padding: 8px 6px;
+    gap: 4px;
+  }
+
+  .nav-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    min-height: 62px;
+    padding: 8px 4px;
+    font-size: 0.7rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .nav-item .nav-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .nav-lang {
+    display: none;
+  }
+
+  .nav-kurz {
+    display: inline;
+  }
+
+  .nav-trenner {
+    margin: 4px 10px;
+  }
+
+  .sidebar-foot {
+    display: flex;
+    justify-content: center;
+    padding: 10px 6px 14px;
+  }
+
+  .sidebar-foot .privacy-note {
+    display: none;
+  }
+
+  .rail-konto {
+    display: inline-flex;
+  }
+
+  /* Ist, Soll und Ziel untereinander statt zu dritt in 200 Pixel breiten Spalten */
+  .praes-felder {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Querformat: Band mit Namen, aber schmaler als am Notebook */
+@media (min-width: 901px) and (max-width: 1200px) {
   .sidebar {
     width: 200px;
   }
@@ -2602,10 +2735,26 @@ table {
     font-size: 0.85rem;
     padding: 9px 10px;
   }
+}
 
-  .content main.container {
-    padding: 20px 20px 8px;
-  }
+/* Runder Knopf zum Abmelden, nur in der schmalen Symbolleiste sichtbar */
+.rail-konto {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--grey);
+  border-radius: 50%;
+  background: var(--white);
+  color: #7a6f68;
+  cursor: pointer;
+}
+
+.rail-konto:hover {
+  color: var(--red);
+  border-color: var(--red);
 }
 
 /* ---------- Handy: alles untereinander, groessere Tippflaechen ---------- */
@@ -2915,6 +3064,8 @@ table {
   position: fixed;
   inset: 0;
   z-index: 100;
+  /* Wischen blaettert (Bildansicht.tsx), Safari soll die Geste nicht selbst nehmen */
+  touch-action: pan-y pinch-zoom;
   background: rgba(28, 24, 22, 0.92);
   display: flex;
   align-items: center;
@@ -3310,6 +3461,252 @@ body.zeichnen-offen {
 }
 
 @media (max-width: 640px) {
+  .praes-felder {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Finger statt Maus (iPad, 12.09.2026 abends) ---------- */
+
+/*
+ * Alles, was mit dem Finger getroffen werden muss, bekommt mindestens 44
+ * Pixel Hoehe (Apples Mass fuer Tippflaechen). Felder in 16 Pixel Schrift,
+ * Kaestchen 20 Pixel. Kein blaues Aufblitzen beim Tippen, kein Textmarkieren
+ * beim laengeren Halten auf Knoepfen und Listenzeilen, kein Bildmenue beim
+ * Halten auf einer Vorschau (dort beginnt das Ziehen zum Umsortieren).
+ */
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  [role='tab'],
+  label,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  input,
+  select,
+  textarea,
+  a,
+  summary {
+    touch-action: manipulation;
+  }
+
+  .nav-item,
+  .btn-primary,
+  .btn-secondary,
+  .btn,
+  .btn-move,
+  .btn-symbol,
+  .btn-remove,
+  .rail-konto,
+  .kachel figcaption,
+  .mappenteil-haken,
+  .photo-list li,
+  .projekt,
+  .kundensuche-eintrag,
+  .multiselect-option,
+  .praes-folien,
+  .bestand-menue > summary {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .photo-thumb,
+  .kachel-bild img,
+  .objektfoto-feld img,
+  .bildansicht-bild,
+  .vergleich-bild,
+  .cover-preview canvas {
+    -webkit-touch-callout: none;
+  }
+
+  .nav-item {
+    min-height: 44px;
+  }
+
+  /* Felder */
+  select,
+  .custom-name-input,
+  .feld,
+  .multiselect-field,
+  .eingabe input,
+  .eingabe textarea,
+  .eingabe select {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 1rem;
+  }
+
+  .wert-fest {
+    min-height: 44px;
+    padding: 11px 0;
+  }
+
+  .textvorschau {
+    min-height: 88px;
+    font-size: 1rem;
+  }
+
+  .textfenster-flaeche {
+    font-size: 1rem;
+  }
+
+  /* Kaestchen */
+  input[type='checkbox'],
+  .mappenteil-haken input,
+  .kachel-option input,
+  .multiselect-option input,
+  .eingabe .multiselect-option input {
+    width: 20px;
+    height: 20px;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .checkbox {
+    padding: 8px 0;
+  }
+
+  .mappenteil-haken {
+    min-height: 40px;
+  }
+
+  /* Knoepfe */
+  .btn-primary {
+    min-height: 48px;
+  }
+
+  .btn-secondary,
+  .btn {
+    min-height: 44px;
+  }
+
+  .btn-small,
+  .btn-klein,
+  .neue-fassung button {
+    min-height: 38px;
+  }
+
+  .btn-symbol {
+    width: 40px;
+    height: 40px;
+  }
+
+  .datei-knoepfe {
+    gap: 4px;
+  }
+
+  .btn-move {
+    width: 42px;
+    height: 42px;
+  }
+
+  .btn-remove {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .kachel-entfernen {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .link-knopf,
+  .vorgang-zeile .link-knopf {
+    padding: 8px 0;
+  }
+
+  .bestand-menue > summary {
+    min-height: 38px;
+  }
+
+  .bildansicht-schliessen,
+  .viewer-zu,
+  .textfenster-kopf button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .vergleich-griff {
+    width: 48px;
+    height: 48px;
+  }
+
+  /* Listenzeilen */
+  .mappenteil {
+    padding: 10px 12px;
+  }
+
+  .photo-list li {
+    padding: 10px 12px;
+  }
+
+  .projekt {
+    min-height: 52px;
+    padding: 12px 14px;
+  }
+
+  .kundensuche-eintrag {
+    min-height: 44px;
+    padding: 12px 14px;
+  }
+
+  .multiselect-option {
+    padding: 10px 8px;
+  }
+
+  .praes-folien li {
+    padding: 8px 10px;
+  }
+}
+
+/*
+ * Ohne Mauszeiger gibt es kein Schweben: Was nur beim Schweben sichtbar wird,
+ * steht hier dauerhaft (die Lupe auf der Vorschau), und was beim Schweben
+ * springt, bleibt still, weil der Zustand nach dem Tippen sonst haengen bleibt.
+ * Texte ueber das Ziehen von Dateien (.nur-maus) entfallen, umgekehrt gibt es
+ * Texte nur fuer Touch (.nur-touch).
+ */
+@media (hover: none) {
+  .photo-thumb-lupe {
+    opacity: 1;
+  }
+
+  .kachel.klickbar:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .nav-item:hover:not(.active) {
+    background: none;
+  }
+
+  .nav-item:hover:not(.active) .nav-icon {
+    color: #7a6f68;
+  }
+
+  .praesi-knopf:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .nur-maus {
+    display: none !important;
+  }
+}
+
+@media (hover: hover) {
+  .nur-touch {
+    display: none !important;
+  }
+}
+
+/* Muss hinter der Grundregel von .praes-felder stehen, sonst gewinnt die
+   spaetere Regel gleicher Spezifitaet: Ist, Soll und Ziel auf dem iPad hochkant
+   untereinander. */
+@media (min-width: 701px) and (max-width: 900px) {
   .praes-felder {
     grid-template-columns: 1fr;
   }
